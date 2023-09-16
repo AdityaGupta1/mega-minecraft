@@ -86,6 +86,7 @@ bool init(int argc, char **argv) {
 
     cudaGLSetGLDevice(0);
 
+    glClearColor(1, 0, 1, 1);
     glEnable(GL_DEPTH_TEST);
 
     initGame();
@@ -122,6 +123,7 @@ void tick() {
 
     terrain->setCurrentChunkPos(Utils::worldPosToChunkPos(player->getPos()));
     terrain->tick();
+    terrain->draw();
 }
 
 void errorCallback(int error, const char* description) {
