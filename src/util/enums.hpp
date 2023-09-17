@@ -5,17 +5,17 @@
 
 using namespace glm;
 
-//enum Direction
-//{
-//    NORTH, // +z
-//    EAST, // +x
-//    SOUTH, // -z
-//    WEST, // -x
-//    UP, // +y
-//    DOWN // -y
-//};
+enum class Direction
+{
+    NORTH, // +z
+    EAST, // +x
+    SOUTH, // -z
+    WEST, // -x
+    UP, // +y
+    DOWN // -y
+};
 
-enum Direction2D
+enum class Direction2D
 {
     NORTH, // +z
     NORTHEAST,
