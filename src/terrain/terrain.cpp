@@ -3,7 +3,7 @@
 #include "util/enums.hpp"
 
 #define CHUNK_VBOS_GEN_RADIUS 3
-#define CHUNK_FEATURE_PLACEMENTS_GEN_RADIUS (CHUNK_FULL_GEN_RADIUS + 2)
+#define CHUNK_FEATURE_PLACEMENTS_GEN_RADIUS (CHUNK_VBOS_GEN_RADIUS + 2)
 
 Terrain::Terrain()
 {}
@@ -46,12 +46,9 @@ Zone* Terrain::createZone(ivec2 zonePos)
 // execution. Kernels and threads are spawned from Terrain::tick().
 void Terrain::updateChunks()
 {
-    // TODO: change to CHUNK_FEATURE_PLACEMENTS_GEN_RADIUS and queue chunks accordingly
-    // probably want two queues for heightfield/feature placements (one which continues to features/VBOs after and one which doesn't)
-
-    for (int dz = -CHUNK_VBOS_GEN_RADIUS; dz <= CHUNK_VBOS_GEN_RADIUS; ++dz)
+    for (int dz = -CHUNK_FEATURE_PLACEMENTS_GEN_RADIUS; dz <= CHUNK_FEATURE_PLACEMENTS_GEN_RADIUS; ++dz)
     {
-        for (int dx = -CHUNK_VBOS_GEN_RADIUS; dx <= CHUNK_VBOS_GEN_RADIUS; ++dx)
+        for (int dx = -CHUNK_FEATURE_PLACEMENTS_GEN_RADIUS; dx <= CHUNK_FEATURE_PLACEMENTS_GEN_RADIUS; ++dx)
         {
             ivec2 newChunkWorldPos = currentChunkPos + ivec2(dx, dz);
             ivec2 newZoneWorldPos = zonePosFromChunkPos(newChunkWorldPos);
@@ -78,11 +75,12 @@ void Terrain::updateChunks()
             Chunk* chunkPtr = zonePtr->chunks[chunkIdx].get();
 
             // TODO add chunk to appropriate queue (based on current state) if ready
+            // don't go past feature placements if not in range of CHUNK_VBOS_GEN_RADIUS
         }
     }
 }
 
-void Terrain::tick() 
+void Terrain::tick()
 {
     updateChunks();
 
@@ -90,13 +88,14 @@ void Terrain::tick()
     // go through all the queues and do kernels/threads (up to a max number of kernels, probably no limit on queueing threads)
     // max number of kernels may depend on type and measured execution type of each kernel
     // make sure to update chunk.readyForQueue to true afterwards
+    // IMPORTANT: VBO threads should, when finished, directly add chunks to drawableChunks to prevent leaking chunks that become too far
 }
 
 void Terrain::draw() {
     // TODO draw things lol
 
     // when iterating through collection of chunks to draw, keep track of which ones are too far, queue them for destruction, and skip them
-    // maybe the chunks can be destroyed in the beginning of updateChunks()
+    // maybe the chunks can be destroyed in tick() before calling updateChunks()
 }
 
 void Terrain::setCurrentChunkPos(ivec2 newCurrentChunk) 

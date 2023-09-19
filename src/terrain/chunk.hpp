@@ -1,6 +1,8 @@
 #pragma once
 
 #include <glm/glm.hpp>
+#include "block.hpp"
+#include <array>
 
 using namespace glm;
 
@@ -8,8 +10,8 @@ enum class ChunkState
 {
     EMPTY,
     HAS_HEIGHTFIELD,
-    HAS_FEATURE_PLACEMENTS,
-    HAS_FEATURES,
+    HAS_FEATURE_PLACEMENTS, /* do on GPU if possible */
+    IS_FILLED,
     DRAWABLE
 };
 
@@ -19,6 +21,9 @@ public:
 
     ChunkState state{ ChunkState::EMPTY };
     bool readyForQueue{ true };
+
+    std::array<unsigned char, 256> heightfield;
+    std::array<Block, 65536> blocks;
 
     Chunk(ivec2 worldChunkPos);
 };

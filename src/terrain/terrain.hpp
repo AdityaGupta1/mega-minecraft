@@ -30,7 +30,7 @@ private:
     //std::queue<Chunk*> chunksToGenerate;
     //std::queue<Chunk*> chunksThatNeedVbos;
     
-    //std::unordered_set<Chunk*> drawableChunks;
+    std::unordered_set<Chunk*> drawableChunks;
 
     ivec2 currentChunkPos;
 
