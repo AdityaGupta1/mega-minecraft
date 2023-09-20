@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.1)
-project(cis565_boids)
+project(mega_minecraft)
 
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
@@ -67,6 +67,12 @@ set(headers
     src/kernel.h
     src/main.hpp
     src/utilityCore.hpp
+    src/player/player.hpp
+    src/terrain/block.hpp
+    src/terrain/chunk.hpp
+    src/terrain/terrain.hpp
+    src/util/enums.hpp
+    src/util/utils.hpp
     )
 
 set(sources
@@ -74,6 +80,11 @@ set(sources
     src/kernel.cu
     src/main.cpp
     src/utilityCore.cpp
+    src/player/player.cpp
+    src/terrain/block.cpp
+    src/terrain/chunk.cpp
+    src/terrain/terrain.cpp
+    src/util/utils.cpp
     )
 
 list(SORT headers)
