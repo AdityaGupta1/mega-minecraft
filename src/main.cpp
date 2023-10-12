@@ -86,13 +86,10 @@ bool init(int argc, char **argv) {
 
     cudaGLSetGLDevice(0);
 
-    glClearColor(1, 0, 1, 1);
-    glEnable(GL_DEPTH_TEST);
+    renderer = std::make_unique<Renderer>(window, terrain.get());
+    renderer->init();
 
     initGame();
-
-    renderer = std::make_unique<Renderer>();
-    renderer->initShaders();
 
     return true;
 }
@@ -106,14 +103,13 @@ void initGame()
 void mainLoop() {
     double lastTime = 0;
 
-    while (!glfwWindowShouldClose(window)) {
+    while (!glfwWindowShouldClose(window)) 
+    {
         glfwPollEvents();
 
         double time = glfwGetTime();
         double deltaTime = time - lastTime;
-        lastTime - time;
-
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        lastTime = time;
 
         tick();
     }
@@ -127,7 +123,8 @@ void tick() {
 
     terrain->setCurrentChunkPos(Utils::worldPosToChunkPos(player->getPos()));
     terrain->tick();
-    terrain->draw();
+
+    renderer->draw();
 }
 
 void errorCallback(int error, const char* description) {

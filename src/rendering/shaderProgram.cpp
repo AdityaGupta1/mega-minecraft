@@ -1,8 +1,9 @@
 #include "shaderProgram.hpp"
 
 #include "util/utils.hpp"
-
 #include <iostream>
+#include "renderingUtils.hpp"
+#include "structs.hpp"
 
 ShaderProgram::ShaderProgram()
     : vertShader(), fragShader(), prog(), attrPos(-1)
@@ -63,4 +64,30 @@ bool ShaderProgram::create(const std::string& vertFile, const std::string& fragF
 void ShaderProgram::useMe()
 {
     glUseProgram(prog);
+}
+
+void ShaderProgram::draw(Drawable& d)
+{
+    useMe();
+
+    if (d.getIdxCount() < 0)
+    {
+        throw std::out_of_range("drawable has no elements");
+    }
+
+    if (d.bindVerts())
+    {
+        if (attrPos != -1)
+        {
+            glEnableVertexAttribArray(attrPos);
+            glVertexAttribPointer(attrPos, 3, GL_FLOAT, false, sizeof(Vertex), (void*)0);
+        }
+    }
+
+    d.bindIdx();
+    glDrawElements(d.drawMode(), d.getIdxCount(), GL_UNSIGNED_INT, 0);
+
+    // TODO disable vertex attrib arrays here? I don't think this is necessary though
+
+    RenderingUtils::printGLErrors();
 }

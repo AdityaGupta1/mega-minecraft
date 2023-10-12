@@ -3,6 +3,7 @@
 #include <glm/glm.hpp>
 #include "block.hpp"
 #include <array>
+#include "rendering/drawable.hpp"
 
 using namespace glm;
 
@@ -15,7 +16,7 @@ enum class ChunkState
     DRAWABLE
 };
 
-class Chunk {
+class Chunk : public Drawable {
 public:
     const ivec2 worldChunkPos; // world-space pos in terms of chunks (e.g. (3, -4) chunk pos = (48, -64) block pos)
 
@@ -28,4 +29,6 @@ public:
     Chunk(ivec2 worldChunkPos);
 
     void dummyFill();
+
+    void createVBO() override;
 };
