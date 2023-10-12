@@ -10,7 +10,6 @@
 #include <cuda_gl_interop.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
-#include "glslUtility.hpp"
 #include "terrain/terrain.hpp"
 #include "player/player.hpp"
 #include "rendering/renderer.hpp"
