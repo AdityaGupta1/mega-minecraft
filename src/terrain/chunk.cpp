@@ -24,7 +24,7 @@ void Chunk::dummyFill()
     }
 }
 
-void Chunk::createVBO()
+void Chunk::createVBOs()
 {
     GLuint idx[3]{ 0, 1, 2 };
     Vertex verts[3]{

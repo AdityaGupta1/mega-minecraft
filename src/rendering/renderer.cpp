@@ -14,7 +14,7 @@ void Renderer::initShaders()
 {
     passthroughShader.create("shaders/passthrough.vert.glsl", "shaders/passthrough.frag.glsl");
 
-    chunk.createVBO();
+    chunk.createVBOs();
 }
 
 void Renderer::init()

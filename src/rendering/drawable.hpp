@@ -16,8 +16,8 @@ protected:
 public:
     Drawable();
 
-    virtual void createVBO() = 0;
-    void destroyVBO();
+    virtual void createVBOs() = 0;
+    void destroyVBOs();
 
     virtual GLenum drawMode() const;
     int getIdxCount() const;

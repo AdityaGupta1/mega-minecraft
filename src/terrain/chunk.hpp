@@ -30,5 +30,5 @@ public:
 
     void dummyFill();
 
-    void createVBO() override;
+    void createVBOs() override;
 };

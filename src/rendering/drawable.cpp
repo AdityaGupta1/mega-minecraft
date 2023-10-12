@@ -5,7 +5,7 @@ Drawable::Drawable()
 {
 }
 
-void Drawable::destroyVBO()
+void Drawable::destroyVBOs()
 {
     glDeleteBuffers(1, &bufIdx);
     glDeleteBuffers(1, &bufVerts);
