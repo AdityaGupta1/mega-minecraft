@@ -87,7 +87,7 @@ void ShaderProgram::draw(Drawable& d)
     d.bindIdx();
     glDrawElements(d.drawMode(), d.getIdxCount(), GL_UNSIGNED_INT, 0);
 
-    // TODO disable vertex attrib arrays here? I don't think this is necessary though
+    // TODO disable vertex attrib arrays here? I don't think that's necessary though
 
     RenderingUtils::printGLErrors();
 }
