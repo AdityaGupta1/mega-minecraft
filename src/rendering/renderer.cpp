@@ -22,9 +22,6 @@ void Renderer::init()
     glClearColor(1.f, 0.f, 1.f, 1.f);
     glEnable(GL_DEPTH_TEST);
 
-    glDisable(GL_DEPTH_TEST);
-    glDisable(GL_CULL_FACE);
-
     glGenVertexArrays(1, &vao);
     glBindVertexArray(vao);
 
