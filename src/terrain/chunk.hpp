@@ -26,4 +26,6 @@ public:
     std::array<Block, 65536> blocks;
 
     Chunk(ivec2 worldChunkPos);
+
+    void dummyFill();
 };

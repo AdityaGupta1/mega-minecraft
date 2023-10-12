@@ -91,10 +91,14 @@ bool init(int argc, char **argv) {
 
     initGame();
 
+    renderer = std::make_unique<Renderer>();
+    renderer->initShaders();
+
     return true;
 }
 
-void initGame() {
+void initGame() 
+{
     terrain = std::make_unique<Terrain>();
     player = std::make_unique<Player>();
 }

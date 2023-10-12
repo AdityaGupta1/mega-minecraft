@@ -1,6 +1,7 @@
 #pragma once
 
 #include <glm/glm.hpp>
+#include <string>
 
 using namespace glm;
 
@@ -15,4 +16,6 @@ namespace Utils
     };
 
     ivec2 worldPosToChunkPos(vec3 worldPos);
+
+    std::string readFile(const std::string& filePath);
 }

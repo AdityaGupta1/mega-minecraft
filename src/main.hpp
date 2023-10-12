@@ -13,13 +13,16 @@
 #include "glslUtility.hpp"
 #include "terrain/terrain.hpp"
 #include "player/player.hpp"
+#include "rendering/renderer.hpp"
 
 //====================================
 // GL Stuff
 //====================================
 
-int width = 1920;
-int height = 1080;
+int width = 1920/2;
+int height = 1080/2;
+
+std::unique_ptr<Renderer> renderer;
 
 //====================================
 // Game things

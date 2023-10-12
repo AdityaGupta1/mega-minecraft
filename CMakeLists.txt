@@ -61,6 +61,8 @@ set(GLM_ROOT_DIR "external")
 find_package(GLM REQUIRED)
 include_directories(${GLM_INCLUDE_DIRS})
 
+include_directories(${CMAKE_SOURCE_DIR}/src)
+
 set(headers
     src/cudaMat4.hpp
     src/glslUtility.hpp
@@ -73,6 +75,9 @@ set(headers
     src/terrain/terrain.hpp
     src/util/enums.hpp
     src/util/utils.hpp
+    src/rendering/structs.hpp
+    src/rendering/shaderProgram.hpp
+    src/rendering/renderer.hpp
     )
 
 set(sources
@@ -85,6 +90,8 @@ set(sources
     src/terrain/chunk.cpp
     src/terrain/terrain.cpp
     src/util/utils.cpp
+    src/rendering/shaderProgram.cpp
+    src/rendering/renderer.cpp
     )
 
 list(SORT headers)
@@ -96,10 +103,21 @@ source_group(Sources FILES ${sources})
 cuda_add_executable(${CMAKE_PROJECT_NAME} ${sources} ${headers})
 target_link_libraries(${CMAKE_PROJECT_NAME} ${LIBRARIES})
 
+set(SHADER_DIR ${CMAKE_SOURCE_DIR}/shaders)
+set(SHADER_OUTPUT_DIR ${CMAKE_BINARY_DIR}/shaders)
+
 add_custom_command(
-    TARGET ${CMAKE_PROJECT_NAME}
-    PRE_BUILD
+    OUTPUT ${SHADER_OUTPUT_DIR}
     COMMAND ${CMAKE_COMMAND} -E copy_directory
-        ${CMAKE_SOURCE_DIR}/shaders
-        ${CMAKE_BINARY_DIR}/shaders
-    )
+        ${SHADER_DIR}
+        ${SHADER_OUTPUT_DIR}
+    COMMENT "Copying shaders from ${SHADER_DIR} to ${SHADER_OUTPUT_DIR}"
+    DEPENDS DIRECTORY ${SHADER_DIR}
+)
+
+add_custom_target(
+    CopyShadersTarget ALL
+    DEPENDS ${SHADER_OUTPUT_DIR}
+)
+
+add_dependencies(${CMAKE_PROJECT_NAME} CopyShadersTarget)
