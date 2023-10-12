@@ -63,42 +63,14 @@ include_directories(${GLM_INCLUDE_DIRS})
 
 include_directories(${CMAKE_SOURCE_DIR}/src)
 
-set(headers
-    src/cudaMat4.hpp
-    src/glslUtility.hpp
-    src/kernel.h
-    src/main.hpp
-    src/utilityCore.hpp
-    src/player/player.hpp
-    src/terrain/block.hpp
-    src/terrain/chunk.hpp
-    src/terrain/terrain.hpp
-    src/util/enums.hpp
-    src/util/utils.hpp
-    src/rendering/structs.hpp
-    src/rendering/shaderProgram.hpp
-    src/rendering/renderer.hpp
-    )
-
-set(sources
-    src/glslUtility.cpp
-    src/kernel.cu
-    src/main.cpp
-    src/utilityCore.cpp
-    src/player/player.cpp
-    src/terrain/block.cpp
-    src/terrain/chunk.cpp
-    src/terrain/terrain.cpp
-    src/util/utils.cpp
-    src/rendering/shaderProgram.cpp
-    src/rendering/renderer.cpp
-    )
+file(GLOB_RECURSE headers "src/*.h" "src/*.hpp")
+file(GLOB_RECURSE sources "src/*.cpp")
 
 list(SORT headers)
 list(SORT sources)
 
-source_group(Headers FILES ${headers})
-source_group(Sources FILES ${sources})
+source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/src" PREFIX "Headers" FILES ${headers})
+source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/src" PREFIX "Sources" FILES ${sources})
 
 cuda_add_executable(${CMAKE_PROJECT_NAME} ${sources} ${headers})
 target_link_libraries(${CMAKE_PROJECT_NAME} ${LIBRARIES})
