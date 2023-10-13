@@ -121,7 +121,7 @@ void mainLoop() {
         double time = glfwGetTime();
         double deltaTime = time - lastTime;
         lastTime = time;
-        
+
         ++frames;
         if (time - fpsLastTime > 1.f)
         {
@@ -213,7 +213,7 @@ void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods) {
     //rightMousePressed = (button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_PRESS);
 }
 
-const float mouseSensitivity = -0.002f;
+const float mouseSensitivity = -0.0025f;
 
 void mousePositionCallback(GLFWwindow* window, double mouseX, double mouseY) {
     float centerX = windowSize.x / 2.f;
