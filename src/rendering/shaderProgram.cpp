@@ -91,6 +91,7 @@ bool ShaderProgram::create(const std::string& vertFile, const std::string& fragF
     }
 
     attrPos = glGetAttribLocation(prog, "vs_pos");
+    attrUv = glGetAttribLocation(prog, "vs_uv");
 
     unifViewProjMat = glGetUniformLocation(prog, "u_viewProjMat");
 
@@ -124,6 +125,12 @@ void ShaderProgram::draw(Drawable& d)
         {
             glEnableVertexAttribArray(attrPos);
             glVertexAttribPointer(attrPos, 3, GL_FLOAT, false, sizeof(Vertex), (void*)0);
+        }
+
+        if (attrUv != -1)
+        {
+            glEnableVertexAttribArray(attrUv);
+            glVertexAttribPointer(attrUv, 2, GL_FLOAT, false, sizeof(Vertex), (void*)sizeof(glm::vec3));
         }
     }
 

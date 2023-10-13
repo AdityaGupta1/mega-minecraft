@@ -13,6 +13,7 @@ public:
     GLuint prog;
 
     int attrPos;
+    int attrUv;
 
     int unifViewProjMat;
 
