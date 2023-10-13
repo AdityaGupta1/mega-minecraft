@@ -16,6 +16,7 @@ void Player::tick(bool* viewMatChanged)
         float cosPhi = cos(phi);
 
         forward = vec3(sinTheta * cosPhi, sinPhi, cosTheta * cosPhi);
+        forwardFlat = vec3(sinTheta, 0, cosTheta);
         right = normalize(cross(vec3(0, 1, 0), forward));
         up = normalize(cross(forward, right));
 
@@ -53,7 +54,7 @@ mat4 Player::getViewMat() const
 
 void Player::move(vec3 input)
 {
-    pos += forward * input.z 
+    pos += forwardFlat * input.z
         + right * input.x 
         + vec3(0, input.y, 0);
     camChanged = true;

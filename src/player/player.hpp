@@ -11,6 +11,7 @@ private:
     float phi{ 0 }; // -pi/2 to pi/2
 
     vec3 forward{ 0, 0, 1 };
+    vec3 forwardFlat{ 0, 0, 1 };
     vec3 right{ 1, 0, 0 };
     vec3 up{ 0, 1, 0 };
 
