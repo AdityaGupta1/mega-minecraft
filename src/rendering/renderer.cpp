@@ -5,8 +5,9 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include "util/utils.hpp"
 
-Renderer::Renderer(GLFWwindow* window, Terrain* terrain, Player* player)
-    : window(window), terrain(terrain), player(player), passthroughShader(), lambertShader()
+Renderer::Renderer(GLFWwindow* window, ivec2* windowSize, Terrain* terrain, Player* player)
+    : window(window), windowSize(windowSize), terrain(terrain), player(player),
+      passthroughShader(), lambertShader()
 {
 }
 
@@ -22,10 +23,7 @@ void Renderer::initShaders()
 
 void Renderer::setProjMat()
 {
-    int width, height;
-    glfwGetFramebufferSize(window, &width, &height);
-
-    projMat = glm::perspective(PI_OVER_FOUR, width / (float)height, 0.01f, 500.f);
+    projMat = glm::perspective(PI_OVER_FOUR, windowSize->x / (float)windowSize->y, 0.01f, 500.f);
 }
 
 void Renderer::init()
@@ -41,19 +39,22 @@ void Renderer::init()
     setProjMat();
 }
 
-void Renderer::draw(bool viewMatChanged)
+void Renderer::draw(bool viewMatChanged, bool windowSizeChanged)
 {
-    if (viewMatChanged)
+    if (windowSizeChanged)
+    {
+        setProjMat();
+    }
+
+    if (viewMatChanged || windowSizeChanged)
     {
         viewProjMat = projMat * player->getViewMat();
+
         lambertShader.setViewProjMat(viewProjMat);
     }
 
-    int width, height;
-    glfwGetFramebufferSize(window, &width, &height);
-
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    glViewport(0, 0, width, height);
+    glViewport(0, 0, windowSize->x, windowSize->y);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     //terrain->draw();

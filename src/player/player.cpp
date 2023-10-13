@@ -19,11 +19,6 @@ void Player::tick(bool& viewMatChanged)
         right = normalize(cross(vec3(0, 1, 0), forward));
         up = normalize(cross(forward, right));
 
-        std::cout << glm::to_string(forward) << std::endl;
-        std::cout << glm::to_string(right) << std::endl;
-        std::cout << glm::to_string(up) << std::endl;
-        std::cout << std::endl;
-
         viewMat = glm::lookAt(pos, pos + forward, vec3(0, 1, 0));
         viewMatChanged = true;
 

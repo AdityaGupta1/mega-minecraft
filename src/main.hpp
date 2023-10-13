@@ -18,8 +18,8 @@
 // GL Stuff
 //====================================
 
-int width = 1920/2;
-int height = 1080/2;
+glm::ivec2 windowSize = ivec2(1920/2, 1080/2);
+bool windowSizeChanged;
 
 std::unique_ptr<Renderer> renderer;
 
@@ -53,3 +53,4 @@ void errorCallback(int error, const char* description);
 void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods);
 void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods);
 void mousePositionCallback(GLFWwindow* window, double xpos, double ypos);
+void framebufferSizeCallback(GLFWwindow* window, int width, int height);

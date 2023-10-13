@@ -9,6 +9,7 @@ class Renderer
 {
 private:
     GLFWwindow* window{ nullptr };
+    ivec2* windowSize{ nullptr };
     Terrain* terrain{ nullptr };
     Player* player{ nullptr };
 
@@ -21,7 +22,7 @@ private:
     mat4 viewProjMat;
 
 public:
-    Renderer(GLFWwindow* window, Terrain* terrain, Player* player);
+    Renderer(GLFWwindow* window, ivec2* windowSize, Terrain* terrain, Player* player);
 
 private:
     void initShaders();
@@ -31,5 +32,5 @@ private:
 public:
     void init();
 
-    void draw(bool viewMatChanged);
+    void draw(bool viewMatChanged, bool windowSizeChanged);
 };

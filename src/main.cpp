@@ -69,7 +69,7 @@ bool init(int argc, char **argv) {
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
-    window = glfwCreateWindow(width, height, deviceName.c_str(), NULL, NULL);
+    window = glfwCreateWindow(windowSize.x, windowSize.y, deviceName.c_str(), NULL, NULL);
     if (!window) {
         glfwTerminate();
         return false;
@@ -78,16 +78,11 @@ bool init(int argc, char **argv) {
     glfwSetKeyCallback(window, keyCallback);
     glfwSetCursorPosCallback(window, mousePositionCallback);
     glfwSetMouseButtonCallback(window, mouseButtonCallback);
+    glfwSetFramebufferSizeCallback(window, framebufferSizeCallback);
 
-    // TODO handle window resize
-
-    int width, height;
-    glfwGetWindowSize(window, &width, &height);
-    float centerX = width / 2;
-    float centerY = height / 2;
-    glfwSetCursorPos(window, centerX, centerY);
-
-    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
+    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN); 
+    
+    glfwSetCursorPos(window, windowSize.x / 2.f, windowSize.y / 2.f);
 
     glewExperimental = GL_TRUE;
     if (glewInit() != GLEW_OK) {
@@ -98,7 +93,7 @@ bool init(int argc, char **argv) {
 
     initGame();
 
-    renderer = std::make_unique<Renderer>(window, terrain.get(), player.get());
+    renderer = std::make_unique<Renderer>(window, &windowSize, terrain.get(), player.get());
     renderer->init();
 
     return true;
@@ -190,10 +185,8 @@ void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods) {
 const float mouseSensitivity = -0.002f;
 
 void mousePositionCallback(GLFWwindow* window, double mouseX, double mouseY) {
-    int width, height;
-    glfwGetWindowSize(window, &width, &height);
-    float centerX = width / 2;
-    float centerY = height / 2;
+    float centerX = windowSize.x / 2.f;
+    float centerY = windowSize.y / 2.f;
 
     float dTheta = (mouseX - centerX) * mouseSensitivity;
     float dPhi = (mouseY - centerY) * mouseSensitivity;
@@ -204,6 +197,12 @@ void mousePositionCallback(GLFWwindow* window, double mouseX, double mouseY) {
     }
 
     glfwSetCursorPos(window, centerX, centerY);
+}
+
+void framebufferSizeCallback(GLFWwindow* window, int width, int height)
+{
+    windowSize = glm::ivec2(width, height);
+    windowSizeChanged = true;
 }
 
 void tick(float deltaTime)
@@ -218,5 +217,6 @@ void tick(float deltaTime)
     terrain->setCurrentChunkPos(Utils::worldPosToChunkPos(player->getPos()));
     terrain->tick();
 
-    renderer->draw(viewMatChanged);
+    renderer->draw(viewMatChanged, windowSizeChanged);
+    windowSizeChanged = false;
 }
