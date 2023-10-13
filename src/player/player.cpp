@@ -2,6 +2,9 @@
 
 #include <glm/gtc/matrix_transform.hpp>
 
+#include <glm/gtx/string_cast.hpp>
+#include <iostream>
+
 void Player::tick(bool& viewMatChanged)
 {
     if (camChanged)
@@ -9,11 +12,22 @@ void Player::tick(bool& viewMatChanged)
         // TODO recalculate forward/right/up
         float sinTheta = sin(theta);
         float cosTheta = cos(theta);
+        float sinPhi = sin(phi);
+        float cosPhi = cos(phi);
 
-        forward = glm::vec3(sinTheta, 0, cosTheta);
+        forward = vec3(sinTheta * cosPhi, sinPhi, cosTheta * cosPhi);
+        right = normalize(cross(vec3(0, 1, 0), forward));
+        up = normalize(cross(forward, right));
+
+        std::cout << glm::to_string(forward) << std::endl;
+        std::cout << glm::to_string(right) << std::endl;
+        std::cout << glm::to_string(up) << std::endl;
+        std::cout << std::endl;
 
         viewMat = glm::lookAt(pos, pos + forward, vec3(0, 1, 0));
         viewMatChanged = true;
+
+        camChanged = false;
     }
 }
 

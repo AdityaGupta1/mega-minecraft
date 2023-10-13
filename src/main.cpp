@@ -166,9 +166,11 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
         playerMovement.x -= actionToInt(action);
         break;
     case GLFW_KEY_SPACE:
+    case GLFW_KEY_E:
         playerMovement.y += actionToInt(action);
         break;
     case GLFW_KEY_LEFT_SHIFT:
+    case GLFW_KEY_Q:
         playerMovement.y -= actionToInt(action);
         break;
     }
@@ -179,7 +181,7 @@ void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods) {
     //rightMousePressed = (button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_PRESS);
 }
 
-const float mouseSensitivity = 0.002f;
+const float mouseSensitivity = -0.002f;
 
 void mousePositionCallback(GLFWwindow* window, double mouseX, double mouseY) {
     int width, height;
@@ -190,14 +192,20 @@ void mousePositionCallback(GLFWwindow* window, double mouseX, double mouseY) {
     float dTheta = (mouseX - centerX) * mouseSensitivity;
     float dPhi = (mouseY - centerY) * mouseSensitivity;
 
-    player->rotate(dTheta, dPhi);
+    if (dTheta != 0 || dPhi != 0)
+    {
+        player->rotate(dTheta, dPhi);
+    }
 
     glfwSetCursorPos(window, centerX, centerY);
 }
 
 void tick(float deltaTime)
 {
-    player->move(glm::vec3(playerMovement) * playerMovementSensitivity * deltaTime);
+    if (playerMovement.x != 0 || playerMovement.y != 0 || playerMovement.z != 0)
+    {
+        player->move(glm::vec3(playerMovement) * playerMovementSensitivity * deltaTime);
+    }
     bool viewMatChanged;
     player->tick(viewMatChanged);
 
