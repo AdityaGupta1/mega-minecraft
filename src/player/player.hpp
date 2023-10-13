@@ -19,7 +19,7 @@ private:
     bool camChanged{ true };
 
 public:
-    void tick(bool& viewMatChanged);
+    void tick(bool* viewMatChanged);
 
     vec3 getPos();
     vec3 getForward();

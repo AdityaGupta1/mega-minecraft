@@ -212,7 +212,7 @@ void tick(float deltaTime)
         player->move(glm::vec3(playerMovement) * playerMovementSensitivity * deltaTime);
     }
     bool viewMatChanged;
-    player->tick(viewMatChanged);
+    player->tick(&viewMatChanged);
 
     terrain->setCurrentChunkPos(Utils::worldPosToChunkPos(player->getPos()));
     terrain->tick();

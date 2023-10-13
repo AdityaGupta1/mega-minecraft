@@ -5,7 +5,7 @@
 #include <glm/gtx/string_cast.hpp>
 #include <iostream>
 
-void Player::tick(bool& viewMatChanged)
+void Player::tick(bool* viewMatChanged)
 {
     if (camChanged)
     {
@@ -20,7 +20,7 @@ void Player::tick(bool& viewMatChanged)
         up = normalize(cross(forward, right));
 
         viewMat = glm::lookAt(pos, pos + forward, vec3(0, 1, 0));
-        viewMatChanged = true;
+        *viewMatChanged = true;
 
         camChanged = false;
     }
