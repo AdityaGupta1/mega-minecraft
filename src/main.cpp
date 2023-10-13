@@ -51,7 +51,7 @@ bool init(int argc, char **argv) {
     int minor = deviceProp.minor;
 
     std::ostringstream ss;
-    ss << "MEGA MINECRAFT " << " [SM " << major << "." << minor << " " << deviceProp.name << "]";
+    ss << "Mega Minecraft " << " [SM " << major << "." << minor << " " << deviceProp.name << "]";
     deviceName = ss.str();
 
     glfwSetErrorCallback(errorCallback);
@@ -129,6 +129,7 @@ void errorCallback(int error, const char* description) {
 
 glm::ivec3 playerMovement = glm::ivec3(0);
 glm::vec3 playerMovementSensitivity = glm::vec3(2.f, 1.2f, 2.f);
+float playerMovementMultiplier = 1.f;
 
 int actionToInt(int action)
 {
@@ -170,9 +171,18 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
     case GLFW_KEY_E:
         playerMovement.y += actionToInt(action);
         break;
-    case GLFW_KEY_LEFT_SHIFT:
     case GLFW_KEY_Q:
         playerMovement.y -= actionToInt(action);
+        break;
+    case GLFW_KEY_LEFT_SHIFT:
+        if (action == GLFW_PRESS)
+        {
+            playerMovementMultiplier = 10.f;
+        }
+        else if (action == GLFW_RELEASE)
+        {
+            playerMovementMultiplier = 1.f;
+        }
         break;
     }
 }
@@ -209,7 +219,7 @@ void tick(float deltaTime)
 {
     if (playerMovement.x != 0 || playerMovement.y != 0 || playerMovement.z != 0)
     {
-        player->move(glm::vec3(playerMovement) * playerMovementSensitivity * deltaTime);
+        player->move(glm::vec3(playerMovement) * playerMovementSensitivity * playerMovementMultiplier * deltaTime);
     }
     bool viewMatChanged;
     player->tick(&viewMatChanged);

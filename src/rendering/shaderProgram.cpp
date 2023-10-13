@@ -10,6 +10,41 @@ ShaderProgram::ShaderProgram()
 {
 }
 
+void printShaderInfoLog(int shader)
+{
+    int infoLogLen = 0;
+    int charsWritten = 0;
+    GLchar* infoLog;
+
+    glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &infoLogLen);
+
+    if (infoLogLen > 0)
+    {
+        infoLog = new GLchar[infoLogLen];
+        glGetShaderInfoLog(shader, infoLogLen, &charsWritten, infoLog);
+        std::cerr << "ShaderInfoLog:" << "\n" << infoLog << "\n";
+        delete[] infoLog;
+    }
+}
+
+void printLinkInfoLog(int prog)
+{
+    int infoLogLen = 0;
+    int charsWritten = 0;
+    GLchar* infoLog;
+
+    glGetProgramiv(prog, GL_INFO_LOG_LENGTH, &infoLogLen);
+
+    if (infoLogLen > 0)
+    {
+        infoLog = new GLchar[infoLogLen];
+        // error check for fail to allocate memory omitted
+        glGetProgramInfoLog(prog, infoLogLen, &charsWritten, infoLog);
+        std::cerr << "LinkInfoLog:" << "\n" << infoLog << "\n";
+        delete[] infoLog;
+    }
+}
+
 bool ShaderProgram::create(const std::string& vertFile, const std::string& fragFile)
 {
     std::cout << "creating shader from " << vertFile << " and " << fragFile << "..." << std::endl;
@@ -33,13 +68,13 @@ bool ShaderProgram::create(const std::string& vertFile, const std::string& fragF
     glGetShaderiv(vertShader, GL_COMPILE_STATUS, &compiled);
     if (!compiled)
     {
-        printf("vertex shader didn't compile\n"); // TODO print actual error message
+        printShaderInfoLog(vertShader);
         return false;
     }
     glGetShaderiv(fragShader, GL_COMPILE_STATUS, &compiled);
     if (!compiled)
     {
-        printf("fragment shader didn't compile\n"); // TODO print actual error message
+        printShaderInfoLog(fragShader);
         return false;
     }
 
@@ -51,11 +86,11 @@ bool ShaderProgram::create(const std::string& vertFile, const std::string& fragF
     glGetProgramiv(prog, GL_LINK_STATUS, &linked);
     if (!linked)
     {
-        printf("shader didn't link\n"); // TODO print actual error message
+        printLinkInfoLog(prog);
         return false;
     }
 
-    attrPos = glGetAttribLocation(prog, "v_pos");
+    attrPos = glGetAttribLocation(prog, "vs_pos");
 
     unifViewProjMat = glGetUniformLocation(prog, "u_viewProjMat");
 

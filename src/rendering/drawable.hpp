@@ -16,7 +16,7 @@ protected:
 public:
     Drawable();
 
-    virtual void createVBOs() = 0;
+    virtual void bufferVBOs() = 0;
     void destroyVBOs();
 
     virtual GLenum drawMode() const;

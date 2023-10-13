@@ -3,7 +3,9 @@
 #include <glm/glm.hpp>
 #include "block.hpp"
 #include <array>
+#include <vector>
 #include "rendering/drawable.hpp"
+#include "rendering/structs.hpp"
 
 using namespace glm;
 
@@ -24,11 +26,15 @@ public:
     bool readyForQueue{ true };
 
     std::array<unsigned char, 256> heightfield;
-    std::array<Block, 65536> blocks;
+    std::array<Block, 65536> blocks; // iteration order = z, x, y (allows for easily copying horizontal slices of terrain)
+
+    std::vector<GLuint> idx;
+    std::vector<Vertex> verts;
 
     Chunk(ivec2 worldChunkPos);
 
     void dummyFill();
 
-    void createVBOs() override;
+    void createVBOs();
+    void bufferVBOs() override;
 };

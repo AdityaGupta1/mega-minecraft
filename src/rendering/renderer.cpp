@@ -18,7 +18,9 @@ void Renderer::initShaders()
     passthroughShader.create("shaders/passthrough.vert.glsl", "shaders/passthrough.frag.glsl");
     lambertShader.create("shaders/lambert.vert.glsl", "shaders/lambert.frag.glsl");
 
+    chunk.dummyFill();
     chunk.createVBOs();
+    chunk.bufferVBOs();
 }
 
 void Renderer::setProjMat()
