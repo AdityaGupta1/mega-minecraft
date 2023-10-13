@@ -28,10 +28,24 @@ void Chunk::dummyFill()
     {
         for (int x = 0; x < 16; ++x)
         {
-            int height = 48 + (rand() / (float)RAND_MAX * 16);
+            int height = 48 + (x + z) / 2;
+            if ((x + z) % 4 == 1)
+            {
+                height += 10;
+            }
             for (int y = 0; y < height; ++y)
             {
-                this->blocks[posToIndex(x, y, z)] = Block::STONE;
+                Block block = Block::STONE;
+                if (y == height - 1)
+                {
+                    block = Block::GRASS;
+                }
+                else if (y < height - 1 && y >= height - 4)
+                {
+                    block = Block::DIRT;
+                }
+
+                this->blocks[posToIndex(x, y, z)] = block;
             }
         }
     }

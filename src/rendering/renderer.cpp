@@ -56,7 +56,7 @@ void Renderer::setProjMat()
 
 void Renderer::init()
 {
-    glClearColor(1.f, 0.f, 1.f, 1.f);
+    glClearColor(0.64f, 1.f, 0.97f, 1.f);
     glEnable(GL_DEPTH_TEST);
 
     glGenVertexArrays(1, &vao);

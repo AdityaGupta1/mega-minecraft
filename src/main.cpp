@@ -53,7 +53,7 @@ bool init(int argc, char **argv) {
     int minor = deviceProp.minor;
 
     std::ostringstream ss;
-    ss << "Mega Minecraft " << " [SM " << major << "." << minor << " " << deviceProp.name << "]";
+    ss << "Mega Minecraft";
     deviceName = ss.str();
 
     glfwSetErrorCallback(errorCallback);
@@ -111,6 +111,8 @@ void initGame()
 
 void mainLoop() {
     double lastTime = 0;
+    double fpsLastTime = 0;
+    int frames = 0;
 
     while (!glfwWindowShouldClose(window)) 
     {
@@ -119,6 +121,21 @@ void mainLoop() {
         double time = glfwGetTime();
         double deltaTime = time - lastTime;
         lastTime = time;
+        
+        ++frames;
+        if (time - fpsLastTime > 1.f)
+        {
+            float fps = frames / (time - fpsLastTime);
+            fpsLastTime = time;
+            frames = 0;
+
+            std::ostringstream ss;
+            ss << "[";
+            ss.precision(1);
+            ss << std::fixed << fps;
+            ss << " fps] " << deviceName;
+            glfwSetWindowTitle(window, ss.str().c_str());
+        }
 
         tick(deltaTime);
     }
