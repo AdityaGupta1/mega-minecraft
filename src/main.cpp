@@ -79,6 +79,10 @@ bool init(int argc, char **argv) {
     glfwSetCursorPosCallback(window, mousePositionCallback);
     glfwSetMouseButtonCallback(window, mouseButtonCallback);
 
+    // TODO handle window resize
+
+    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
+
     glewExperimental = GL_TRUE;
     if (glewInit() != GLEW_OK) {
         return false;
@@ -86,10 +90,10 @@ bool init(int argc, char **argv) {
 
     cudaGLSetGLDevice(0);
 
-    renderer = std::make_unique<Renderer>(window, terrain.get());
-    renderer->init();
-
     initGame();
+
+    renderer = std::make_unique<Renderer>(window, terrain.get(), player.get());
+    renderer->init();
 
     return true;
 }
@@ -111,29 +115,62 @@ void mainLoop() {
         double deltaTime = time - lastTime;
         lastTime = time;
 
-        tick();
+        tick(deltaTime);
     }
 
     glfwDestroyWindow(window);
     glfwTerminate();
 }
 
-void tick() {
-    player->tick();
-
-    terrain->setCurrentChunkPos(Utils::worldPosToChunkPos(player->getPos()));
-    terrain->tick();
-
-    renderer->draw();
-}
-
 void errorCallback(int error, const char* description) {
     fprintf(stderr, "error %d: %s\n", error, description);
 }
 
-void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods) {
-    if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) {
-        glfwSetWindowShouldClose(window, GL_TRUE);
+glm::ivec3 playerMovement = glm::ivec3(0);
+glm::vec3 playerMovementSensitivity = glm::vec3(2.f, 1.2f, 2.f);
+
+int actionToInt(int action)
+{
+    switch (action)
+    {
+    case GLFW_PRESS:
+        return 1;
+    case GLFW_RELEASE:
+        return -1;
+    default:
+        return 0;
+    }
+}
+
+void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods) 
+{
+    switch (key)
+    {
+    case GLFW_KEY_ESCAPE:
+        if (action == GLFW_PRESS)
+        {
+            glfwSetWindowShouldClose(window, GL_TRUE);
+            return;
+        }
+        break;
+    case GLFW_KEY_W:
+        playerMovement.z += actionToInt(action);
+        break;
+    case GLFW_KEY_S:
+        playerMovement.z -= actionToInt(action);
+        break;
+    case GLFW_KEY_A:
+        playerMovement.x += actionToInt(action);
+        break;
+    case GLFW_KEY_D:
+        playerMovement.x -= actionToInt(action);
+        break;
+    case GLFW_KEY_SPACE:
+        playerMovement.y += actionToInt(action);
+        break;
+    case GLFW_KEY_LEFT_SHIFT:
+        playerMovement.y -= actionToInt(action);
+        break;
     }
 }
 
@@ -142,19 +179,30 @@ void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods) {
     //rightMousePressed = (button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_PRESS);
 }
 
-void mousePositionCallback(GLFWwindow* window, double xpos, double ypos) {
-    //if (leftMousePressed) {
-    //    // compute new camera parameters
-    //    phi += (xpos - lastX) / width;
-    //    theta -= (ypos - lastY) / height;
-    //    theta = std::fmax(0.01f, std::fmin(theta, 3.14f));
-    //    updateCamera();
-    //} else if (rightMousePressed) {
-    //    zoom += (ypos - lastY) / height;
-    //    zoom = std::fmax(0.1f, std::fmin(zoom, 5.0f));
-    //    updateCamera();
-    //}
+const float mouseSensitivity = 0.002f;
 
-    //lastX = xpos;
-    //lastY = ypos;
+void mousePositionCallback(GLFWwindow* window, double mouseX, double mouseY) {
+    int width, height;
+    glfwGetWindowSize(window, &width, &height);
+    float centerX = width / 2;
+    float centerY = height / 2;
+
+    float dTheta = (mouseX - centerX) * mouseSensitivity;
+    float dPhi = (mouseY - centerY) * mouseSensitivity;
+
+    player->rotate(dTheta, dPhi);
+
+    glfwSetCursorPos(window, centerX, centerY);
+}
+
+void tick(float deltaTime)
+{
+    player->move(glm::vec3(playerMovement) * playerMovementSensitivity * deltaTime);
+    bool viewMatChanged;
+    player->tick(viewMatChanged);
+
+    terrain->setCurrentChunkPos(Utils::worldPosToChunkPos(player->getPos()));
+    terrain->tick();
+
+    renderer->draw(viewMatChanged);
 }

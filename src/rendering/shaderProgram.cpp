@@ -6,7 +6,7 @@
 #include "structs.hpp"
 
 ShaderProgram::ShaderProgram()
-    : vertShader(), fragShader(), prog(), attrPos(-1)
+    : vertShader(), fragShader(), prog(), attrPos(-1), unifViewProjMat(-1)
 {
 }
 
@@ -55,7 +55,9 @@ bool ShaderProgram::create(const std::string& vertFile, const std::string& fragF
         return false;
     }
 
-    attrPos = glGetAttribLocation(prog, "v_Pos");
+    attrPos = glGetAttribLocation(prog, "v_pos");
+
+    unifViewProjMat = glGetUniformLocation(prog, "u_viewProjMat");
 
     std::cout << "done" << std::endl;
     return true;
@@ -64,6 +66,12 @@ bool ShaderProgram::create(const std::string& vertFile, const std::string& fragF
 void ShaderProgram::useMe()
 {
     glUseProgram(prog);
+}
+
+void ShaderProgram::setViewProjMat(const glm::mat4& mat)
+{
+    useMe();
+    glUniformMatrix4fv(unifViewProjMat, 1, GL_FALSE, &mat[0][0]);
 }
 
 void ShaderProgram::draw(Drawable& d)

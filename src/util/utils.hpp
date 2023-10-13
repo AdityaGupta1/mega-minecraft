@@ -5,6 +5,10 @@
 
 using namespace glm;
 
+#define PI           3.14159265358979323846264338327f
+#define PI_OVER_TWO  1.57079632679489661923132169163f
+#define PI_OVER_FOUR 0.78539816339744830961566084581f
+
 namespace Utils
 {
     struct PosHash

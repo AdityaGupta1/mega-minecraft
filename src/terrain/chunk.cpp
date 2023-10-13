@@ -28,16 +28,16 @@ void Chunk::createVBOs()
 {
     GLuint idx[3]{ 0, 1, 2 };
     Vertex verts[3]{
-        { glm::vec3(-1.f, -1.f, 0.9999f) },
-        { glm::vec3(1.f, -1.f, 0.9999f) },
-        { glm::vec3(1.f, 1.f, 0.9999f) }
+        { glm::vec3(0, 128, 0) },
+        { glm::vec3(1, 128, 0) },
+        { glm::vec3(1, 129, 0) }
     };
 
     idxCount = 3;
 
     generateIdx();
     bindIdx();
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, 3 * sizeof(GLuint), idx, GL_STATIC_DRAW); // TODO helper functions for this and next glBufferData call in Drawable
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, 3 * sizeof(GLuint), idx, GL_STATIC_DRAW);
 
     generateVerts();
     bindVerts();
