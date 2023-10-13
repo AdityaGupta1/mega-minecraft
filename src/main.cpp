@@ -8,6 +8,8 @@
 
 #include "main.hpp"
 
+#include "terrain/block.hpp"
+
 // ================
 // Configuration
 // ================
@@ -90,6 +92,8 @@ bool init(int argc, char **argv) {
     }
 
     cudaGLSetGLDevice(0);
+
+    BlockUtils::init();
 
     initGame();
 
