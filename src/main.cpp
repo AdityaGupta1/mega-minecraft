@@ -81,6 +81,12 @@ bool init(int argc, char **argv) {
 
     // TODO handle window resize
 
+    int width, height;
+    glfwGetWindowSize(window, &width, &height);
+    float centerX = width / 2;
+    float centerY = height / 2;
+    glfwSetCursorPos(window, centerX, centerY);
+
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
 
     glewExperimental = GL_TRUE;
