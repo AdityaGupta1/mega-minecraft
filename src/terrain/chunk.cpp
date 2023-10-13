@@ -121,7 +121,7 @@ void Chunk::createVBOs()
                         vert.uv = uvStart + uvOffsets[j];
                     }
 
-                    idx.push_back(idx1);    
+                    idx.push_back(idx1);
                     idx.push_back(idx1 + 1);
                     idx.push_back(idx1 + 2);
                     idx.push_back(idx1);

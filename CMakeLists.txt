@@ -92,4 +92,21 @@ add_custom_target(
     DEPENDS ${SHADER_OUTPUT_DIR}
 )
 
-add_dependencies(${CMAKE_PROJECT_NAME} CopyShadersTarget)
+set(TEXTURE_DIR ${CMAKE_SOURCE_DIR}/textures)
+set(TEXTURE_OUTPUT_DIR ${CMAKE_BINARY_DIR}/textures)
+
+add_custom_command(
+    OUTPUT ${TEXTURE_OUTPUT_DIR}
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        ${TEXTURE_DIR}
+        ${TEXTURE_OUTPUT_DIR}
+    COMMENT "Copying textures from ${TEXTURE_DIR} to ${TEXTURE_OUTPUT_DIR}"
+    DEPENDS DIRECTORY ${TEXTURE_DIR}
+)
+
+add_custom_target(
+    CopyTexturesTarget ALL
+    DEPENDS ${TEXTURE_OUTPUT_DIR}
+)
+
+add_dependencies(${CMAKE_PROJECT_NAME} CopyShadersTarget CopyTexturesTarget)

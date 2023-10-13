@@ -6,7 +6,7 @@
 #include "structs.hpp"
 
 ShaderProgram::ShaderProgram()
-    : vertShader(), fragShader(), prog(), attrPos(-1), unifViewProjMat(-1)
+    : vertShader(), fragShader(), prog(), attr_pos(-1), unif_viewProjMat(-1)
 {
 }
 
@@ -90,10 +90,12 @@ bool ShaderProgram::create(const std::string& vertFile, const std::string& fragF
         return false;
     }
 
-    attrPos = glGetAttribLocation(prog, "vs_pos");
-    attrUv = glGetAttribLocation(prog, "vs_uv");
+    attr_pos = glGetAttribLocation(prog, "vs_pos");
+    attr_uv = glGetAttribLocation(prog, "vs_uv");
 
-    unifViewProjMat = glGetUniformLocation(prog, "u_viewProjMat");
+    unif_viewProjMat = glGetUniformLocation(prog, "u_viewProjMat");
+
+    tex_blockDiffuse = glGetUniformLocation(prog, "tex_blockDiffuse");
 
     std::cout << "done" << std::endl;
     return true;
@@ -107,7 +109,13 @@ void ShaderProgram::useMe()
 void ShaderProgram::setViewProjMat(const glm::mat4& mat)
 {
     useMe();
-    glUniformMatrix4fv(unifViewProjMat, 1, GL_FALSE, &mat[0][0]);
+    glUniformMatrix4fv(unif_viewProjMat, 1, GL_FALSE, &mat[0][0]);
+}
+
+void ShaderProgram::setTexBlockDiffuse(int tex)
+{
+    useMe();
+    glUniform1i(tex_blockDiffuse, tex);
 }
 
 void ShaderProgram::draw(Drawable& d)
@@ -121,16 +129,16 @@ void ShaderProgram::draw(Drawable& d)
 
     if (d.bindVerts())
     {
-        if (attrPos != -1)
+        if (attr_pos != -1)
         {
-            glEnableVertexAttribArray(attrPos);
-            glVertexAttribPointer(attrPos, 3, GL_FLOAT, false, sizeof(Vertex), (void*)0);
+            glEnableVertexAttribArray(attr_pos);
+            glVertexAttribPointer(attr_pos, 3, GL_FLOAT, false, sizeof(Vertex), (void*)0);
         }
 
-        if (attrUv != -1)
+        if (attr_uv != -1)
         {
-            glEnableVertexAttribArray(attrUv);
-            glVertexAttribPointer(attrUv, 2, GL_FLOAT, false, sizeof(Vertex), (void*)sizeof(glm::vec3));
+            glEnableVertexAttribArray(attr_uv);
+            glVertexAttribPointer(attr_uv, 2, GL_FLOAT, false, sizeof(Vertex), (void*)sizeof(glm::vec3));
         }
     }
 

@@ -15,9 +15,14 @@ private:
 
     GLuint vao;
 
+    // shaders
     ShaderProgram passthroughShader;
     ShaderProgram lambertShader;
 
+    // textures
+    GLuint tex_blockDiffuse;
+
+    // other
     mat4 projMat;
     mat4 viewProjMat;
 
@@ -26,6 +31,7 @@ public:
 
 private:
     void initShaders();
+    void initTextures();
 
     void setProjMat();
 

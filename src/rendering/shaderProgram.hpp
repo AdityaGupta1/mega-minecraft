@@ -12,10 +12,12 @@ public:
     GLuint fragShader;
     GLuint prog;
 
-    int attrPos;
-    int attrUv;
+    GLint attr_pos;
+    GLint attr_uv;
 
-    int unifViewProjMat;
+    GLint unif_viewProjMat;
+
+    GLint tex_blockDiffuse;
 
     ShaderProgram();
 
@@ -24,6 +26,8 @@ public:
     void useMe();
 
     void setViewProjMat(const glm::mat4& mat);
+
+    void setTexBlockDiffuse(int tex);
 
     void draw(Drawable &d);
 };

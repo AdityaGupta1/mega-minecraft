@@ -5,7 +5,7 @@ uniform mat4 u_viewProjMat;
 in vec3 vs_pos;
 in vec2 vs_uv;
 
-out vec3 fs_col;
+out vec2 fs_uv;
 
 vec3 rand(vec3 v) {
     return fract(sin(vec3(
@@ -18,6 +18,5 @@ vec3 rand(vec3 v) {
 void main() {
     gl_Position = u_viewProjMat * vec4(vs_pos, 1);
 
-    // fs_col = rand(vs_pos);
-    fs_col = vec3(vs_uv, 0);
+    fs_uv = vs_uv;
 }
