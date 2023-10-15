@@ -3,6 +3,7 @@
 #include "rendering/structs.hpp"
 #include "rendering/renderingUtils.hpp"
 #include "util/enums.hpp"
+#include "cuda/cuda_utils.hpp"
 
 Chunk::Chunk(ivec2 worldChunkPos)
     : worldChunkPos(worldChunkPos)
@@ -11,14 +12,28 @@ Chunk::Chunk(ivec2 worldChunkPos)
     std::fill_n(blocks.begin(), 65536, Block::AIR);
 }
 
+__host__ __device__
 int posToIndex(const int x, const int y, const int z)
 {
     return x + 16 * z + 256 * y;
 }
 
+__host__ __device__
 int posToIndex(const ivec3 pos)
 {
     return posToIndex(pos.x, pos.y, pos.z);
+}
+
+__host__ __device__
+int posToIndex(const int x, const int z)
+{
+    return x + 16 * z;
+}
+
+__host__ __device__
+int posToIndex(const ivec2 pos)
+{
+    return posToIndex(pos.x, pos.y);
 }
 
 void Chunk::dummyFill()
@@ -48,6 +63,75 @@ void Chunk::dummyFill()
             }
         }
     }
+}
+
+__device__
+float dummyNoise(vec2 pos)
+{
+    pos /= 3.f;
+    return 64.f + 6.f * (sin(pos.x) + cos(pos.y));
+}
+
+__global__ void kernDummyGenerateHeightfield(unsigned char* heightfield, ivec2 worldBlockPos)
+{
+    const int x = (blockIdx.x * blockDim.x) + threadIdx.x;
+    const int z = (blockIdx.y * blockDim.y) + threadIdx.y;
+
+    const int idx = posToIndex(x, z);
+
+    const vec2 worldPos = vec2(worldBlockPos.x + x, worldBlockPos.y + z);
+
+    int height = (int)dummyNoise(worldPos);
+
+    heightfield[idx] = height;
+}
+
+__global__ void kernDummyFill(Block* blocks, unsigned char* heightfield)
+{
+    const int x = (blockIdx.x * blockDim.x) + threadIdx.x;
+    const int y = (blockIdx.y * blockDim.y) + threadIdx.y;
+    const int z = (blockIdx.z * blockDim.z) + threadIdx.z;
+
+    const int idx = posToIndex(x, y, z);
+
+    const unsigned char height = heightfield[posToIndex(x, z)]; // TODO: when implementing for real, use shared memory to load heightfield
+
+    Block block = Block::STONE;
+    if (y > height)
+    {
+        block = Block::AIR;
+    }
+    else if (y == height)
+    {
+        block = Block::GRASS;
+    }
+    else if (y >= height - 3)
+    {
+        block = Block::DIRT;
+    }
+
+    blocks[idx] = block;
+}
+
+void Chunk::dummyFillCUDA(Block* dev_blocks, unsigned char* dev_heightfield)
+{
+    const dim3 blockSize2d(16, 16);
+    const dim3 blocksPerGrid2d(1, 1);
+
+    const dim3 blockSize3d(1, 256, 1);
+    const dim3 blocksPerGrid3d(16, 1, 16);
+
+    kernDummyGenerateHeightfield<<<blockSize2d, blocksPerGrid2d>>>(dev_heightfield, this->worldChunkPos * 16);
+    CudaUtils::checkCUDAError("kern generate heightfield failed");
+
+    // TODO: when implementing for real, the two kernels will happen separately; will probably need to copy heightfield back to GPU before running this kernel
+    kernDummyFill<<<blockSize3d, blocksPerGrid3d>>>(dev_blocks, dev_heightfield);
+    CudaUtils::checkCUDAError("kern fill failed");
+    
+    cudaMemcpy(this->blocks.data(), dev_blocks, 65536 * sizeof(Block), cudaMemcpyDeviceToHost);
+    CudaUtils::checkCUDAError("cudaMemcpy failed");
+
+    cudaDeviceSynchronize();
 }
 
 static const std::array<vec3, 24> directionVertPositions = {

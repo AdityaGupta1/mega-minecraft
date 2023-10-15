@@ -5,6 +5,9 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include "util/utils.hpp"
 
+// TODO temporary includes for testing
+#include "cuda/cuda_utils.hpp"
+
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 
@@ -22,10 +25,6 @@ void Renderer::initShaders()
 {
     passthroughShader.create("shaders/passthrough.vert.glsl", "shaders/passthrough.frag.glsl");
     lambertShader.create("shaders/lambert.vert.glsl", "shaders/lambert.frag.glsl");
-
-    chunk.dummyFill();
-    chunk.createVBOs();
-    chunk.bufferVBOs();
 }
 
 void Renderer::initTextures()
@@ -66,6 +65,25 @@ void Renderer::init()
     initTextures();
 
     setProjMat();
+
+    // TODO: rest of this function is temporary testing code
+
+    Block* dev_blocks;
+    unsigned char* dev_heightfield;
+
+    cudaMalloc((void**)&dev_blocks, 65536 * sizeof(Block));
+    cudaMalloc((void**)&dev_heightfield, 256 * sizeof(unsigned char));
+
+    CudaUtils::checkCUDAError("cudaMalloc failed");
+
+    chunk.dummyFillCUDA(dev_blocks, dev_heightfield);
+    chunk.createVBOs();
+    chunk.bufferVBOs();
+
+    cudaFree(dev_blocks);
+    cudaFree(dev_heightfield);
+
+    CudaUtils::checkCUDAError("cudaFree failed");
 }
 
 void Renderer::draw(bool viewMatChanged, bool windowSizeChanged)

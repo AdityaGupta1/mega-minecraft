@@ -30,7 +30,7 @@ public:
     ChunkState state{ ChunkState::EMPTY };
     bool readyForQueue{ true };
 
-    std::array<unsigned char, 256> heightfield;
+    std::array<unsigned char, 256> heightfield; // iteration order = z, x
     std::array<Block, 65536> blocks; // iteration order = z, x, y (allows for easily copying horizontal slices of terrain)
 
     std::vector<GLuint> idx;
@@ -39,6 +39,7 @@ public:
     Chunk(ivec2 worldChunkPos);
 
     void dummyFill();
+    void dummyFillCUDA(Block* dev_blocks, unsigned char* dev_heightfield);
 
     void createVBOs();
     void bufferVBOs() override;

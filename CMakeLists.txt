@@ -64,7 +64,7 @@ include_directories(${GLM_INCLUDE_DIRS})
 include_directories(${CMAKE_SOURCE_DIR}/src)
 
 file(GLOB_RECURSE headers "src/*.h" "src/*.hpp")
-file(GLOB_RECURSE sources "src/*.cpp")
+file(GLOB_RECURSE sources "src/*.cpp" "src/*.cu")
 
 list(SORT headers)
 list(SORT sources)
