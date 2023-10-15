@@ -11,6 +11,8 @@
 
 using namespace glm;
 
+class Chunk;
+
 struct Zone
 {
     Zone(ivec2 worldChunkPos)

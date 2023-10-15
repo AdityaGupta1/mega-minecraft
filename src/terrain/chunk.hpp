@@ -6,8 +6,11 @@
 #include <vector>
 #include "rendering/drawable.hpp"
 #include "rendering/structs.hpp"
+#include "terrain.hpp"
 
 using namespace glm;
+
+struct Zone;
 
 enum class ChunkState
 {
@@ -21,6 +24,8 @@ enum class ChunkState
 class Chunk : public Drawable {
 public:
     const ivec2 worldChunkPos; // world-space pos in terms of chunks (e.g. (3, -4) chunk pos = (48, -64) block pos)
+
+    Zone* zonePtr;
 
     ChunkState state{ ChunkState::EMPTY };
     bool readyForQueue{ true };

@@ -2,8 +2,7 @@
 
 #include "rendering/structs.hpp"
 #include "rendering/renderingUtils.hpp"
-
-#include <iostream>
+#include "util/enums.hpp"
 
 Chunk::Chunk(ivec2 worldChunkPos)
     : worldChunkPos(worldChunkPos)
@@ -51,19 +50,10 @@ void Chunk::dummyFill()
     }
 }
 
-static const std::array<ivec3, 6> directions = {
-    ivec3(0, 0, 1), // forward
-    ivec3(0, 0, -1), // back
-    ivec3(1, 0, 0), // right
-    ivec3(-1, 0, 0), // left
-    ivec3(0, 1, 0), // up
-    ivec3(0, -1, 0) // down
-};
-
 static const std::array<vec3, 24> directionVertPositions = {
     vec3(0, 0, 1), vec3(1, 0, 1), vec3(1, 1, 1), vec3(0, 1, 1),
-    vec3(1, 0, 0), vec3(0, 0, 0), vec3(0, 1, 0), vec3(1, 1, 0),
     vec3(1, 0, 1), vec3(1, 0, 0), vec3(1, 1, 0), vec3(1, 1, 1),
+    vec3(1, 0, 0), vec3(0, 0, 0), vec3(0, 1, 0), vec3(1, 1, 0),
     vec3(0, 0, 0), vec3(0, 0, 1), vec3(0, 1, 1), vec3(0, 1, 0),
     vec3(0, 1, 1), vec3(1, 1, 1), vec3(1, 1, 0), vec3(0, 1, 0),
     vec3(0, 0, 0), vec3(1, 0, 0), vec3(1, 0, 1), vec3(0, 0, 1)
@@ -98,7 +88,7 @@ void Chunk::createVBOs()
 
                 for (int i = 0; i < 6; ++i)
                 {
-                    const auto& direction = directions[i];
+                    const auto& direction = DirectionEnums::dirVecs[i];
                     const ivec3 newPos = thisPos + direction;
                     if (newPos.x < 0 || newPos.x >= 16 || newPos.z < 0 || newPos.z >= 16 || newPos.y < 0 || newPos.y >= 256)
                     {

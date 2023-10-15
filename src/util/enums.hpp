@@ -38,4 +38,13 @@ namespace DirectionEnums
         ivec2(-1, -1),
         ivec2(-1, 0),
     };
+
+    const static std::array<ivec3, 6> dirVecs = {
+        ivec3(0, 0, 1), // forward
+        ivec3(1, 0, 0), // right
+        ivec3(0, 0, -1), // back
+        ivec3(-1, 0, 0), // left
+        ivec3(0, 1, 0), // up
+        ivec3(0, -1, 0) // down
+    };
 }

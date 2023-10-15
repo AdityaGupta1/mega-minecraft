@@ -69,7 +69,9 @@ void Terrain::updateChunks()
 
             if (zonePtr->chunks[chunkIdx] == nullptr)
             {
-                zonePtr->chunks[chunkIdx] = std::make_unique<Chunk>(newChunkWorldPos);
+                auto chunkUptr = std::make_unique<Chunk>(newChunkWorldPos);
+                chunkUptr->zonePtr = zonePtr;
+                zonePtr->chunks[chunkIdx] = std::move(chunkUptr);
             }
 
             Chunk* chunkPtr = zonePtr->chunks[chunkIdx].get();
