@@ -4,6 +4,9 @@
 #include "rendering/renderingUtils.hpp"
 #include "util/enums.hpp"
 #include "cuda/cuda_utils.hpp"
+#include <glm/gtc/noise.hpp>
+
+#include <iostream>
 
 Chunk::Chunk(ivec2 worldChunkPos)
     : worldChunkPos(worldChunkPos)
@@ -68,8 +71,18 @@ void Chunk::dummyFill()
 __device__
 float dummyNoise(vec2 pos)
 {
-    pos /= 3.f;
-    return 64.f + 6.f * (sin(pos.x) + cos(pos.y));
+    pos *= 0.07f;
+
+    float fbm = 0.f;
+    float amplitude = 1.f;
+    for (int i = 0; i < 4; ++i)
+    {
+        amplitude *= 0.5f;
+        pos *= 2.f;
+        fbm += amplitude * glm::simplex(pos);
+    }
+
+    return 64.f + 6.f * fbm;
 }
 
 __global__ void kernDummyGenerateHeightfield(unsigned char* heightfield, ivec2 worldBlockPos)
@@ -121,17 +134,37 @@ void Chunk::dummyFillCUDA(Block* dev_blocks, unsigned char* dev_heightfield)
     const dim3 blockSize3d(1, 256, 1);
     const dim3 blocksPerGrid3d(16, 1, 16);
 
-    kernDummyGenerateHeightfield<<<blockSize2d, blocksPerGrid2d>>>(dev_heightfield, this->worldChunkPos * 16);
+    cudaEvent_t start, mid, stop;
+    cudaEventCreate(&start);
+    cudaEventCreate(&mid);
+    cudaEventCreate(&stop);
+
+    cudaEventRecord(start);
+    kernDummyGenerateHeightfield<<<blocksPerGrid2d, blockSize2d>>>(dev_heightfield, this->worldChunkPos * 16);
     CudaUtils::checkCUDAError("kern generate heightfield failed");
+    cudaEventRecord(mid);
+
+    cudaDeviceSynchronize();
 
     // TODO: when implementing for real, the two kernels will happen separately; will probably need to copy heightfield back to GPU before running this kernel
-    kernDummyFill<<<blockSize3d, blocksPerGrid3d>>>(dev_blocks, dev_heightfield);
+    kernDummyFill<<<blocksPerGrid3d, blockSize3d>>>(dev_blocks, dev_heightfield);
     CudaUtils::checkCUDAError("kern fill failed");
     
     cudaMemcpy(this->blocks.data(), dev_blocks, 65536 * sizeof(Block), cudaMemcpyDeviceToHost);
     CudaUtils::checkCUDAError("cudaMemcpy failed");
+    cudaEventRecord(stop);
 
-    cudaDeviceSynchronize();
+    cudaEventSynchronize(stop);
+
+    float milliseconds = 0;
+    cudaEventElapsedTime(&milliseconds, start, stop);
+    std::cout << "full ms elapsed: " << milliseconds << std::endl;
+    cudaEventElapsedTime(&milliseconds, start, mid);
+    std::cout << "mid ms elapsed: " << milliseconds << std::endl;
+
+    cudaEventDestroy(start);
+    cudaEventDestroy(mid);
+    cudaEventDestroy(stop);
 }
 
 static const std::array<vec3, 24> directionVertPositions = {

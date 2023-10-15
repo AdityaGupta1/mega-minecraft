@@ -76,7 +76,10 @@ void Renderer::init()
 
     CudaUtils::checkCUDAError("cudaMalloc failed");
 
-    chunk.dummyFillCUDA(dev_blocks, dev_heightfield);
+    for (int i = 0; i < 10; ++i)
+    {
+        chunk.dummyFillCUDA(dev_blocks, dev_heightfield);
+    }
     chunk.createVBOs();
     chunk.bufferVBOs();
 
