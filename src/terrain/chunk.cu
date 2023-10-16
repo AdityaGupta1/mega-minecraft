@@ -15,6 +15,27 @@ Chunk::Chunk(ivec2 worldChunkPos)
     std::fill_n(blocks.begin(), 65536, Block::AIR);
 }
 
+ChunkState Chunk::getState()
+{
+    return this->state;
+}
+
+void Chunk::setState(ChunkState newState)
+{
+    this->state = newState;
+    this->readyForQueue = true;
+}
+
+bool Chunk::isReadyForQueue()
+{
+    return this->readyForQueue;
+}
+
+void Chunk::setNotReadyForQueue()
+{
+    this->readyForQueue = false;
+}
+
 __host__ __device__
 int posToIndex(const int x, const int y, const int z)
 {
@@ -71,7 +92,7 @@ void Chunk::dummyFill()
 __device__
 float dummyNoise(vec2 pos)
 {
-    pos *= 0.07f;
+    pos *= 0.02f;
 
     float fbm = 0.f;
     float amplitude = 1.f;
@@ -128,8 +149,8 @@ __global__ void kernDummyFill(Block* blocks, unsigned char* heightfield)
 
 void Chunk::dummyFillCUDA(Block* dev_blocks, unsigned char* dev_heightfield)
 {
-    const dim3 blockSize2d(16, 16);
-    const dim3 blocksPerGrid2d(1, 1);
+    const dim3 blockSize2d(8, 8);
+    const dim3 blocksPerGrid2d(2, 2);
 
     const dim3 blockSize3d(1, 256, 1);
     const dim3 blocksPerGrid3d(16, 1, 16);
@@ -156,11 +177,12 @@ void Chunk::dummyFillCUDA(Block* dev_blocks, unsigned char* dev_heightfield)
 
     cudaEventSynchronize(stop);
 
-    float milliseconds = 0;
-    cudaEventElapsedTime(&milliseconds, start, stop);
-    std::cout << "full ms elapsed: " << milliseconds << std::endl;
-    cudaEventElapsedTime(&milliseconds, start, mid);
-    std::cout << "mid ms elapsed: " << milliseconds << std::endl;
+    //float milliseconds = 0;
+    //cudaEventElapsedTime(&milliseconds, start, stop);
+    //std::cout << "full ms elapsed: " << milliseconds << std::endl;
+    //cudaEventElapsedTime(&milliseconds, start, mid);
+    //std::cout << "mid ms elapsed: " << milliseconds << std::endl;
+    //std::cout << std::endl;
 
     cudaEventDestroy(start);
     cudaEventDestroy(mid);

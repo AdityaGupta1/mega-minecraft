@@ -1,16 +1,52 @@
 #include "terrain.hpp"
 
 #include "util/enums.hpp"
+#include "cuda/cuda_utils.hpp"
 
-#define CHUNK_VBOS_GEN_RADIUS 3
+#include <iostream>
+#include <glm/gtx/string_cast.hpp>
+
+#define CHUNK_VBOS_GEN_RADIUS 8
 #define CHUNK_FEATURE_PLACEMENTS_GEN_RADIUS (CHUNK_VBOS_GEN_RADIUS + 2)
 
 Terrain::Terrain()
-{}
+{
+    initCuda();
+}
+
+Terrain::~Terrain()
+{
+    freeCuda();
+}
+
+static Block* dev_blocks;
+static unsigned char* dev_heightfield;
+
+void Terrain::initCuda()
+{
+    cudaMalloc((void**)&dev_blocks, 65536 * sizeof(Block));
+    cudaMalloc((void**)&dev_heightfield, 256 * sizeof(unsigned char));
+    CudaUtils::checkCUDAError("cudaMalloc failed");
+}
+
+void Terrain::freeCuda()
+{
+    cudaFree(dev_blocks);
+    cudaFree(dev_heightfield);
+    CudaUtils::checkCUDAError("cudaFree failed");
+}
 
 ivec2 zonePosFromChunkPos(ivec2 chunkPos)
 {
     return ivec2(glm::floor(vec2(chunkPos) / 16.f)) * 16;
+}
+
+template<class T>
+T& pop(std::queue<T>& queue)
+{
+    T& temp = queue.front();
+    queue.pop();
+    return temp;
 }
 
 Zone* Terrain::createZone(ivec2 zonePos)
@@ -50,54 +86,130 @@ void Terrain::updateChunks()
     {
         for (int dx = -CHUNK_FEATURE_PLACEMENTS_GEN_RADIUS; dx <= CHUNK_FEATURE_PLACEMENTS_GEN_RADIUS; ++dx)
         {
-            ivec2 newChunkWorldPos = currentChunkPos + ivec2(dx, dz);
-            ivec2 newZoneWorldPos = zonePosFromChunkPos(newChunkWorldPos);
+            ivec2 newChunkWorldChunkPos = currentChunkPos + ivec2(dx, dz);
+            ivec2 newZoneWorldChunkPos = zonePosFromChunkPos(newChunkWorldChunkPos);
 
-            auto zoneIt = zones.find(newZoneWorldPos);
+            auto zoneIt = zones.find(newZoneWorldChunkPos);
             Zone* zonePtr; // TODO maybe cache this and reuse if next chunk has same zone (which should be a common occurrence)
             if (zoneIt == zones.end())
             {
-                zonePtr = createZone(newZoneWorldPos);
+                zonePtr = createZone(newZoneWorldChunkPos);
             }
             else
             {
                 zonePtr = zoneIt->second.get();
             }
 
-            ivec2 newChunkLocalPos = newChunkWorldPos - newZoneWorldPos;
-            int chunkIdx = newChunkLocalPos.x + 16 * newChunkLocalPos.y;
+            ivec2 newChunkLocalChunkPos = newChunkWorldChunkPos - newZoneWorldChunkPos;
+            int chunkIdx = newChunkLocalChunkPos.x + 16 * newChunkLocalChunkPos.y;
 
             if (zonePtr->chunks[chunkIdx] == nullptr)
             {
-                auto chunkUptr = std::make_unique<Chunk>(newChunkWorldPos);
+                auto chunkUptr = std::make_unique<Chunk>(newChunkWorldChunkPos);
                 chunkUptr->zonePtr = zonePtr;
                 zonePtr->chunks[chunkIdx] = std::move(chunkUptr);
             }
 
             Chunk* chunkPtr = zonePtr->chunks[chunkIdx].get();
 
-            // TODO add chunk to appropriate queue (based on current state) if ready
+            if (!chunkPtr->isReadyForQueue())
+            {
+                continue;
+            }
+
+            switch (chunkPtr->getState())
+            {
+            case ChunkState::EMPTY:
+                dummyChunksToFill.push(chunkPtr);
+                continue;
+            }
+
             // don't go past feature placements if not in range of CHUNK_VBOS_GEN_RADIUS
+            const ivec2 dist = abs(chunkPtr->worldChunkPos - this->currentChunkPos);
+            if (max(dist.x, dist.y) > CHUNK_VBOS_GEN_RADIUS)
+            {
+                continue;
+            }
+            
+            switch (chunkPtr->getState())
+            {
+            case ChunkState::IS_FILLED:
+                dummyChunksToCreateVbos.push(chunkPtr);
+                continue;
+            }
         }
     }
 }
 
 void Terrain::tick()
 {
-    updateChunks();
+    while (!chunksToDestroyVbos.empty())
+    {
+        auto& chunkPtr = pop(chunksToDestroyVbos);
+
+        drawableChunks.erase(chunkPtr);
+        chunkPtr->destroyVBOs();
+        chunkPtr->setState(ChunkState::IS_FILLED);
+    }
+
+    if (currentChunkPos != lastChunkPos)
+    {
+        lastChunkPos = currentChunkPos;
+        needsUpdateChunks = true;
+    }
+
+    if (needsUpdateChunks)
+    {
+        updateChunks();
+        needsUpdateChunks = false;
+    }
+
+    while (!dummyChunksToFill.empty())
+    {
+        auto& chunkPtr = pop(dummyChunksToFill);
+
+        chunkPtr->setNotReadyForQueue();
+        chunkPtr->dummyFillCUDA(dev_blocks, dev_heightfield);
+        chunkPtr->setState(ChunkState::IS_FILLED);
+        needsUpdateChunks = true;
+    }
+
+    while (!dummyChunksToCreateVbos.empty())
+    {
+        auto& chunkPtr = pop(dummyChunksToCreateVbos);
+
+        chunkPtr->setNotReadyForQueue();
+        chunkPtr->createVBOs();
+        chunkPtr->bufferVBOs();
+        drawableChunks.insert(chunkPtr);
+        chunkPtr->setState(ChunkState::DRAWABLE);
+    }
 
     // TODO do a kernel or launch a thread or something (based on queue of chunks to generate)
     // go through all the queues and do kernels/threads (up to a max number of kernels, probably no limit on queueing threads)
     // max number of kernels may depend on type and measured execution type of each kernel
     // make sure to update chunk.readyForQueue to true afterwards
-    // IMPORTANT: VBO threads should, when finished, directly add chunks to drawableChunks to prevent leaking chunks that become too far
+    // IMPORTANT: VBO threads should, when finished, directly add chunks to some set of "chunks that need VBOs buffered" to prevent leaking chunks that become too far
 }
 
-void Terrain::draw() {
-    // TODO draw things lol
+void Terrain::draw(const ShaderProgram& prog) {
+    mat4 modelMat = mat4(1);
 
-    // when iterating through collection of chunks to draw, keep track of which ones are too far, queue them for destruction, and skip them
-    // maybe the chunks can be destroyed in tick() before calling updateChunks()
+    for (const auto& chunkPtr : drawableChunks)
+    {
+        const ivec2 dist = abs(chunkPtr->worldChunkPos - this->currentChunkPos);
+        if (max(dist.x, dist.y) > CHUNK_VBOS_GEN_RADIUS)
+        {
+            chunksToDestroyVbos.push(chunkPtr);
+        }
+        else
+        {
+            modelMat[3][0] = chunkPtr->worldChunkPos.x * 16.f;
+            modelMat[3][2] = chunkPtr->worldChunkPos.y * 16.f;
+            prog.setModelMat(modelMat);
+            prog.draw(*chunkPtr);
+        }
+    }
 }
 
 void Terrain::setCurrentChunkPos(ivec2 newCurrentChunk) 

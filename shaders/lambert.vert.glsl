@@ -1,5 +1,6 @@
 #version 330
 
+uniform mat4 u_modelMat;
 uniform mat4 u_viewProjMat;
 
 in vec3 vs_pos;
@@ -16,7 +17,8 @@ vec3 rand(vec3 v) {
 }
 
 void main() {
-    gl_Position = u_viewProjMat * vec4(vs_pos, 1);
+    vec4 modelPos = u_modelMat * vec4(vs_pos, 1);
+    gl_Position = u_viewProjMat * modelPos;
 
     fs_uv = vs_uv;
 }

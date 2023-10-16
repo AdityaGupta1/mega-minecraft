@@ -15,6 +15,7 @@ public:
     GLint attr_pos;
     GLint attr_uv;
 
+    GLint unif_modelMat;
     GLint unif_viewProjMat;
 
     GLint tex_blockDiffuse;
@@ -23,11 +24,12 @@ public:
 
     bool create(const std::string& vertFile, const std::string& fragFile);
 
-    void useMe();
+    void useMe() const;
 
-    void setViewProjMat(const glm::mat4& mat);
+    void setModelMat(const glm::mat4& mat) const;
+    void setViewProjMat(const glm::mat4& mat) const;
 
-    void setTexBlockDiffuse(int tex);
+    void setTexBlockDiffuse(int tex) const;
 
-    void draw(Drawable &d);
+    void draw(Drawable &d) const;
 };

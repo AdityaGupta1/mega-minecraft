@@ -22,13 +22,14 @@ enum class ChunkState
 };
 
 class Chunk : public Drawable {
+private:
+    ChunkState state{ ChunkState::EMPTY };
+    bool readyForQueue{ true };
+
 public:
     const ivec2 worldChunkPos; // world-space pos in terms of chunks (e.g. (3, -4) chunk pos = (48, -64) block pos)
 
     Zone* zonePtr;
-
-    ChunkState state{ ChunkState::EMPTY };
-    bool readyForQueue{ true };
 
     std::array<unsigned char, 256> heightfield; // iteration order = z, x
     std::array<Block, 65536> blocks; // iteration order = z, x, y (allows for easily copying horizontal slices of terrain)
@@ -37,6 +38,11 @@ public:
     std::vector<Vertex> verts;
 
     Chunk(ivec2 worldChunkPos);
+
+    ChunkState getState();
+    void setState(ChunkState newState);
+    bool isReadyForQueue();
+    void setNotReadyForQueue();
 
     void dummyFill();
     void dummyFillCUDA(Block* dev_blocks, unsigned char* dev_heightfield);

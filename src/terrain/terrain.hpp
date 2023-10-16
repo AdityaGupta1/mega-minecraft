@@ -8,6 +8,7 @@
 #include <memory>
 #include <array>
 #include "util/utils.hpp"
+#include "rendering/shaderProgram.hpp"
 
 using namespace glm;
 
@@ -29,12 +30,18 @@ class Terrain {
 private:
     std::unordered_map<ivec2, std::unique_ptr<Zone>, Utils::PosHash> zones;
 
-    //std::queue<Chunk*> chunksToGenerate;
-    //std::queue<Chunk*> chunksThatNeedVbos;
+    std::queue<Chunk*> dummyChunksToFill;
+    std::queue<Chunk*> dummyChunksToCreateVbos;
     
     std::unordered_set<Chunk*> drawableChunks;
+    std::queue<Chunk*> chunksToDestroyVbos;
 
-    ivec2 currentChunkPos;
+    ivec2 currentChunkPos{ 0, 0 };
+    ivec2 lastChunkPos{ 0, 0 };
+    bool needsUpdateChunks{ true };
+
+    void initCuda();
+    void freeCuda();
 
     Zone* createZone(ivec2 zonePos);
 
@@ -42,10 +49,11 @@ private:
 
 public:
     Terrain();
+    ~Terrain();
 
     void tick();
 
-    void draw();
+    void draw(const ShaderProgram& prog);
 
     void setCurrentChunkPos(ivec2 newCurrentChunkPos);
 };

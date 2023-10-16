@@ -93,6 +93,7 @@ bool ShaderProgram::create(const std::string& vertFile, const std::string& fragF
     attr_pos = glGetAttribLocation(prog, "vs_pos");
     attr_uv = glGetAttribLocation(prog, "vs_uv");
 
+    unif_modelMat = glGetUniformLocation(prog, "u_modelMat");
     unif_viewProjMat = glGetUniformLocation(prog, "u_viewProjMat");
 
     tex_blockDiffuse = glGetUniformLocation(prog, "tex_blockDiffuse");
@@ -101,24 +102,30 @@ bool ShaderProgram::create(const std::string& vertFile, const std::string& fragF
     return true;
 }
 
-void ShaderProgram::useMe()
+void ShaderProgram::useMe() const
 {
     glUseProgram(prog);
 }
 
-void ShaderProgram::setViewProjMat(const glm::mat4& mat)
+void ShaderProgram::setModelMat(const glm::mat4& mat) const
+{
+    useMe();
+    glUniformMatrix4fv(unif_modelMat, 1, GL_FALSE, &mat[0][0]);
+}
+
+void ShaderProgram::setViewProjMat(const glm::mat4& mat) const
 {
     useMe();
     glUniformMatrix4fv(unif_viewProjMat, 1, GL_FALSE, &mat[0][0]);
 }
 
-void ShaderProgram::setTexBlockDiffuse(int tex)
+void ShaderProgram::setTexBlockDiffuse(int tex) const
 {
     useMe();
     glUniform1i(tex_blockDiffuse, tex);
 }
 
-void ShaderProgram::draw(Drawable& d)
+void ShaderProgram::draw(Drawable& d) const
 {
     useMe();
 
