@@ -120,6 +120,7 @@ void Terrain::updateChunks()
             switch (chunkPtr->getState())
             {
             case ChunkState::EMPTY:
+                chunkPtr->setNotReadyForQueue();
                 dummyChunksToFill.push(chunkPtr);
                 continue;
             }
@@ -134,6 +135,7 @@ void Terrain::updateChunks()
             switch (chunkPtr->getState())
             {
             case ChunkState::IS_FILLED:
+                chunkPtr->setNotReadyForQueue();
                 dummyChunksToCreateVbos.push(chunkPtr);
                 continue;
             }
@@ -168,21 +170,23 @@ void Terrain::tick()
     {
         auto& chunkPtr = pop(dummyChunksToFill);
 
-        chunkPtr->setNotReadyForQueue();
         chunkPtr->dummyFillCUDA(dev_blocks, dev_heightfield);
         chunkPtr->setState(ChunkState::IS_FILLED);
         needsUpdateChunks = true;
+
+        break; // temporary so it does only one per frame
     }
 
     while (!dummyChunksToCreateVbos.empty())
     {
         auto& chunkPtr = pop(dummyChunksToCreateVbos);
 
-        chunkPtr->setNotReadyForQueue();
         chunkPtr->createVBOs();
         chunkPtr->bufferVBOs();
         drawableChunks.insert(chunkPtr);
         chunkPtr->setState(ChunkState::DRAWABLE);
+
+        break; // temporary so it does only one per frame
     }
 
     // TODO do a kernel or launch a thread or something (based on queue of chunks to generate)
