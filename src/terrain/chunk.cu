@@ -137,7 +137,7 @@ __global__ void kernDummyFill(Block* blocks, unsigned char* heightfield)
     }
     else if (y == height)
     {
-        block = Block::SAND;
+        block = Block::GRASS;
     }
     else if (y >= height - 3)
     {
@@ -204,12 +204,12 @@ static const std::array<vec2, 16> uvOffsets = {
 
 float randFromPosDir(ivec3 blockPos, int dir)
 {
-    return fract(sin(dot(vec4(vec3(blockPos), dir), vec4(453.29f, 817.46f, 296.14f, 572.85f))));
+    return fract(sin(dot(vec4(vec3(blockPos), dir), vec4(453.29f, 817.46f, 296.14f, 572.85f))) * 43758.5453f);
 }
 
 float randFromRand(float rand)
 {
-    return fract(sin(rand * 134.78f));
+    return fract(sin(rand * 134.78f) * 98345.1928f);
 }
 
 void Chunk::createVBOs()
@@ -281,39 +281,31 @@ void Chunk::createVBOs()
                     int idx1 = verts.size();
 
                     const auto& thisUvs = thisBlockData.uvs;
-                    vec2 uvStart;
-                    bool uvRandRot;
-                    bool uvRandFlip;
+                    SideUv sideUv;
                     switch (direction.y)
                     {
                     case 1:
-                        uvStart = thisUvs.top;
-                        uvRandRot = thisUvs.randRotTop;
-                        uvRandFlip = thisUvs.randFlipTop;
+                        sideUv = thisUvs.top;
                         break;
                     case -1:
-                        uvStart = thisUvs.bottom;
-                        uvRandRot = thisUvs.randRotBottom;
-                        uvRandFlip = thisUvs.randFlipBottom;
+                        sideUv = thisUvs.bottom;
                         break;
                     case 0:
-                        uvStart = thisUvs.side;
-                        uvRandRot = thisUvs.randRotSide;
-                        uvRandFlip = thisUvs.randFlipSide;
+                        sideUv = thisUvs.side;
                         break;
                     }
 
                     int uvStartIdx = 0;
                     int uvFlipIdx = -1;
-                    if (uvRandRot || uvRandFlip)
+                    if (sideUv.randRot || sideUv.randFlip)
                     {
-                        float rand = randFromPosDir(thisPos, dirIdx);
-                        if (uvRandRot)
+                        float rand = randFromPosDir(ivec3(worldChunkPos.x, 0, worldChunkPos.y) * 16 + thisPos, dirIdx);
+                        if (sideUv.randRot)
                         {
                             uvStartIdx = (int)(rand * 4.f);
                             rand = randFromRand(rand);
                         }
-                        if (uvRandFlip)
+                        if (sideUv.randFlip)
                         {
                             uvFlipIdx = (int)(rand * 4.f);
                         }
@@ -338,7 +330,7 @@ void Chunk::createVBOs()
                                 uvOffset.y = 0.0625f - uvOffset.y;
                             }
                         }
-                        vert.uv = uvStart + uvOffset;
+                        vert.uv = sideUv.uv + uvOffset;
                     }
 
                     idx.push_back(idx1);

@@ -15,6 +15,16 @@ enum class Block : unsigned char
     SNOWY_GRASS
 };
 
+struct SideUv
+{
+    SideUv() = default;
+    SideUv(glm::vec2 uv) : uv(uv) {}
+
+    glm::vec2 uv;
+    bool randRot{ false };
+    bool randFlip{ false };
+};
+
 struct BlockUvs
 {
     BlockUvs() = default;
@@ -22,50 +32,42 @@ struct BlockUvs
     BlockUvs(glm::vec2 side, glm::vec2 vert) : top(vert), side(side), bottom(vert) {}
     BlockUvs(glm::vec2 side, glm::vec2 top, glm::vec2 bottom) : top(top), side(side), bottom(bottom) {}
 
-    glm::vec2 side;
-    glm::vec2 top;
-    glm::vec2 bottom;
-
-    bool randRotSide{ false };
-    bool randRotTop{ false };
-    bool randRotBottom{ false };
-
-    bool randFlipSide{ false };
-    bool randFlipTop{ false };
-    bool randFlipBottom{ false };
+    SideUv side;
+    SideUv top;
+    SideUv bottom;
 
     void normalize()
     {
-        top *= 0.0625f;
-        side *= 0.0625f;
-        bottom *= 0.0625f;
+        top.uv *= 0.0625f;
+        side.uv *= 0.0625f;
+        bottom.uv *= 0.0625f;
     }
 
     BlockUvs& setRandomRotation()
     {
-        randRotSide = randRotTop = randRotBottom = true;
+        side.randRot = top.randRot = bottom.randRot = true;
         return *this;
     }
 
     BlockUvs& setRandomRotation(bool side, bool top, bool bottom)
     {
-        randRotSide = side;
-        randRotTop = top;
-        randRotBottom = bottom;
+        this->side.randRot = side;
+        this->top.randRot = top;
+        this->bottom.randRot = bottom;
         return *this;
     }
 
     BlockUvs& setRandomFlip()
     {
-        randFlipSide = randFlipTop = randFlipBottom = true;
+        side.randFlip = top.randFlip = bottom.randFlip = true;
         return *this;
     }
 
     BlockUvs& setRandomFlip(bool side, bool top, bool bottom)
     {
-        randFlipSide = side;
-        randFlipTop = top;
-        randFlipBottom = bottom;
+        this->side.randFlip = side;
+        this->top.randFlip = top;
+        this->bottom.randFlip = bottom;
         return *this;
     }
 };
