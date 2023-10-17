@@ -228,16 +228,44 @@ void Chunk::createVBOs()
                 for (int i = 0; i < 6; ++i)
                 {
                     const auto& direction = DirectionEnums::dirVecs[i];
-                    const ivec3 newPos = thisPos + direction;
-                    if (newPos.x < 0 || newPos.x >= 16 || newPos.z < 0 || newPos.z >= 16 || newPos.y < 0 || newPos.y >= 256)
-                    {
-                        continue;
-                    }
+                    ivec3 neighborPos = thisPos + direction;
+                    Chunk* neighborPosChunk = this;
+                    Block neighborBlock;
 
-                    Block neighborBlock = blocks[posToIndex(newPos)];
-                    if (neighborBlock != Block::AIR)
+                    if (neighborPos.y >= 0 && neighborPos.y < 256)
                     {
-                        continue;
+                        if (neighborPos.x < 0)
+                        {
+                            neighborPosChunk = neighbors[3];
+                            neighborPos.x += 16;
+                        }
+                        else if (neighborPos.x >= 16)
+                        {
+                            neighborPosChunk = neighbors[1];
+                            neighborPos.x -= 16;
+                        }
+                        else if (neighborPos.z < 0)
+                        {
+                            neighborPosChunk = neighbors[2];
+                            neighborPos.z += 16;
+                        }
+                        else if (neighborPos.z >= 16)
+                        {
+                            neighborPosChunk = neighbors[0];
+                            neighborPos.z -= 16;
+                        }
+
+                        if (neighborPosChunk == nullptr)
+                        {
+                            continue;
+                        }
+
+                        neighborBlock = neighborPosChunk->blocks[posToIndex(neighborPos)];
+
+                        if (neighborBlock != Block::AIR) // TODO: this will get more complicated with transparent and non-cube blocks
+                        {
+                            continue;
+                        }
                     }
 
                     int idx1 = verts.size();

@@ -17,13 +17,12 @@ class Chunk;
 struct Zone
 {
     Zone(ivec2 worldChunkPos)
-        : worldChunkPos(worldChunkPos), chunks(), neighbors()
-    {
-    }
+        : worldChunkPos(worldChunkPos)
+    {}
 
     ivec2 worldChunkPos; // in terms of number of chunks, so (0, 0) then (0, 16) then (0, 32) and so on
-    std::array<std::unique_ptr<Chunk>, 256> chunks;
-    std::array<Zone*, 8> neighbors; // starts with north and goes clockwise
+    std::array<std::unique_ptr<Chunk>, 256> chunks{ nullptr };
+    std::array<Zone*, 8> neighbors{ nullptr }; // starts with north and goes clockwise
 };
 
 class Terrain {

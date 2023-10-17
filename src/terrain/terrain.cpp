@@ -203,11 +203,21 @@ void Terrain::tick()
 
     while (!dummyChunksToFill.empty())
     {
+        needsUpdateChunks = true;
+
         auto& chunkPtr = pop(dummyChunksToFill);
 
         chunkPtr->dummyFillCUDA(dev_blocks, dev_heightfield);
         chunkPtr->setState(ChunkState::IS_FILLED);
-        needsUpdateChunks = true;
+
+        for (int i = 0; i < 4; ++i)
+        {
+            Chunk* neighborChunkPtr = chunkPtr->neighbors[i];
+            if (neighborChunkPtr != nullptr && neighborChunkPtr->getState() == ChunkState::DRAWABLE)
+            {
+                chunksToDestroyVbos.push(neighborChunkPtr);
+            }
+        }
 
         break; // temporary so it does only one per frame
     }

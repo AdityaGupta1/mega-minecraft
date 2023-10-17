@@ -31,7 +31,7 @@ public:
 
     Zone* zonePtr;
 
-    std::array<Chunk*, 4> neighbors;
+    std::array<Chunk*, 4> neighbors{ nullptr };
 
     std::array<unsigned char, 256> heightfield; // iteration order = z, x
     std::array<Block, 65536> blocks; // iteration order = z, x, y (allows for easily copying horizontal slices of terrain)
