@@ -7,7 +7,12 @@ enum class Block : unsigned char
     AIR,
     STONE,
     DIRT,
-    GRASS
+    GRASS,
+    SAND,
+    GRAVEL,
+    MYCELIUM,
+    SNOW,
+    SNOWY_GRASS
 };
 
 struct BlockUvs
@@ -17,15 +22,51 @@ struct BlockUvs
     BlockUvs(glm::vec2 side, glm::vec2 vert) : top(vert), side(side), bottom(vert) {}
     BlockUvs(glm::vec2 side, glm::vec2 top, glm::vec2 bottom) : top(top), side(side), bottom(bottom) {}
 
-    glm::vec2 top;
     glm::vec2 side;
+    glm::vec2 top;
     glm::vec2 bottom;
+
+    bool randRotSide{ false };
+    bool randRotTop{ false };
+    bool randRotBottom{ false };
+
+    bool randFlipSide{ false };
+    bool randFlipTop{ false };
+    bool randFlipBottom{ false };
 
     void normalize()
     {
         top *= 0.0625f;
         side *= 0.0625f;
         bottom *= 0.0625f;
+    }
+
+    BlockUvs& setRandomRotation()
+    {
+        randRotSide = randRotTop = randRotBottom = true;
+        return *this;
+    }
+
+    BlockUvs& setRandomRotation(bool side, bool top, bool bottom)
+    {
+        randRotSide = side;
+        randRotTop = top;
+        randRotBottom = bottom;
+        return *this;
+    }
+
+    BlockUvs& setRandomFlip()
+    {
+        randFlipSide = randFlipTop = randFlipBottom = true;
+        return *this;
+    }
+
+    BlockUvs& setRandomFlip(bool side, bool top, bool bottom)
+    {
+        randFlipSide = side;
+        randFlipTop = top;
+        randFlipBottom = bottom;
+        return *this;
     }
 };
 

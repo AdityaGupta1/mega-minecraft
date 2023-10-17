@@ -137,7 +137,7 @@ __global__ void kernDummyFill(Block* blocks, unsigned char* heightfield)
     }
     else if (y == height)
     {
-        block = Block::GRASS;
+        block = Block::SAND;
     }
     else if (y >= height - 3)
     {
@@ -198,9 +198,19 @@ static const std::array<vec3, 24> directionVertPositions = {
     vec3(0, 0, 0), vec3(1, 0, 0), vec3(1, 0, 1), vec3(0, 0, 1)
 };
 
-static const std::array<vec2, 4> uvOffsets = {
+static const std::array<vec2, 16> uvOffsets = {
     vec2(0, 0), vec2(0.0625f, 0), vec2(0.0625f, 0.0625f), vec2(0, 0.0625f)
 };
+
+float randFromPosDir(ivec3 blockPos, int dir)
+{
+    return fract(sin(dot(vec4(vec3(blockPos), dir), vec4(453.29f, 817.46f, 296.14f, 572.85f))));
+}
+
+float randFromRand(float rand)
+{
+    return fract(sin(rand * 134.78f));
+}
 
 void Chunk::createVBOs()
 {
@@ -225,9 +235,9 @@ void Chunk::createVBOs()
 
                 BlockData thisBlockData = BlockUtils::getBlockData(thisBlock);
 
-                for (int i = 0; i < 6; ++i)
+                for (int dirIdx = 0; dirIdx < 6; ++dirIdx)
                 {
-                    const auto& direction = DirectionEnums::dirVecs[i];
+                    const auto& direction = DirectionEnums::dirVecs[dirIdx];
                     ivec3 neighborPos = thisPos + direction;
                     Chunk* neighborPosChunk = this;
                     Block neighborBlock;
@@ -270,26 +280,65 @@ void Chunk::createVBOs()
 
                     int idx1 = verts.size();
 
+                    const auto& thisUvs = thisBlockData.uvs;
                     vec2 uvStart;
+                    bool uvRandRot;
+                    bool uvRandFlip;
                     switch (direction.y)
                     {
                     case 1:
-                        uvStart = thisBlockData.uvs.top;
+                        uvStart = thisUvs.top;
+                        uvRandRot = thisUvs.randRotTop;
+                        uvRandFlip = thisUvs.randFlipTop;
                         break;
                     case -1:
-                        uvStart = thisBlockData.uvs.bottom;
+                        uvStart = thisUvs.bottom;
+                        uvRandRot = thisUvs.randRotBottom;
+                        uvRandFlip = thisUvs.randFlipBottom;
                         break;
                     case 0:
-                        uvStart = thisBlockData.uvs.side;
+                        uvStart = thisUvs.side;
+                        uvRandRot = thisUvs.randRotSide;
+                        uvRandFlip = thisUvs.randFlipSide;
                         break;
+                    }
+
+                    int uvStartIdx = 0;
+                    int uvFlipIdx = -1;
+                    if (uvRandRot || uvRandFlip)
+                    {
+                        float rand = randFromPosDir(thisPos, dirIdx);
+                        if (uvRandRot)
+                        {
+                            uvStartIdx = (int)(rand * 4.f);
+                            rand = randFromRand(rand);
+                        }
+                        if (uvRandFlip)
+                        {
+                            uvFlipIdx = (int)(rand * 4.f);
+                        }
                     }
 
                     for (int j = 0; j < 4; ++j)
                     {
                         verts.emplace_back();
                         Vertex& vert = verts.back();
-                        vert.pos = vec3(thisPos) + directionVertPositions[i * 4 + j];
-                        vert.uv = uvStart + uvOffsets[j];
+
+                        vert.pos = vec3(thisPos) + directionVertPositions[dirIdx * 4 + j];
+
+                        vec2 uvOffset = uvOffsets[(uvStartIdx + j) % 4];
+                        if (uvFlipIdx != -1)
+                        {
+                            if (uvFlipIdx & 1)
+                            {
+                                uvOffset.x = 0.0625f - uvOffset.x;
+                            }
+                            if (uvFlipIdx & 2)
+                            {
+                                uvOffset.y = 0.0625f - uvOffset.y;
+                            }
+                        }
+                        vert.uv = uvStart + uvOffset;
                     }
 
                     idx.push_back(idx1);
