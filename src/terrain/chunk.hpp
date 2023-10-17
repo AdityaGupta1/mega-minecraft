@@ -18,6 +18,7 @@ enum class ChunkState
     HAS_HEIGHTFIELD,
     HAS_FEATURE_PLACEMENTS, /* do on GPU if possible */
     IS_FILLED,
+    HAS_VBOS,
     DRAWABLE
 };
 

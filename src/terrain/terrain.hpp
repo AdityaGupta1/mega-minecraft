@@ -9,6 +9,7 @@
 #include <array>
 #include "util/utils.hpp"
 #include "rendering/shaderProgram.hpp"
+#include <mutex>
 
 using namespace glm;
 
@@ -27,10 +28,13 @@ struct Zone
 
 class Terrain {
 private:
+    std::mutex mutex;
+
     std::unordered_map<ivec2, std::unique_ptr<Zone>, Utils::PosHash> zones;
 
-    std::queue<Chunk*> dummyChunksToFill;
-    std::queue<Chunk*> dummyChunksToCreateVbos;
+    std::queue<Chunk*> chunksToFill;
+    std::queue<Chunk*> chunksToCreateVbos;
+    std::queue<Chunk*> chunksToBufferVbos;
     
     std::unordered_set<Chunk*> drawableChunks;
     std::queue<Chunk*> chunksToDestroyVbos;
@@ -45,6 +49,8 @@ private:
     Zone* createZone(ivec2 zonePos);
 
     void updateChunks();
+
+    void createChunkVbos(Chunk* chunkPtr);
 
 public:
     Terrain();

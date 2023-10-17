@@ -2,12 +2,15 @@
 
 #include "util/enums.hpp"
 #include "cuda/cuda_utils.hpp"
+#include <thread>
 
 #include <iostream>
 #include <glm/gtx/string_cast.hpp>
 
 #define CHUNK_VBOS_GEN_RADIUS 12
 #define CHUNK_FEATURE_PLACEMENTS_GEN_RADIUS (CHUNK_VBOS_GEN_RADIUS + 2)
+
+#define MULTITHREADING 1
 
 Terrain::Terrain()
 {
@@ -156,7 +159,7 @@ void Terrain::updateChunks()
             {
             case ChunkState::EMPTY:
                 chunkPtr->setNotReadyForQueue();
-                dummyChunksToFill.push(chunkPtr);
+                chunksToFill.push(chunkPtr);
                 continue;
             }
 
@@ -171,15 +174,36 @@ void Terrain::updateChunks()
             {
             case ChunkState::IS_FILLED:
                 chunkPtr->setNotReadyForQueue();
-                dummyChunksToCreateVbos.push(chunkPtr);
+                chunksToCreateVbos.push(chunkPtr);
                 continue;
             }
         }
     }
 }
 
+void Terrain::createChunkVbos(Chunk* chunkPtr)
+{
+    chunkPtr->createVBOs();
+
+#if MULTITHREADING
+    mutex.lock();
+#endif
+
+    chunkPtr->setState(ChunkState::HAS_VBOS);
+    chunkPtr->setNotReadyForQueue();
+    chunksToBufferVbos.push(chunkPtr);
+
+#if MULTITHREADING
+    mutex.unlock();
+#endif
+}
+
 void Terrain::tick()
 {
+#if MULTITHREADING
+    mutex.lock();
+#endif
+
     while (!chunksToDestroyVbos.empty())
     {
         auto& chunkPtr = pop(chunksToDestroyVbos);
@@ -207,11 +231,11 @@ void Terrain::tick()
     // any get VBOs created, which should help reduce the frequency of VBO recreation.
     int actionTimeLeft = 5;
 
-    while (!dummyChunksToFill.empty() && actionTimeLeft > 0)
+    while (!chunksToFill.empty() && actionTimeLeft >= 1)
     {
         needsUpdateChunks = true;
 
-        auto& chunkPtr = pop(dummyChunksToFill);
+        auto& chunkPtr = pop(chunksToFill);
 
         chunkPtr->dummyFillCUDA(dev_blocks, dev_heightfield);
         chunkPtr->setState(ChunkState::IS_FILLED);
@@ -228,11 +252,30 @@ void Terrain::tick()
         actionTimeLeft -= 1;
     }
 
-    while (!dummyChunksToCreateVbos.empty() && actionTimeLeft > 0)
+#if MULTITHREADING
+    while (!chunksToCreateVbos.empty())
+#else
+    while (!chunksToCreateVbos.empty() && actionTimeLeft >= 5)
+#endif
     {
-        auto& chunkPtr = pop(dummyChunksToCreateVbos);
+        needsUpdateChunks = true;
 
-        chunkPtr->createVBOs();
+        auto& chunkPtr = pop(chunksToCreateVbos);
+
+#if MULTITHREADING
+        std::thread thread(&Terrain::createChunkVbos, this, chunkPtr);
+        thread.detach();
+#else
+        this->createChunkVbos(chunkPtr);
+
+        actionTimeLeft -= 5;
+#endif
+    }
+
+    while (!chunksToBufferVbos.empty() && actionTimeLeft >= 5)
+    {
+        auto& chunkPtr = pop(chunksToBufferVbos);
+
         chunkPtr->bufferVBOs();
         drawableChunks.insert(chunkPtr);
         chunkPtr->setState(ChunkState::DRAWABLE);
@@ -243,8 +286,10 @@ void Terrain::tick()
     // TODO do a kernel or launch a thread or something (based on queue of chunks to generate)
     // go through all the queues and do kernels/threads (up to a max number of kernels, probably no limit on queueing threads)
     // max number of kernels may depend on type and measured execution type of each kernel
-    // make sure to update chunk.readyForQueue to true afterwards
-    // IMPORTANT: VBO threads should, when finished, directly add chunks to some set of "chunks that need VBOs buffered" to prevent leaking chunks that become too far
+
+#if MULTITHREADING
+    mutex.unlock();
+#endif
 }
 
 void Terrain::draw(const ShaderProgram& prog) {
