@@ -6,7 +6,7 @@
 #include <iostream>
 #include <glm/gtx/string_cast.hpp>
 
-#define CHUNK_VBOS_GEN_RADIUS 8
+#define CHUNK_VBOS_GEN_RADIUS 12
 #define CHUNK_FEATURE_PLACEMENTS_GEN_RADIUS (CHUNK_VBOS_GEN_RADIUS + 2)
 
 Terrain::Terrain()
