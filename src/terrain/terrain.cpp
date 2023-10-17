@@ -41,6 +41,11 @@ ivec2 zonePosFromChunkPos(ivec2 chunkPos)
     return ivec2(glm::floor(vec2(chunkPos) / 16.f)) * 16;
 }
 
+int localChunkPosToIdx(ivec2 localChunkPos)
+{
+    return localChunkPos.x + 16 * localChunkPos.y;
+}
+
 template<class T>
 T& pop(std::queue<T>& queue)
 {
@@ -101,12 +106,42 @@ void Terrain::updateChunks()
             }
 
             ivec2 newChunkLocalChunkPos = newChunkWorldChunkPos - newZoneWorldChunkPos;
-            int chunkIdx = newChunkLocalChunkPos.x + 16 * newChunkLocalChunkPos.y;
+            int chunkIdx = localChunkPosToIdx(newChunkLocalChunkPos);
 
             if (zonePtr->chunks[chunkIdx] == nullptr)
             {
                 auto chunkUptr = std::make_unique<Chunk>(newChunkWorldChunkPos);
                 chunkUptr->zonePtr = zonePtr;
+
+                for (int i = 0; i < 4; ++i)
+                {
+                    const auto& neighborChunkDir = DirectionEnums::dirVecs[i];
+                    const ivec2 neighborChunkLocalChunkPos = newChunkLocalChunkPos 
+                        + ivec2(neighborChunkDir.x, neighborChunkDir.z);
+
+                    Zone* neighborZonePtr = zonePtr;
+                    if (neighborChunkLocalChunkPos.x < 0 || neighborChunkLocalChunkPos.x >= 16
+                        || neighborChunkLocalChunkPos.y < 0 || neighborChunkLocalChunkPos.y >= 16)
+                    {
+                        neighborZonePtr = zonePtr->neighbors[i * 2];
+
+                        if (neighborZonePtr == nullptr)
+                        {
+                            continue;
+                        }
+                    }
+
+                    const int neighborChunkIdx = localChunkPosToIdx((neighborChunkLocalChunkPos + ivec2(16)) % 16);
+                    const auto& neighborChunkUptr = neighborZonePtr->chunks[neighborChunkIdx];
+                    if (neighborChunkUptr == nullptr)
+                    {
+                        continue;
+                    }
+
+                    chunkUptr->neighbors[i] = neighborChunkUptr.get();
+                    neighborChunkUptr->neighbors[(i + 2) % 4] = chunkUptr.get();
+                }
+
                 zonePtr->chunks[chunkIdx] = std::move(chunkUptr);
             }
 
