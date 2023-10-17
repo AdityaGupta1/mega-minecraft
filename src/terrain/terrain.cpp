@@ -201,7 +201,13 @@ void Terrain::tick()
         needsUpdateChunks = false;
     }
 
-    while (!dummyChunksToFill.empty())
+    // TODO: temporary system to weight VBO creation more than chunk filling
+    // Will probably want to get better estimates for how much time these things take, especially as
+    // terrain generation becomes more complicated. This also means that all chunks get filled before
+    // any get VBOs created, which should help reduce the frequency of VBO recreation.
+    float actionTimeLeft = 5.f;
+
+    while (!dummyChunksToFill.empty() && actionTimeLeft > 0)
     {
         needsUpdateChunks = true;
 
@@ -219,10 +225,10 @@ void Terrain::tick()
             }
         }
 
-        break; // temporary so it does only one per frame
+        actionTimeLeft -= 1.f;
     }
 
-    while (!dummyChunksToCreateVbos.empty())
+    while (!dummyChunksToCreateVbos.empty() && actionTimeLeft > 0)
     {
         auto& chunkPtr = pop(dummyChunksToCreateVbos);
 
@@ -231,7 +237,7 @@ void Terrain::tick()
         drawableChunks.insert(chunkPtr);
         chunkPtr->setState(ChunkState::DRAWABLE);
 
-        break; // temporary so it does only one per frame
+        actionTimeLeft -= 5.f;
     }
 
     // TODO do a kernel or launch a thread or something (based on queue of chunks to generate)
