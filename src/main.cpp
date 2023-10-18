@@ -94,6 +94,7 @@ bool init(int argc, char **argv) {
     cudaGLSetGLDevice(0);
 
     BlockUtils::init();
+    BiomeUtils::init();
 
     initGame();
 

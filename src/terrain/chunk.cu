@@ -128,6 +128,20 @@ __global__ void kernDummyGenerateHeightfield(unsigned char* heightfield, float* 
     biomeWeightsStart[(int)Biome::DESERT] = 1.f - moisture;
 }
 
+__constant__ BiomeBlocks dev_biomeBlocks[(int)Biome::numBiomes];
+
+void BiomeUtils::init()
+{
+    BiomeBlocks* host_biomeBlocks = new BiomeBlocks[(int)Biome::numBiomes];
+
+    host_biomeBlocks[(int)Biome::PLAINS] = { Block::GRASS, Block::DIRT, Block::STONE };
+    host_biomeBlocks[(int)Biome::DESERT] = { Block::SAND, Block::SAND, Block::STONE };
+
+    cudaMemcpyToSymbol(dev_biomeBlocks, host_biomeBlocks, (int)Biome::numBiomes * sizeof(BiomeBlocks));
+
+    delete[] host_biomeBlocks;
+}
+
 __global__ void kernDummyFill(Block* blocks, unsigned char* heightfield, float* biomeWeights)
 {
     const int x = (blockIdx.x * blockDim.x) + threadIdx.x;
@@ -140,35 +154,29 @@ __global__ void kernDummyFill(Block* blocks, unsigned char* heightfield, float* 
     const unsigned char height = heightfield[idx2d]; // TODO: when implementing for real, use shared memory to load heightfield
     const float* biomeWeightsStart = biomeWeights + (int)Biome::numBiomes * idx2d;
 
-    Block blockTop;
-    Block blockMid;
-    Block blockStone;
+    BiomeBlocks biomeBlocks;
 
     if (biomeWeightsStart[(int)Biome::PLAINS] > 0.5f)
     {
-        blockTop = Block::GRASS;
-        blockMid = Block::DIRT;
-        blockStone = Block::STONE;
+        biomeBlocks = dev_biomeBlocks[(int)Biome::PLAINS];
     }
     else
     {
-        blockTop = Block::SAND;
-        blockMid = Block::SAND;
-        blockStone = Block::STONE;
+        biomeBlocks = dev_biomeBlocks[(int)Biome::DESERT];
     }
 
-    Block block = blockStone;
+    Block block = biomeBlocks.blockStone;
     if (y > height)
     {
         block = Block::AIR;
     }
     else if (y == height)
     {
-        block = blockTop;
+        block = biomeBlocks.blockTop;
     }
     else if (y >= height - 3)
     {
-        block = blockMid;
+        block = biomeBlocks.blockMid;
     }
 
     blocks[idx] = block;

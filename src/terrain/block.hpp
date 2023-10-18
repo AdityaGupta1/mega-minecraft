@@ -75,6 +75,7 @@ struct BlockUvs
 struct BlockData
 {
     BlockUvs uvs;
+    // will later include things like transparent, x-shaped, etc.
 };
 
 namespace BlockUtils
