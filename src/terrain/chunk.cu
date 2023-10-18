@@ -122,7 +122,7 @@ __global__ void kernDummyGenerateHeightfield(unsigned char* heightfield, float* 
     // biomes
     float* biomeWeightsStart = biomeWeights + (int)Biome::numBiomes * idx;
     
-    const float moisture = glm::simplex(worldPos * 0.005f);
+    const float moisture = glm::smoothstep(0.45f, 0.55f, glm::simplex(worldPos * 0.005f));
    
     biomeWeightsStart[(int)Biome::PLAINS] = moisture;
     biomeWeightsStart[(int)Biome::DESERT] = 1.f - moisture;
@@ -142,7 +142,24 @@ void BiomeUtils::init()
     delete[] host_biomeBlocks;
 }
 
-__global__ void kernDummyFill(Block* blocks, unsigned char* heightfield, float* biomeWeights)
+__host__ __device__ inline unsigned int hash(unsigned int a)
+{
+    a = (a + 0x7ed55d16) + (a << 12);
+    a = (a ^ 0xc761c23c) ^ (a >> 19);
+    a = (a + 0x165667b1) + (a << 5);
+    a = (a + 0xd3a2646c) ^ (a << 9);
+    a = (a + 0xfd7046c5) + (a << 3);
+    a = (a ^ 0xb55a4f09) ^ (a >> 16);
+    return a;
+}
+
+__host__ __device__ thrust::default_random_engine makeSeededRandomEngine(int x, int y, int z)
+{
+    int h = hash((1 << 31) | (x << 22) | y) ^ hash(z);
+    return thrust::default_random_engine(h);
+}
+
+__global__ void kernDummyFill(Block* blocks, unsigned char* heightfield, float* biomeWeights, ivec2 worldBlockPos)
 {
     const int x = (blockIdx.x * blockDim.x) + threadIdx.x;
     const int y = (blockIdx.y * blockDim.y) + threadIdx.y;
@@ -154,15 +171,19 @@ __global__ void kernDummyFill(Block* blocks, unsigned char* heightfield, float* 
     const unsigned char height = heightfield[idx2d]; // TODO: when implementing for real, use shared memory to load heightfield
     const float* biomeWeightsStart = biomeWeights + (int)Biome::numBiomes * idx2d;
 
-    BiomeBlocks biomeBlocks;
+    auto rng = makeSeededRandomEngine(worldBlockPos.x + x, y, worldBlockPos.y + z);
+    thrust::uniform_real_distribution<float> u01(0, 1);
 
-    if (biomeWeightsStart[(int)Biome::PLAINS] > 0.5f)
+    BiomeBlocks biomeBlocks;
+    float rand = u01(rng);
+    for (int i = 0; i < (int)Biome::numBiomes; ++i)
     {
-        biomeBlocks = dev_biomeBlocks[(int)Biome::PLAINS];
-    }
-    else
-    {
-        biomeBlocks = dev_biomeBlocks[(int)Biome::DESERT];
+        rand -= biomeWeightsStart[i];
+        if (rand <= 0.f)
+        {
+            biomeBlocks = dev_biomeBlocks[i];
+            break;
+        }
     }
 
     Block block = biomeBlocks.blockStone;
@@ -210,7 +231,8 @@ void Chunk::dummyFillCUDA(Block* dev_blocks, unsigned char* dev_heightfield, flo
     kernDummyFill<<<blocksPerGrid3d, blockSize3d>>>(
         dev_blocks, 
         dev_heightfield,
-        dev_biomeWeights
+        dev_biomeWeights,
+        this->worldChunkPos * 16
     );
     CudaUtils::checkCUDAError("kern fill failed");
     
