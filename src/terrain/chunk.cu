@@ -92,7 +92,7 @@ void Chunk::dummyFill()
 __device__
 float dummyNoise(vec2 pos)
 {
-    pos *= 0.02f;
+    pos *= 0.01f;
 
     float fbm = 0.f;
     float amplitude = 1.f;
@@ -103,10 +103,10 @@ float dummyNoise(vec2 pos)
         fbm += amplitude * glm::simplex(pos);
     }
 
-    return 64.f + 6.f * fbm;
+    return 64.f + 12.f * fbm;
 }
 
-__global__ void kernDummyGenerateHeightfield(unsigned char* heightfield, ivec2 worldBlockPos)
+__global__ void kernDummyGenerateHeightfield(unsigned char* heightfield, float* biomeWeights, ivec2 worldBlockPos)
 {
     const int x = (blockIdx.x * blockDim.x) + threadIdx.x;
     const int z = (blockIdx.y * blockDim.y) + threadIdx.y;
@@ -115,12 +115,20 @@ __global__ void kernDummyGenerateHeightfield(unsigned char* heightfield, ivec2 w
 
     const vec2 worldPos = vec2(worldBlockPos.x + x, worldBlockPos.y + z);
 
+    // height
     int height = (int)dummyNoise(worldPos);
-
     heightfield[idx] = height;
+
+    // biomes
+    float* biomeWeightsStart = biomeWeights + (int)Biome::numBiomes * idx;
+    
+    const float moisture = glm::simplex(worldPos * 0.005f);
+   
+    biomeWeightsStart[(int)Biome::PLAINS] = moisture;
+    biomeWeightsStart[(int)Biome::DESERT] = 1.f - moisture;
 }
 
-__global__ void kernDummyFill(Block* blocks, unsigned char* heightfield)
+__global__ void kernDummyFill(Block* blocks, unsigned char* heightfield, float* biomeWeights)
 {
     const int x = (blockIdx.x * blockDim.x) + threadIdx.x;
     const int y = (blockIdx.y * blockDim.y) + threadIdx.y;
@@ -128,26 +136,45 @@ __global__ void kernDummyFill(Block* blocks, unsigned char* heightfield)
 
     const int idx = posToIndex(x, y, z);
 
-    const unsigned char height = heightfield[posToIndex(x, z)]; // TODO: when implementing for real, use shared memory to load heightfield
+    const int idx2d = posToIndex(x, z);
+    const unsigned char height = heightfield[idx2d]; // TODO: when implementing for real, use shared memory to load heightfield
+    const float* biomeWeightsStart = biomeWeights + (int)Biome::numBiomes * idx2d;
 
-    Block block = Block::STONE;
+    Block blockTop;
+    Block blockMid;
+    Block blockStone;
+
+    if (biomeWeightsStart[(int)Biome::PLAINS] > 0.5f)
+    {
+        blockTop = Block::GRASS;
+        blockMid = Block::DIRT;
+        blockStone = Block::STONE;
+    }
+    else
+    {
+        blockTop = Block::SAND;
+        blockMid = Block::SAND;
+        blockStone = Block::STONE;
+    }
+
+    Block block = blockStone;
     if (y > height)
     {
         block = Block::AIR;
     }
     else if (y == height)
     {
-        block = Block::GRASS;
+        block = blockTop;
     }
     else if (y >= height - 3)
     {
-        block = Block::DIRT;
+        block = blockMid;
     }
 
     blocks[idx] = block;
 }
 
-void Chunk::dummyFillCUDA(Block* dev_blocks, unsigned char* dev_heightfield)
+void Chunk::dummyFillCUDA(Block* dev_blocks, unsigned char* dev_heightfield, float* dev_biomeWeights)
 {
     const dim3 blockSize2d(8, 8);
     const dim3 blocksPerGrid2d(2, 2);
@@ -161,14 +188,22 @@ void Chunk::dummyFillCUDA(Block* dev_blocks, unsigned char* dev_heightfield)
     cudaEventCreate(&stop);
 
     cudaEventRecord(start);
-    kernDummyGenerateHeightfield<<<blocksPerGrid2d, blockSize2d>>>(dev_heightfield, this->worldChunkPos * 16);
+    kernDummyGenerateHeightfield<<<blocksPerGrid2d, blockSize2d>>>(
+        dev_heightfield,
+        dev_biomeWeights,
+        this->worldChunkPos * 16
+    );
     CudaUtils::checkCUDAError("kern generate heightfield failed");
     cudaEventRecord(mid);
 
     cudaDeviceSynchronize();
 
     // TODO: when implementing for real, the two kernels will happen separately; will probably need to copy heightfield back to GPU before running this kernel
-    kernDummyFill<<<blocksPerGrid3d, blockSize3d>>>(dev_blocks, dev_heightfield);
+    kernDummyFill<<<blocksPerGrid3d, blockSize3d>>>(
+        dev_blocks, 
+        dev_heightfield,
+        dev_biomeWeights
+    );
     CudaUtils::checkCUDAError("kern fill failed");
     
     cudaMemcpy(this->blocks.data(), dev_blocks, 65536 * sizeof(Block), cudaMemcpyDeviceToHost);

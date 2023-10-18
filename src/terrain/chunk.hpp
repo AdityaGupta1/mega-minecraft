@@ -7,6 +7,7 @@
 #include "rendering/drawable.hpp"
 #include "rendering/structs.hpp"
 #include "terrain.hpp"
+#include "biome.hpp"
 
 using namespace glm;
 
@@ -34,7 +35,9 @@ public:
 
     std::array<Chunk*, 4> neighbors{ nullptr };
 
+    // TODO: use vector or something for heightfield and biomeWeights so they can be cleared after use (to save memory)
     std::array<unsigned char, 256> heightfield; // iteration order = z, x
+    std::array<float[(int)Biome::numBiomes], 256> biomeWeights;
     std::array<Block, 65536> blocks; // iteration order = z, x, y (allows for easily copying horizontal slices of terrain)
 
     std::vector<GLuint> idx;
@@ -48,7 +51,7 @@ public:
     void setNotReadyForQueue();
 
     void dummyFill();
-    void dummyFillCUDA(Block* dev_blocks, unsigned char* dev_heightfield);
+    void dummyFillCUDA(Block* dev_blocks, unsigned char* dev_heightfield, float* dev_biomeWeights);
 
     void createVBOs();
     void bufferVBOs() override;

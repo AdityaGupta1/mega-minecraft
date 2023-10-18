@@ -24,11 +24,13 @@ Terrain::~Terrain()
 
 static Block* dev_blocks;
 static unsigned char* dev_heightfield;
+static float* dev_biomeWeights;
 
 void Terrain::initCuda()
 {
     cudaMalloc((void**)&dev_blocks, 65536 * sizeof(Block));
     cudaMalloc((void**)&dev_heightfield, 256 * sizeof(unsigned char));
+    cudaMalloc((void**)&dev_biomeWeights, 256 * (int)Biome::numBiomes * sizeof(float));
     CudaUtils::checkCUDAError("cudaMalloc failed");
 }
 
@@ -36,6 +38,7 @@ void Terrain::freeCuda()
 {
     cudaFree(dev_blocks);
     cudaFree(dev_heightfield);
+    cudaFree(dev_biomeWeights);
     CudaUtils::checkCUDAError("cudaFree failed");
 }
 
@@ -237,7 +240,7 @@ void Terrain::tick()
 
         auto& chunkPtr = pop(chunksToFill);
 
-        chunkPtr->dummyFillCUDA(dev_blocks, dev_heightfield);
+        chunkPtr->dummyFillCUDA(dev_blocks, dev_heightfield, dev_biomeWeights);
         chunkPtr->setState(ChunkState::IS_FILLED);
 
         for (int i = 0; i < 4; ++i)
