@@ -199,7 +199,7 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
     case GLFW_KEY_LEFT_SHIFT:
         if (action == GLFW_PRESS)
         {
-            playerMovementMultiplier = 4.f;
+            playerMovementMultiplier = 8.f;
         }
         else if (action == GLFW_RELEASE)
         {

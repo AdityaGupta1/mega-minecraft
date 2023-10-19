@@ -13,11 +13,11 @@
 #define MULTITHREADING 0
 
 // --------------------------------------------------
-#define TOTAL_ACTION_TIME 5
+#define TOTAL_ACTION_TIME 6
 // --------------------------------------------------
 #define ACTION_TIME_FILL 1
-#define ACTION_TIME_CREATE_VBOS 5
-#define ACTION_TIME_BUFFER_VBOS 5
+#define ACTION_TIME_CREATE_VBOS 2
+#define ACTION_TIME_BUFFER_VBOS 6
 // --------------------------------------------------
 
 Terrain::Terrain()
@@ -236,7 +236,7 @@ void Terrain::tick()
         needsUpdateChunks = false;
     }
 
-    // TODO: temporary system to weight VBO creation more than chunk filling
+    // TODO: temporary (?) system to weight VBO creation more than chunk filling
     // Will probably want to get better estimates for how much time these things take, especially as
     // terrain generation becomes more complicated. This also means that all chunks get filled before
     // any get VBOs created, which should help reduce the frequency of VBO recreation.
@@ -293,10 +293,6 @@ void Terrain::tick()
 
         actionTimeLeft -= ACTION_TIME_BUFFER_VBOS;
     }
-
-    // TODO do a kernel or launch a thread or something (based on queue of chunks to generate)
-    // go through all the queues and do kernels/threads (up to a max number of kernels, probably no limit on queueing threads)
-    // max number of kernels may depend on type and measured execution type of each kernel
 
 #if MULTITHREADING
     mutex.unlock();

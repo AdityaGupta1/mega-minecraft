@@ -7,6 +7,8 @@ enum class Biome : unsigned char
 {
     PLAINS,
     DESERT,
+    MUSHROOMS,
+    METEORS,
 
     // not an actual biome, just for counting
     numBiomes

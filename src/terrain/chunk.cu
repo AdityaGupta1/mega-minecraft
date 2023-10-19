@@ -71,15 +71,50 @@ __device__ float fbm(vec2 pos)
     return fbm;
 }
 
-__device__ float getHeight(vec2 pos, Biome biome)
+__device__ float getBiomeWeight(Biome biome, float moisture, float magic)
 {
     switch (biome)
     {
     case Biome::PLAINS:
-        return 72.f + 12.f * fbm(pos * 0.01f);
+        return moisture * (1.f - magic);
     case Biome::DESERT:
-        return 64.f + 5.f * fbm(pos * 0.005f);
+        return (1.f - moisture) * (1.f - magic);
+    case Biome::MUSHROOMS:
+        return moisture * magic;
+    case Biome::METEORS:
+        return (1.f - moisture) * magic;
     }
+}
+
+__device__ float getHeight(Biome biome, vec2 pos)
+{
+    switch (biome)
+    {
+    case Biome::PLAINS:
+        return 80.f + 12.f * fbm(pos * 0.01f);
+    case Biome::DESERT:
+        return 70.f + 5.f * fbm(pos * 0.005f);
+    case Biome::MUSHROOMS:
+        return 72.f + 6.f * fbm(pos * 0.004f);
+    case Biome::METEORS:
+        return 75.f + 7.f * fbm(pos * 0.007f);
+    }
+}
+
+__constant__ BiomeBlocks dev_biomeBlocks[(int)Biome::numBiomes];
+
+void BiomeUtils::init()
+{
+    BiomeBlocks* host_biomeBlocks = new BiomeBlocks[(int)Biome::numBiomes];
+
+    host_biomeBlocks[(int)Biome::PLAINS] = { Block::GRASS, Block::DIRT, Block::STONE };
+    host_biomeBlocks[(int)Biome::DESERT] = { Block::SAND, Block::SAND, Block::STONE };
+    host_biomeBlocks[(int)Biome::MUSHROOMS] = { Block::MYCELIUM, Block::DIRT, Block::STONE };
+    host_biomeBlocks[(int)Biome::METEORS] = { Block::STONE, Block::STONE, Block::STONE };
+
+    cudaMemcpyToSymbol(dev_biomeBlocks, host_biomeBlocks, (int)Biome::numBiomes * sizeof(BiomeBlocks));
+
+    delete[] host_biomeBlocks;
 }
 
 __global__ void kernGenerateHeightfield(unsigned char* heightfield, float* biomeWeights, ivec2 worldBlockPos)
@@ -91,39 +126,33 @@ __global__ void kernGenerateHeightfield(unsigned char* heightfield, float* biome
 
     const vec2 worldPos = vec2(worldBlockPos.x + x, worldBlockPos.y + z);
 
-    // biomes
-    float* biomeWeightsStart = biomeWeights + (int)Biome::numBiomes * idx;
+    const vec2 noiseOffset = vec2(
+        glm::simplex(worldPos * 0.015f + vec2(6839.19f, 1803.34f)),
+        glm::simplex(worldPos * 0.015f + vec2(8230.53f, 2042.84f))
+    ) * 14.f;
     
-    const float moisture = glm::smoothstep(-0.25f, 0.25f, glm::simplex(worldPos * 0.005f));
-   
-    biomeWeightsStart[(int)Biome::PLAINS] = moisture; // TODO: calculate weight and associated height at same time (to avoid having to read memory again later)
-    biomeWeightsStart[(int)Biome::DESERT] = 1.f - moisture;
+    const float overallBiomeScale = 0.4f;
+    const vec2 biomeNoisePos = (worldPos + noiseOffset) * overallBiomeScale;
 
-    // height
+    const float moisture = glm::smoothstep(-0.15f * overallBiomeScale, 0.15f * overallBiomeScale, glm::simplex(biomeNoisePos * 0.005f + vec2(1835.32f, 3019.39f)));
+    const float magic = glm::smoothstep(-0.2f * overallBiomeScale, 0.2f * overallBiomeScale, glm::simplex(biomeNoisePos * 0.003f + vec2(5612.35f, 9182.49f)));
+
+    float* biomeWeightsStart = biomeWeights + (int)Biome::numBiomes * idx;
+
     float height = 0.f;
     for (int i = 0; i < (int)Biome::numBiomes; ++i) 
     {
-        float weight = biomeWeightsStart[i];
+        Biome biome = (Biome)i;
+
+        float weight = getBiomeWeight(biome, moisture, magic);
         if (weight > 0.f)
         {
-            height += weight * getHeight(worldPos, (Biome)i);
+            height += weight * getHeight((Biome)i, worldPos);
         }
+
+        biomeWeightsStart[i] = weight;
     }
     heightfield[idx] = (int)height;
-}
-
-__constant__ BiomeBlocks dev_biomeBlocks[(int)Biome::numBiomes];
-
-void BiomeUtils::init()
-{
-    BiomeBlocks* host_biomeBlocks = new BiomeBlocks[(int)Biome::numBiomes];
-
-    host_biomeBlocks[(int)Biome::PLAINS] = { Block::GRASS, Block::DIRT, Block::STONE };
-    host_biomeBlocks[(int)Biome::DESERT] = { Block::SAND, Block::SAND, Block::STONE };
-
-    cudaMemcpyToSymbol(dev_biomeBlocks, host_biomeBlocks, (int)Biome::numBiomes * sizeof(BiomeBlocks));
-
-    delete[] host_biomeBlocks;
 }
 
 __host__ __device__ inline unsigned int hash(unsigned int a)
