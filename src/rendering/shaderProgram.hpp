@@ -13,6 +13,7 @@ public:
     GLuint prog;
 
     GLint attr_pos;
+    GLint attr_nor;
     GLint attr_uv;
 
     GLint unif_modelMat;

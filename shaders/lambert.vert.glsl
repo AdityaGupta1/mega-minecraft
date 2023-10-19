@@ -4,8 +4,10 @@ uniform mat4 u_modelMat;
 uniform mat4 u_viewProjMat;
 
 in vec3 vs_pos;
+in vec3 vs_nor;
 in vec2 vs_uv;
 
+out vec3 fs_nor;
 out vec2 fs_uv;
 
 vec3 rand(vec3 v) {
@@ -20,5 +22,6 @@ void main() {
     vec4 modelPos = u_modelMat * vec4(vs_pos, 1);
     gl_Position = u_viewProjMat * modelPos;
 
+    fs_nor = vs_nor;
     fs_uv = vs_uv;
 }

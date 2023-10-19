@@ -82,7 +82,7 @@ __device__ float getHeight(vec2 pos, Biome biome)
     }
 }
 
-__global__ void kernDummyGenerateHeightfield(unsigned char* heightfield, float* biomeWeights, ivec2 worldBlockPos)
+__global__ void kernGenerateHeightfield(unsigned char* heightfield, float* biomeWeights, ivec2 worldBlockPos)
 {
     const int x = (blockIdx.x * blockDim.x) + threadIdx.x;
     const int z = (blockIdx.y * blockDim.y) + threadIdx.y;
@@ -94,9 +94,9 @@ __global__ void kernDummyGenerateHeightfield(unsigned char* heightfield, float* 
     // biomes
     float* biomeWeightsStart = biomeWeights + (int)Biome::numBiomes * idx;
     
-    const float moisture = glm::smoothstep(0.45f, 0.55f, glm::simplex(worldPos * 0.005f));
+    const float moisture = glm::smoothstep(-0.25f, 0.25f, glm::simplex(worldPos * 0.005f));
    
-    biomeWeightsStart[(int)Biome::PLAINS] = moisture;
+    biomeWeightsStart[(int)Biome::PLAINS] = moisture; // TODO: calculate weight and associated height at same time (to avoid having to read memory again later)
     biomeWeightsStart[(int)Biome::DESERT] = 1.f - moisture;
 
     // height
@@ -155,7 +155,7 @@ __host__ __device__ thrust::default_random_engine makeSeededRandomEngine(int x, 
     return thrust::default_random_engine(h);
 }
 
-__global__ void kernDummyFill(Block* blocks, unsigned char* heightfield, float* biomeWeights, ivec2 worldBlockPos)
+__global__ void kernFill(Block* blocks, unsigned char* heightfield, float* biomeWeights, ivec2 worldBlockPos)
 {
     const int x = (blockIdx.x * blockDim.x) + threadIdx.x;
     const int y = (blockIdx.y * blockDim.y) + threadIdx.y;
@@ -164,7 +164,9 @@ __global__ void kernDummyFill(Block* blocks, unsigned char* heightfield, float* 
     const int idx = posToIndex(x, y, z);
 
     const int idx2d = posToIndex(x, z);
-    const unsigned char height = heightfield[idx2d]; // TODO: when implementing for real, use shared memory to load heightfield
+    // TODO: use shared memory to load heightfield
+    // right now, each thread block covers exactly one column, so shared memory should have to load only one height value and one set of biome weights
+    const unsigned char height = heightfield[idx2d];
     const float* biomeWeightsStart = biomeWeights + (int)Biome::numBiomes * idx2d;
 
     auto rng = makeSeededRandomEngine(worldBlockPos.x + x, y, worldBlockPos.y + z);
@@ -207,7 +209,7 @@ void Chunk::dummyFillCUDA(Block* dev_blocks, unsigned char* dev_heightfield, flo
     const dim3 blockSize3d(1, 256, 1);
     const dim3 blocksPerGrid3d(16, 1, 16);
 
-    kernDummyGenerateHeightfield<<<blocksPerGrid2d, blockSize2d>>>(
+    kernGenerateHeightfield<<<blocksPerGrid2d, blockSize2d>>>(
         dev_heightfield,
         dev_biomeWeights,
         this->worldChunkPos * 16
@@ -217,7 +219,7 @@ void Chunk::dummyFillCUDA(Block* dev_blocks, unsigned char* dev_heightfield, flo
     cudaDeviceSynchronize();
 
     // TODO: when implementing for real, the two kernels will happen separately; will probably need to copy heightfield back to GPU before running this kernel
-    kernDummyFill<<<blocksPerGrid3d, blockSize3d>>>(
+    kernFill<<<blocksPerGrid3d, blockSize3d>>>(
         dev_blocks, 
         dev_heightfield,
         dev_biomeWeights,
@@ -349,6 +351,7 @@ void Chunk::createVBOs()
                         Vertex& vert = verts.back();
 
                         vert.pos = vec3(thisPos) + directionVertPositions[dirIdx * 4 + j];
+                        vert.nor = direction;
 
                         vec2 uvOffset = uvOffsets[(uvStartIdx + j) % 4];
                         if (uvFlipIdx != -1)
