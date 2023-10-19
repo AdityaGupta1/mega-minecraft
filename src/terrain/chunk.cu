@@ -243,11 +243,92 @@ void Chunk::generateHeightfield(unsigned char* dev_heightfield, float* dev_biome
     generateOwnFeaturePlacements();
 }
 
+bool Chunk::otherChunkGatherFeaturePlacements(Chunk* chunkPtr, Chunk* (&neighborChunks)[9][9], int centerX, int centerZ)
+{
+    chunkPtr->gatheredFeaturePlacements.clear();
+
+    for (int offsetZ = -2; offsetZ <= 2; ++offsetZ)
+    {
+        for (int offsetX = -2; offsetX <= 2; ++offsetX)
+        {
+            const auto& neighborPtr = neighborChunks[centerZ + offsetZ][centerX + offsetX];
+
+            if (neighborPtr == nullptr)
+            {
+                chunkPtr->gatheredFeaturePlacements.clear();
+                return false;
+            }
+
+            for (const auto& neighborFeaturePlacement : neighborPtr->featurePlacements)
+            {
+                chunkPtr->gatheredFeaturePlacements.push_back(neighborFeaturePlacement);
+            }
+        }
+    }
+
+    return true;
+}
+
 void Chunk::gatherFeaturePlacements()
 {
-    // TODO temporary (considers only this chunk's feature placements)
-    this->gatheredFeaturePlacements = this->featurePlacements;
-    this->setState(ChunkState::HAS_FEATURE_PLACEMENTS);
+    Chunk* neighborChunks[9][9] = {};
+
+    // Flood fill neighborChunks (connected chunks that exist and have feature placements).
+    // If a chunk's 5x5 area is ready to go, it will be reached by flood fill (since this chunk is contained in that area).
+    // By the contrapositive, if a chunk was not reached by flood fill, its 5x5 area is not ready to go.
+    std::queue<Chunk*> chunks;
+    std::unordered_set<Chunk*> visitedChunks;
+    chunks.push(this);
+    while (!chunks.empty())
+    {
+        auto& chunkPtr = chunks.front();
+        visitedChunks.insert(chunkPtr);
+
+        if (chunkPtr->getState() < ChunkState::HAS_HEIGHTFIELD_AND_FEATURE_PLACEMENTS)
+        {
+            continue;
+        }
+
+        ivec2 neighborChunksIdx = chunkPtr->worldChunkPos - this->worldChunkPos + ivec2(4, 4);
+        neighborChunks[neighborChunksIdx.y][neighborChunksIdx.x] = chunkPtr;
+
+        for (const auto& neighborPtr : chunkPtr->neighbors)
+        {
+            if (neighborPtr == nullptr || visitedChunks.find(neighborPtr) != visitedChunks.end())
+            {
+                continue;
+            }
+
+            const ivec2 dist = abs(neighborPtr->worldChunkPos - this->worldChunkPos);
+            if (max(dist.x, dist.y) > 4)
+            {
+                continue;
+            }
+
+            chunks.push(neighborPtr);
+        }
+
+        chunks.pop();
+    }
+
+    for (int centerZ = 2; centerZ < 7; ++centerZ)
+    {
+        for (int centerX = 2; centerX < 7; ++centerX)
+        {
+            const auto& chunkPtr = neighborChunks[centerZ][centerX];
+
+            if (chunkPtr == nullptr || chunkPtr->getState() != ChunkState::HAS_HEIGHTFIELD_AND_FEATURE_PLACEMENTS)
+            {
+                continue;
+            }
+
+            bool isReady = otherChunkGatherFeaturePlacements(chunkPtr, neighborChunks, centerX, centerZ);
+            if (isReady)
+            {
+                chunkPtr->setState(ChunkState::READY_TO_FILL);
+            }
+        }
+    }
 }
 
 void Chunk::fill(Block* dev_blocks, unsigned char* dev_heightfield, float* dev_biomeWeights, FeaturePlacement* dev_featurePlacements)
@@ -256,6 +337,7 @@ void Chunk::fill(Block* dev_blocks, unsigned char* dev_heightfield, float* dev_b
 
     int numFeaturePlacements = this->gatheredFeaturePlacements.size();
     cudaMemcpy(dev_featurePlacements, this->gatheredFeaturePlacements.data(), numFeaturePlacements * sizeof(FeaturePlacement), cudaMemcpyHostToDevice);
+    this->gatheredFeaturePlacements.clear();
 
     cudaMemcpy(dev_heightfield, this->heightfield.data(), 256 * sizeof(unsigned char), cudaMemcpyHostToDevice);
     cudaMemcpy(dev_biomeWeights, this->biomeWeights.data(), 256 * (int)Biome::numBiomes * sizeof(float), cudaMemcpyHostToDevice);

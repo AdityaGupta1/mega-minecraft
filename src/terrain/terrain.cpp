@@ -85,14 +85,6 @@ int localChunkPosToIdx(ivec2 localChunkPos)
     return localChunkPos.x + 16 * localChunkPos.y;
 }
 
-template<class T>
-T& pop(std::queue<T>& queue)
-{
-    T& temp = queue.front();
-    queue.pop();
-    return temp;
-}
-
 Zone* Terrain::createZone(ivec2 zonePos)
 {
     auto newZoneUptr = std::make_unique<Zone>(zonePos);
@@ -197,11 +189,11 @@ void Terrain::updateChunks()
                 chunkPtr->setNotReadyForQueue();
                 chunksToGenerateHeightfield.push(chunkPtr);
                 continue;
-            case ChunkState::HAS_HEIGHTFIELD:
+            case ChunkState::HAS_HEIGHTFIELD_AND_FEATURE_PLACEMENTS:
                 chunkPtr->setNotReadyForQueue();
                 chunksToGatherFeaturePlacements.push(chunkPtr);
                 continue;
-            case ChunkState::HAS_FEATURE_PLACEMENTS:
+            case ChunkState::READY_TO_FILL:
                 chunkPtr->setNotReadyForQueue();
                 chunksToFill.push(chunkPtr);
                 continue;
@@ -249,11 +241,13 @@ void Terrain::tick()
 
     while (!chunksToDestroyVbos.empty())
     {
-        auto& chunkPtr = pop(chunksToDestroyVbos);
+        auto& chunkPtr = chunksToDestroyVbos.front();
 
         drawableChunks.erase(chunkPtr);
         chunkPtr->destroyVBOs();
         chunkPtr->setState(ChunkState::IS_FILLED);
+
+        chunksToDestroyVbos.pop();
     }
 
     if (currentChunkPos != lastChunkPos)
@@ -281,13 +275,14 @@ void Terrain::tick()
     {
         needsUpdateChunks = true;
 
-        auto& chunkPtr = pop(chunksToGenerateHeightfield);
+        auto& chunkPtr = chunksToGenerateHeightfield.front();
 
         chunkPtr->generateHeightfield(dev_heightfields[heightfieldIdx], dev_biomeWeights[heightfieldIdx]);
         ++heightfieldIdx;
 
-        chunkPtr->setState(ChunkState::HAS_HEIGHTFIELD);
+        chunkPtr->setState(ChunkState::HAS_HEIGHTFIELD_AND_FEATURE_PLACEMENTS);
 
+        chunksToGenerateHeightfield.pop();
         actionTimeLeft -= ACTION_TIME_GENERATE_HEIGHTFIELD;
     }
 
@@ -295,10 +290,11 @@ void Terrain::tick()
     {
         needsUpdateChunks = true;
 
-        auto& chunkPtr = pop(chunksToGatherFeaturePlacements);
+        auto& chunkPtr = chunksToGatherFeaturePlacements.front();
 
-        chunkPtr->gatherFeaturePlacements(); // this will set state to HAS_FEATURE_PLACEMENTS if 5x5 neighborhood chunks all have feature placements
+        chunkPtr->gatherFeaturePlacements(); // this will set state to READY_TO_FILL if 5x5 neighborhood chunks all have feature placements
 
+        chunksToGatherFeaturePlacements.pop();
         actionTimeLeft -= ACTION_TIME_GATHER_FEATURE_PLACEMENTS;
     }
 
@@ -306,7 +302,7 @@ void Terrain::tick()
     {
         needsUpdateChunks = true;
 
-        auto& chunkPtr = pop(chunksToFill);
+        auto& chunkPtr = chunksToFill.front();
 
         chunkPtr->fill(dev_blocks[blocksIdx], dev_heightfields[heightfieldIdx], dev_biomeWeights[heightfieldIdx], dev_featurePlacements[blocksIdx]);
         ++blocksIdx;
@@ -323,6 +319,7 @@ void Terrain::tick()
             }
         }
 
+        chunksToFill.pop();
         actionTimeLeft -= ACTION_TIME_FILL;
     }
 
@@ -339,7 +336,7 @@ void Terrain::tick()
     {
         needsUpdateChunks = true;
 
-        auto& chunkPtr = pop(chunksToCreateVbos);
+        auto& chunkPtr = chunksToCreateVbos.front();
 
 #if MULTITHREADING
         std::thread thread(&Terrain::createChunkVbos, this, chunkPtr);
@@ -347,18 +344,20 @@ void Terrain::tick()
 #else
         this->createChunkVbos(chunkPtr);
 
+        chunksToCreateVbos.pop();
         actionTimeLeft -= ACTION_TIME_CREATE_VBOS;
 #endif
     }
 
     while (!chunksToBufferVbos.empty() && actionTimeLeft >= ACTION_TIME_BUFFER_VBOS)
     {
-        auto& chunkPtr = pop(chunksToBufferVbos);
+        auto& chunkPtr = chunksToBufferVbos.front();
 
         chunkPtr->bufferVBOs();
         drawableChunks.insert(chunkPtr);
         chunkPtr->setState(ChunkState::DRAWABLE);
 
+        chunksToBufferVbos.pop();
         actionTimeLeft -= ACTION_TIME_BUFFER_VBOS;
     }
 

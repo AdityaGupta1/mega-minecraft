@@ -13,11 +13,11 @@ using namespace glm;
 
 struct Zone;
 
-enum class ChunkState
+enum class ChunkState : unsigned char
 {
     EMPTY,
-    HAS_HEIGHTFIELD,
-    HAS_FEATURE_PLACEMENTS, // this and 5x5 neighborhood all have feature placements
+    HAS_HEIGHTFIELD_AND_FEATURE_PLACEMENTS,
+    READY_TO_FILL, // this and 5x5 neighborhood all have feature placements
     IS_FILLED,
     DRAWABLE
 };
@@ -57,6 +57,7 @@ public:
     void setNotReadyForQueue();
 
     void generateHeightfield(unsigned char* dev_heightfield, float* dev_biomeWeights);
+    static bool otherChunkGatherFeaturePlacements(Chunk* chunkPtr, Chunk* (&neighborChunks)[9][9], int centerX, int centerZ);
     void gatherFeaturePlacements();
     void fill(Block* dev_blocks, unsigned char* dev_heightfield, float* dev_biomeWeights, FeaturePlacement* dev_featurePlacements);
 
