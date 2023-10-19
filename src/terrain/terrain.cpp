@@ -13,9 +13,10 @@
 #define MULTITHREADING 0
 
 // --------------------------------------------------
-#define TOTAL_ACTION_TIME 20
+#define TOTAL_ACTION_TIME 30
 // --------------------------------------------------
 #define ACTION_TIME_GENERATE_HEIGHTFIELD 5
+#define ACTION_TIME_GATHER_FEATURE_PLACEMENTS 1
 #define ACTION_TIME_FILL 2
 #define ACTION_TIME_CREATE_VBOS 5
 #define ACTION_TIME_BUFFER_VBOS 20
@@ -198,6 +199,10 @@ void Terrain::updateChunks()
                 continue;
             case ChunkState::HAS_HEIGHTFIELD:
                 chunkPtr->setNotReadyForQueue();
+                chunksToGatherFeaturePlacements.push(chunkPtr);
+                continue;
+            case ChunkState::HAS_FEATURE_PLACEMENTS:
+                chunkPtr->setNotReadyForQueue();
                 chunksToFill.push(chunkPtr);
                 continue;
             }
@@ -284,6 +289,17 @@ void Terrain::tick()
         chunkPtr->setState(ChunkState::HAS_HEIGHTFIELD);
 
         actionTimeLeft -= ACTION_TIME_GENERATE_HEIGHTFIELD;
+    }
+
+    while (!chunksToGatherFeaturePlacements.empty() && actionTimeLeft >= ACTION_TIME_GATHER_FEATURE_PLACEMENTS)
+    {
+        needsUpdateChunks = true;
+
+        auto& chunkPtr = pop(chunksToGatherFeaturePlacements);
+
+        chunkPtr->gatherFeaturePlacements(); // this will set state to HAS_FEATURE_PLACEMENTS if 5x5 neighborhood chunks all have feature placements
+
+        actionTimeLeft -= ACTION_TIME_GATHER_FEATURE_PLACEMENTS;
     }
 
     while (!chunksToFill.empty() && actionTimeLeft >= ACTION_TIME_FILL)

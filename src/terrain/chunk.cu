@@ -219,7 +219,7 @@ __global__ void kernFill(
 
 void Chunk::generateOwnFeaturePlacements()
 {
-    featurePlacements.push_back({Feature::SPHERE, this->worldBlockPos + ivec3(8, 80, 8)});
+    featurePlacements.push_back({Feature::SPHERE, this->worldBlockPos + ivec3(0, 80, 0)});
 
     // this probably won't include decorators (single block/column things) since those can be done on the CPU at the end of Chunk::fill()
 }
@@ -243,13 +243,19 @@ void Chunk::generateHeightfield(unsigned char* dev_heightfield, float* dev_biome
     generateOwnFeaturePlacements();
 }
 
+void Chunk::gatherFeaturePlacements()
+{
+    // TODO temporary (considers only this chunk's feature placements)
+    this->gatheredFeaturePlacements = this->featurePlacements;
+    this->setState(ChunkState::HAS_FEATURE_PLACEMENTS);
+}
+
 void Chunk::fill(Block* dev_blocks, unsigned char* dev_heightfield, float* dev_biomeWeights, FeaturePlacement* dev_featurePlacements)
 {
     // gather feature placements from self and neighboring chunks?
 
-    // TODO temporary (considers only this chunk's feature placements)
-    int numFeaturePlacements = this->featurePlacements.size();
-    cudaMemcpy(dev_featurePlacements, this->featurePlacements.data(), numFeaturePlacements * sizeof(FeaturePlacement), cudaMemcpyHostToDevice);
+    int numFeaturePlacements = this->gatheredFeaturePlacements.size();
+    cudaMemcpy(dev_featurePlacements, this->gatheredFeaturePlacements.data(), numFeaturePlacements * sizeof(FeaturePlacement), cudaMemcpyHostToDevice);
 
     cudaMemcpy(dev_heightfield, this->heightfield.data(), 256 * sizeof(unsigned char), cudaMemcpyHostToDevice);
     cudaMemcpy(dev_biomeWeights, this->biomeWeights.data(), 256 * (int)Biome::numBiomes * sizeof(float), cudaMemcpyHostToDevice);
