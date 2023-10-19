@@ -12,7 +12,10 @@ enum class Block : unsigned char
     GRAVEL,
     MYCELIUM,
     SNOW,
-    SNOWY_GRASS
+    SNOWY_GRASS,
+    MUSHROOM_STEM,
+    MUSHROOM_UNDERSIDE,
+    MUSHROOM_CAP_PURPLE
 };
 
 struct SideUv
