@@ -198,7 +198,7 @@ void Terrain::updateChunks()
                 continue;
             }
 
-            // don't go past feature placements if not in range of CHUNK_VBOS_GEN_RADIUS
+            // don't create VBOs if not in range of CHUNK_VBOS_GEN_RADIUS
             const ivec2 dist = abs(chunkPtr->worldChunkPos - this->currentChunkPos);
             if (max(dist.x, dist.y) > CHUNK_VBOS_GEN_RADIUS)
             {
@@ -224,7 +224,6 @@ void Terrain::createChunkVbos(Chunk* chunkPtr)
     mutex.lock();
 #endif
 
-    chunkPtr->setState(ChunkState::HAS_VBOS);
     chunkPtr->setNotReadyForQueue();
     chunksToBufferVbos.push(chunkPtr);
 

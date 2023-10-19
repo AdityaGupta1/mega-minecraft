@@ -19,7 +19,6 @@ enum class ChunkState
     HAS_HEIGHTFIELD,
     HAS_FEATURE_PLACEMENTS, /* do on GPU if possible */
     IS_FILLED,
-    HAS_VBOS,
     DRAWABLE
 };
 
@@ -36,8 +35,9 @@ public:
     std::array<Chunk*, 4> neighbors{ nullptr };
 
     // TODO: use vector or something for heightfield and biomeWeights so they can be cleared after use (to save memory)
+    // Will need to consider which things can't be cleared so simply (e.g. feature placements of thise chunk are used by other chunks too)
     std::array<unsigned char, 256> heightfield; // iteration order = z, x
-    std::array<float[(int)Biome::numBiomes], 256> biomeWeights;
+    std::array<float[(int)Biome::numBiomes], 256> biomeWeights; // iteration order = z, x
     std::array<Block, 65536> blocks; // iteration order = z, x, y (allows for easily copying horizontal slices of terrain)
 
     std::vector<GLuint> idx;

@@ -8,10 +8,7 @@
 
 Chunk::Chunk(ivec2 worldChunkPos)
     : worldChunkPos(worldChunkPos)
-{
-    std::fill_n(heightfield.begin(), 256, 0);
-    std::fill_n(blocks.begin(), 65536, Block::AIR);
-}
+{}
 
 ChunkState Chunk::getState()
 {
