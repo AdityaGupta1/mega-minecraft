@@ -54,6 +54,8 @@ void Renderer::init()
 {
     glClearColor(0.64f, 1.f, 0.97f, 1.f);
     glEnable(GL_DEPTH_TEST);
+    glEnable(GL_CULL_FACE);
+    glCullFace(GL_BACK);
 
     glGenVertexArrays(1, &vao);
     glBindVertexArray(vao);

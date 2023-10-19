@@ -349,17 +349,17 @@ void Chunk::fill(Block* dev_blocks, unsigned char* dev_heightfield, float* dev_b
     CudaUtils::checkCUDAError("cudaMemcpy to host failed");
 }
 
-static const std::array<vec3, 24> directionVertPositions = {
-    vec3(0, 0, 1), vec3(1, 0, 1), vec3(1, 1, 1), vec3(0, 1, 1),
-    vec3(1, 0, 1), vec3(1, 0, 0), vec3(1, 1, 0), vec3(1, 1, 1),
-    vec3(1, 0, 0), vec3(0, 0, 0), vec3(0, 1, 0), vec3(1, 1, 0),
-    vec3(0, 0, 0), vec3(0, 0, 1), vec3(0, 1, 1), vec3(0, 1, 0),
-    vec3(0, 1, 1), vec3(1, 1, 1), vec3(1, 1, 0), vec3(0, 1, 0),
-    vec3(0, 0, 0), vec3(1, 0, 0), vec3(1, 0, 1), vec3(0, 0, 1)
+static const std::array<ivec3, 24> directionVertPositions = {
+    ivec3(0, 0, 1), ivec3(1, 0, 1), ivec3(1, 1, 1), ivec3(0, 1, 1),
+    ivec3(1, 0, 1), ivec3(1, 0, 0), ivec3(1, 1, 0), ivec3(1, 1, 1),
+    ivec3(1, 0, 0), ivec3(0, 0, 0), ivec3(0, 1, 0), ivec3(1, 1, 0),
+    ivec3(0, 0, 0), ivec3(0, 0, 1), ivec3(0, 1, 1), ivec3(0, 1, 0),
+    ivec3(0, 1, 1), ivec3(1, 1, 1), ivec3(1, 1, 0), ivec3(0, 1, 0),
+    ivec3(0, 0, 0), ivec3(1, 0, 0), ivec3(1, 0, 1), ivec3(0, 0, 1)
 };
 
-static const std::array<vec2, 16> uvOffsets = {
-    vec2(0, 0), vec2(0.0625f, 0), vec2(0.0625f, 0.0625f), vec2(0, 0.0625f)
+static const std::array<ivec2, 16> uvOffsets = {
+    ivec2(0, 0), ivec2(1, 0), ivec2(1, 1), ivec2(0, 1)
 };
 
 void Chunk::createVBOs()
@@ -467,22 +467,22 @@ void Chunk::createVBOs()
                         verts.emplace_back();
                         Vertex& vert = verts.back();
 
-                        vert.pos = vec3(thisPos) + directionVertPositions[dirIdx * 4 + j];
+                        vert.pos = vec3(thisPos + directionVertPositions[dirIdx * 4 + j]);
                         vert.nor = direction;
 
-                        vec2 uvOffset = uvOffsets[(uvStartIdx + j) % 4];
+                        ivec2 uvOffset = uvOffsets[(uvStartIdx + j) % 4];
                         if (uvFlipIdx != -1)
                         {
                             if (uvFlipIdx & 1)
                             {
-                                uvOffset.x = 0.0625f - uvOffset.x;
+                                uvOffset.x = 1 - uvOffset.x;
                             }
                             if (uvFlipIdx & 2)
                             {
-                                uvOffset.y = 0.0625f - uvOffset.y;
+                                uvOffset.y = 1 - uvOffset.y;
                             }
                         }
-                        vert.uv = sideUv.uv + uvOffset;
+                        vert.uv = vec2(sideUv.uv + uvOffset) * 0.0625f;
                     }
 
                     idx.push_back(idx1);

@@ -21,9 +21,9 @@ enum class Block : unsigned char
 struct SideUv
 {
     SideUv() = default;
-    SideUv(glm::vec2 uv) : uv(uv) {}
+    SideUv(glm::ivec2 uv) : uv(uv) {}
 
-    glm::vec2 uv;
+    glm::ivec2 uv;
     bool randRot{ false };
     bool randFlip{ false };
 };
@@ -38,13 +38,6 @@ struct BlockUvs
     SideUv side;
     SideUv top;
     SideUv bottom;
-
-    void normalize()
-    {
-        top.uv *= 0.0625f;
-        side.uv *= 0.0625f;
-        bottom.uv *= 0.0625f;
-    }
 
     BlockUvs& setRandomRotation()
     {
