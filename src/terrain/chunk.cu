@@ -245,7 +245,7 @@ void Chunk::dummyFillCUDA(Block* dev_blocks, unsigned char* dev_heightfield, flo
     );
     CudaUtils::checkCUDAError("kern generate heightfield failed");
 
-    cudaDeviceSynchronize();
+    cudaDeviceSynchronize(); // TODO: move this out of here when splitting into two kernels and call synchronize only after launching all of one type of kernel (e.g. after launching all generate heightfield kernels)
 
     // TODO: when implementing for real, the two kernels will happen separately; will probably need to copy heightfield back to GPU before running this kernel
     kernFill<<<blocksPerGrid3d, blockSize3d>>>(
