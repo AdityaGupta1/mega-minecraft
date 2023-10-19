@@ -78,7 +78,7 @@ __global__ void kernGenerateHeightfield(
     const float moisture = glm::smoothstep(-0.15f * overallBiomeScale, 0.15f * overallBiomeScale, glm::simplex(biomeNoisePos * 0.005f + vec2(1835.32f, 3019.39f)));
     const float magic = glm::smoothstep(-0.2f * overallBiomeScale, 0.2f * overallBiomeScale, glm::simplex(biomeNoisePos * 0.003f + vec2(5612.35f, 9182.49f)));
 
-    float* biomeWeightsStart = biomeWeights + (int)Biome::numBiomes * idx;
+    float* columnBiomeWeights = biomeWeights + (int)Biome::numBiomes * idx;
 
     float height = 0.f;
     for (int i = 0; i < (int)Biome::numBiomes; ++i) 
@@ -91,7 +91,7 @@ __global__ void kernGenerateHeightfield(
             height += weight * getHeight((Biome)i, worldPos);
         }
 
-        biomeWeightsStart[i] = weight;
+        columnBiomeWeights[i] = weight;
     }
     heightfield[idx] = (int)height;
 }
@@ -145,6 +145,18 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
     }
 }
 
+__device__ __host__ Biome getRandomBiome(const float* columnBiomeWeights, float rand)
+{
+    for (int i = 0; i < (int)Biome::numBiomes; ++i)
+    {
+        rand -= columnBiomeWeights[i];
+        if (rand <= 0.f)
+        {
+            return (Biome)i;
+        }
+    }
+}
+
 __global__ void kernFill(
     Block* blocks, 
     unsigned char* heightfield, 
@@ -163,23 +175,13 @@ __global__ void kernFill(
     // TODO: use shared memory to load heightfield
     // right now, each thread block covers exactly one column, so shared memory should have to load only one height value and one set of biome weights
     const unsigned char height = heightfield[idx2d];
-    const float* biomeWeightsStart = biomeWeights + (int)Biome::numBiomes * idx2d;
+    const float* columnBiomeWeights = biomeWeights + (int)Biome::numBiomes * idx2d;
 
     const ivec3 worldBlockPos = chunkWorldBlockPos + ivec3(x, y, z);
     auto rng = makeSeededRandomEngine(worldBlockPos.x, worldBlockPos.y, worldBlockPos.z);
     thrust::uniform_real_distribution<float> u01(0, 1);
 
-    BiomeBlocks biomeBlocks;
-    float rand = u01(rng);
-    for (int i = 0; i < (int)Biome::numBiomes; ++i)
-    {
-        rand -= biomeWeightsStart[i];
-        if (rand <= 0.f)
-        {
-            biomeBlocks = dev_biomeBlocks[i];
-            break;
-        }
-    }
+    BiomeBlocks biomeBlocks = dev_biomeBlocks[(int)getRandomBiome(columnBiomeWeights, u01(rng))];
 
     Block block = biomeBlocks.blockStone;
     if (y > height)
@@ -219,7 +221,41 @@ __global__ void kernFill(
 
 void Chunk::generateOwnFeaturePlacements()
 {
-    featurePlacements.push_back({Feature::SPHERE, this->worldBlockPos + ivec3(0, 80, 0)});
+    for (int localZ = 0; localZ < 16; ++localZ)
+    {
+        for (int localX = 0; localX < 16; ++localX)
+        {
+            const int idx2d = posToIndex(localX, localZ);
+
+            const auto& columnBiomeWeights = biomeWeights[idx2d];
+
+            const ivec3 worldBlockPos = this->worldBlockPos + ivec3(localX, heightfield[idx2d], localZ);
+            auto rng = makeSeededRandomEngine(worldBlockPos.x, worldBlockPos.y, worldBlockPos.z, 7); // arbitrary w so this rng is different than heightfield rng
+            thrust::uniform_real_distribution<float> u01(0, 1);
+
+            Biome biome = getRandomBiome(columnBiomeWeights, u01(rng));
+            const auto& featureGens = BiomeUtils::getBiomeFeatureGens(biome);
+
+            Feature feature = Feature::NONE;
+            float rand = u01(rng);
+            for (int i = 0; i < featureGens.size(); ++i)
+            {
+                const auto& featureGen = featureGens[i];
+
+                rand -= featureGen.chancePerBlock;
+                if (rand <= 0.f)
+                {
+                    feature = featureGen.feature;
+                    break;
+                }
+            }
+
+            if (feature != Feature::NONE)
+            {
+                this->featurePlacements.push_back({feature, worldBlockPos});
+            }
+        }
+    }
 
     // this probably won't include decorators (single block/column things) since those can be done on the CPU at the end of Chunk::fill()
 }

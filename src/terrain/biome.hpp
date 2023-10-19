@@ -24,6 +24,7 @@ struct BiomeBlocks
 
 enum class Feature : unsigned char
 {
+    NONE,
     SPHERE
 };
 
@@ -42,4 +43,6 @@ struct FeaturePlacement
 namespace BiomeUtils
 {
     void init(); // implemented in biomeFuncs.hpp (included only by chunk.cu) so constant memory can live there
+
+    std::vector<FeatureGen>& getBiomeFeatureGens(Biome biome);
 }

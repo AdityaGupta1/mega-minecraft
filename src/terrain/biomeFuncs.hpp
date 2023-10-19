@@ -48,11 +48,12 @@ __device__ float getHeight(Biome biome, vec2 pos)
     }
 }
 
-const std::unordered_map<Biome, std::vector<FeatureGen>> biomeFeatureGens = {
-    {Biome::PLAINS, {{Feature::SPHERE, 0.0003f}}}
+static std::unordered_map<Biome, std::vector<FeatureGen>> biomeFeatureGensMap = {
+    {Biome::PLAINS, {{Feature::SPHERE, 0.003f}}}
 };
 
 __constant__ BiomeBlocks dev_biomeBlocks[(int)Biome::numBiomes];
+static std::array<std::vector<FeatureGen>, (int)Biome::numBiomes> biomeFeatureGens;
 
 void BiomeUtils::init()
 {
@@ -66,4 +67,20 @@ void BiomeUtils::init()
     cudaMemcpyToSymbol(dev_biomeBlocks, host_biomeBlocks, (int)Biome::numBiomes * sizeof(BiomeBlocks));
 
     delete[] host_biomeBlocks;
+
+    for (int i = 0; i < (int)Biome::numBiomes; ++i)
+    {
+        Biome biome = (Biome)i;
+        if (biomeFeatureGensMap.find(biome) != biomeFeatureGensMap.end())
+        {
+            biomeFeatureGens[i] = biomeFeatureGensMap[biome];
+        }
+    }
+
+    biomeFeatureGensMap.clear();
+}
+
+std::vector<FeatureGen>& BiomeUtils::getBiomeFeatureGens(Biome biome)
+{
+    return biomeFeatureGens[(int)biome];
 }
