@@ -27,8 +27,11 @@ private:
     ChunkState state{ ChunkState::EMPTY };
     bool readyForQueue{ true };
 
+    void generateOwnFeaturePlacements();
+
 public:
     const ivec2 worldChunkPos; // world-space pos in terms of chunks (e.g. (3, -4) chunk pos = (48, -64) block pos)
+    const ivec3 worldBlockPos;
 
     Zone* zonePtr;
 
@@ -39,6 +42,8 @@ public:
     std::array<unsigned char, 256> heightfield; // iteration order = z, x
     std::array<float[(int)Biome::numBiomes], 256> biomeWeights; // iteration order = z, x
     std::array<Block, 65536> blocks; // iteration order = z, x, y (allows for easily copying horizontal slices of terrain)
+    
+    std::vector<FeaturePlacement> featurePlacements;
 
     std::vector<GLuint> idx;
     std::vector<Vertex> verts;
@@ -51,7 +56,7 @@ public:
     void setNotReadyForQueue();
 
     void generateHeightfield(unsigned char* dev_heightfield, float* dev_biomeWeights);
-    void fill(Block* dev_blocks, unsigned char* dev_heightfield, float* dev_biomeWeights);
+    void fill(Block* dev_blocks, unsigned char* dev_heightfield, float* dev_biomeWeights, FeaturePlacement* dev_featurePlacements);
 
     void createVBOs();
     void bufferVBOs() override;

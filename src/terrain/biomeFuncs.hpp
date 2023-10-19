@@ -3,6 +3,7 @@
 #include "biome.hpp"
 #include "cuda/cudaUtils.hpp"
 #include <glm/gtc/noise.hpp>
+#include <unordered_map>
 
 __device__ float fbm(vec2 pos)
 {
@@ -46,6 +47,10 @@ __device__ float getHeight(Biome biome, vec2 pos)
         return 75.f + 7.f * fbm(pos * 0.007f);
     }
 }
+
+const std::unordered_map<Biome, std::vector<FeatureGen>> biomeFeatureGens = {
+    {Biome::PLAINS, {{Feature::SPHERE, 0.0003f}}}
+};
 
 __constant__ BiomeBlocks dev_biomeBlocks[(int)Biome::numBiomes];
 

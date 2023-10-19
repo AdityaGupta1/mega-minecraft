@@ -35,6 +35,8 @@ static constexpr int numDevBlocks = TOTAL_ACTION_TIME / ACTION_TIME_FILL;
 static constexpr int numDevHeightfields = TOTAL_ACTION_TIME / min(ACTION_TIME_GENERATE_HEIGHTFIELD, ACTION_TIME_FILL);
 
 static std::array<Block*, numDevBlocks> dev_blocks;
+static std::array<FeaturePlacement*, numDevBlocks> dev_featurePlacements;
+
 static std::array<unsigned char*, numDevHeightfields> dev_heightfields;
 static std::array<float*, numDevHeightfields> dev_biomeWeights;
 
@@ -43,6 +45,7 @@ void Terrain::initCuda()
     for (int i = 0; i < numDevBlocks; ++i)
     {
         cudaMalloc((void**)&dev_blocks[i], 65536 * sizeof(Block));
+        cudaMalloc((void**)&dev_featurePlacements[i], MAX_FEATURES_PER_CHUNK * sizeof(FeaturePlacement));
     }
 
     for (int i = 0; i < numDevHeightfields; ++i)
@@ -59,6 +62,7 @@ void Terrain::freeCuda()
     for (int i = 0; i < numDevBlocks; ++i)
     {
         cudaFree(dev_blocks[i]);
+        cudaFree(dev_featurePlacements[i]);
     }
 
     for (int i = 0; i < numDevHeightfields; ++i)
@@ -288,7 +292,7 @@ void Terrain::tick()
 
         auto& chunkPtr = pop(chunksToFill);
 
-        chunkPtr->fill(dev_blocks[blocksIdx], dev_heightfields[heightfieldIdx], dev_biomeWeights[heightfieldIdx]);
+        chunkPtr->fill(dev_blocks[blocksIdx], dev_heightfields[heightfieldIdx], dev_biomeWeights[heightfieldIdx], dev_featurePlacements[blocksIdx]);
         ++blocksIdx;
         ++heightfieldIdx;
 

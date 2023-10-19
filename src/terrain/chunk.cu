@@ -7,7 +7,7 @@
 #include "biomeFuncs.hpp"
 
 Chunk::Chunk(ivec2 worldChunkPos)
-    : worldChunkPos(worldChunkPos)
+    : worldChunkPos(worldChunkPos), worldBlockPos(worldChunkPos.x * 16, 0, worldChunkPos.y * 16)
 {}
 
 ChunkState Chunk::getState()
@@ -55,14 +55,17 @@ int posToIndex(const ivec2 pos)
     return posToIndex(pos.x, pos.y);
 }
 
-__global__ void kernGenerateHeightfield(unsigned char* heightfield, float* biomeWeights, ivec2 worldBlockPos)
+__global__ void kernGenerateHeightfield(
+    unsigned char* heightfield,
+    float* biomeWeights,
+    ivec3 worldBlockPos)
 {
     const int x = (blockIdx.x * blockDim.x) + threadIdx.x;
     const int z = (blockIdx.y * blockDim.y) + threadIdx.y;
 
     const int idx = posToIndex(x, z);
 
-    const vec2 worldPos = vec2(worldBlockPos.x + x, worldBlockPos.y + z);
+    const vec2 worldPos = vec2(worldBlockPos.x + x, worldBlockPos.z + z);
 
     const vec2 noiseOffset = vec2(
         glm::simplex(worldPos * 0.015f + vec2(6839.19f, 1803.34f)),
@@ -122,7 +125,33 @@ __host__ __device__ thrust::default_random_engine makeSeededRandomEngine(int x, 
     return thrust::default_random_engine(h);
 }
 
-__global__ void kernFill(Block* blocks, unsigned char* heightfield, float* biomeWeights, ivec2 worldBlockPos)
+// block should not change if return value is false
+__device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlockPos, Block* block)
+{
+    const ivec3& featurePos = featurePlacement.pos;
+
+    switch (featurePlacement.feature)
+    {
+    case Feature::SPHERE:
+        glm::vec3 diff = worldBlockPos - featurePos;
+
+        if (glm::dot(diff, diff) > 25.f)
+        {
+            return false;
+        }
+
+        *block = Block::GRAVEL;
+        return true;
+    }
+}
+
+__global__ void kernFill(
+    Block* blocks, 
+    unsigned char* heightfield, 
+    float* biomeWeights, 
+    FeaturePlacement* dev_featurePlacements, 
+    int numFeaturePlacements, 
+    ivec3 chunkWorldBlockPos)
 {
     const int x = (blockIdx.x * blockDim.x) + threadIdx.x;
     const int y = (blockIdx.y * blockDim.y) + threadIdx.y;
@@ -136,7 +165,8 @@ __global__ void kernFill(Block* blocks, unsigned char* heightfield, float* biome
     const unsigned char height = heightfield[idx2d];
     const float* biomeWeightsStart = biomeWeights + (int)Biome::numBiomes * idx2d;
 
-    auto rng = makeSeededRandomEngine(worldBlockPos.x + x, y, worldBlockPos.y + z);
+    const ivec3 worldBlockPos = chunkWorldBlockPos + ivec3(x, y, z);
+    auto rng = makeSeededRandomEngine(worldBlockPos.x, worldBlockPos.y, worldBlockPos.z);
     thrust::uniform_real_distribution<float> u01(0, 1);
 
     BiomeBlocks biomeBlocks;
@@ -165,7 +195,33 @@ __global__ void kernFill(Block* blocks, unsigned char* heightfield, float* biome
         block = biomeBlocks.blockMid;
     }
 
+    // TODO: early exit if this block is not within bounding box containing all features
+    // set block here if early exiting, otherwise set block later
+
+    Block featureBlock;
+    bool placedFeature = false;
+    for (int featureIdx = 0; featureIdx < numFeaturePlacements; ++featureIdx)
+    {
+        if (placeFeature(dev_featurePlacements[featureIdx], worldBlockPos, &featureBlock))
+        {
+            placedFeature = true;
+            break;
+        }
+    }
+
+    if (placedFeature)
+    {
+        block = featureBlock;
+    }
+
     blocks[idx] = block;
+}
+
+void Chunk::generateOwnFeaturePlacements()
+{
+    featurePlacements.push_back({Feature::SPHERE, this->worldBlockPos + ivec3(8, 80, 8)});
+
+    // this probably won't include decorators (single block/column things) since those can be done on the CPU at the end of Chunk::fill()
 }
 
 void Chunk::generateHeightfield(unsigned char* dev_heightfield, float* dev_biomeWeights)
@@ -176,17 +232,25 @@ void Chunk::generateHeightfield(unsigned char* dev_heightfield, float* dev_biome
     kernGenerateHeightfield<<<blocksPerGrid2d, blockSize2d>>>(
         dev_heightfield,
         dev_biomeWeights,
-        this->worldChunkPos * 16
+        this->worldBlockPos
     );
-    CudaUtils::checkCUDAError("kern generate heightfield failed");
+    CudaUtils::checkCUDAError("kernGenerateHeightfield failed");
 
     cudaMemcpy(this->heightfield.data(), dev_heightfield, 256 * sizeof(unsigned char), cudaMemcpyDeviceToHost);
     cudaMemcpy(this->biomeWeights.data(), dev_biomeWeights, 256 * (int)Biome::numBiomes * sizeof(float), cudaMemcpyDeviceToHost);
     CudaUtils::checkCUDAError("cudaMemcpy to host failed");
+
+    generateOwnFeaturePlacements();
 }
 
-void Chunk::fill(Block* dev_blocks, unsigned char* dev_heightfield, float* dev_biomeWeights)
+void Chunk::fill(Block* dev_blocks, unsigned char* dev_heightfield, float* dev_biomeWeights, FeaturePlacement* dev_featurePlacements)
 {
+    // gather feature placements from self and neighboring chunks?
+
+    // TODO temporary (considers only this chunk's feature placements)
+    int numFeaturePlacements = this->featurePlacements.size();
+    cudaMemcpy(dev_featurePlacements, this->featurePlacements.data(), numFeaturePlacements * sizeof(FeaturePlacement), cudaMemcpyHostToDevice);
+
     cudaMemcpy(dev_heightfield, this->heightfield.data(), 256 * sizeof(unsigned char), cudaMemcpyHostToDevice);
     cudaMemcpy(dev_biomeWeights, this->biomeWeights.data(), 256 * (int)Biome::numBiomes * sizeof(float), cudaMemcpyHostToDevice);
     CudaUtils::checkCUDAError("cudaMemcpy to device failed");
@@ -198,9 +262,11 @@ void Chunk::fill(Block* dev_blocks, unsigned char* dev_heightfield, float* dev_b
         dev_blocks, 
         dev_heightfield,
         dev_biomeWeights,
-        this->worldChunkPos * 16
+        dev_featurePlacements,
+        numFeaturePlacements,
+        this->worldBlockPos
     );
-    CudaUtils::checkCUDAError("kern fill failed");
+    CudaUtils::checkCUDAError("kernFill failed");
     
     cudaMemcpy(this->blocks.data(), dev_blocks, 65536 * sizeof(Block), cudaMemcpyDeviceToHost);
     CudaUtils::checkCUDAError("cudaMemcpy to host failed");
@@ -306,7 +372,8 @@ void Chunk::createVBOs()
                     int uvFlipIdx = -1;
                     if (sideUv.randRot || sideUv.randFlip)
                     {
-                        auto rng = makeSeededRandomEngine(worldChunkPos.x * 16 + thisPos.x, thisPos.y, worldChunkPos.y * 16 + thisPos.z, dirIdx);
+                        ivec3 worldPos = thisPos + this->worldBlockPos;
+                        auto rng = makeSeededRandomEngine(worldPos.x, worldPos.y, worldPos.z, dirIdx);
                         thrust::uniform_real_distribution<float> u04(0, 4);
                         if (sideUv.randRot)
                         {
