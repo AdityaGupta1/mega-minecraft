@@ -13,11 +13,12 @@
 #define MULTITHREADING 0
 
 // --------------------------------------------------
-#define TOTAL_ACTION_TIME 6
+#define TOTAL_ACTION_TIME 20
 // --------------------------------------------------
-#define ACTION_TIME_FILL 1
-#define ACTION_TIME_CREATE_VBOS 2
-#define ACTION_TIME_BUFFER_VBOS 6
+#define ACTION_TIME_GENERATE_HEIGHTFIELD 5
+#define ACTION_TIME_FILL 2
+#define ACTION_TIME_CREATE_VBOS 5
+#define ACTION_TIME_BUFFER_VBOS 20
 // --------------------------------------------------
 
 Terrain::Terrain()
@@ -170,6 +171,10 @@ void Terrain::updateChunks()
             {
             case ChunkState::EMPTY:
                 chunkPtr->setNotReadyForQueue();
+                chunksToGenerateHeightfield.push(chunkPtr);
+                continue;
+            case ChunkState::HAS_HEIGHTFIELD:
+                chunkPtr->setNotReadyForQueue();
                 chunksToFill.push(chunkPtr);
                 continue;
             }
@@ -242,14 +247,30 @@ void Terrain::tick()
     // any get VBOs created, which should help reduce the frequency of VBO recreation.
     int actionTimeLeft = TOTAL_ACTION_TIME;
 
+    while (!chunksToGenerateHeightfield.empty() && actionTimeLeft >= ACTION_TIME_GENERATE_HEIGHTFIELD)
+    {
+        needsUpdateChunks = true;
+
+        auto& chunkPtr = pop(chunksToGenerateHeightfield);
+
+        chunkPtr->generateHeightfield(dev_heightfield, dev_biomeWeights);
+        chunkPtr->setState(ChunkState::HAS_HEIGHTFIELD);
+
+        cudaDeviceSynchronize(); // TODO move this outside of loop once streams are added
+
+        actionTimeLeft -= ACTION_TIME_GENERATE_HEIGHTFIELD;
+    }
+
     while (!chunksToFill.empty() && actionTimeLeft >= ACTION_TIME_FILL)
     {
         needsUpdateChunks = true;
 
         auto& chunkPtr = pop(chunksToFill);
 
-        chunkPtr->dummyFillCUDA(dev_blocks, dev_heightfield, dev_biomeWeights);
+        chunkPtr->fill(dev_blocks, dev_heightfield, dev_biomeWeights);
         chunkPtr->setState(ChunkState::IS_FILLED);
+
+        cudaDeviceSynchronize(); // TODO move this outside of loop once streams are added
 
         for (int i = 0; i < 4; ++i)
         {

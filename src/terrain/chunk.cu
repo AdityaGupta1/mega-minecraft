@@ -230,13 +230,10 @@ __global__ void kernFill(Block* blocks, unsigned char* heightfield, float* biome
     blocks[idx] = block;
 }
 
-void Chunk::dummyFillCUDA(Block* dev_blocks, unsigned char* dev_heightfield, float* dev_biomeWeights)
+void Chunk::generateHeightfield(unsigned char* dev_heightfield, float* dev_biomeWeights)
 {
     const dim3 blockSize2d(8, 8);
     const dim3 blocksPerGrid2d(2, 2);
-
-    const dim3 blockSize3d(1, 256, 1);
-    const dim3 blocksPerGrid3d(16, 1, 16);
 
     kernGenerateHeightfield<<<blocksPerGrid2d, blockSize2d>>>(
         dev_heightfield,
@@ -245,9 +242,20 @@ void Chunk::dummyFillCUDA(Block* dev_blocks, unsigned char* dev_heightfield, flo
     );
     CudaUtils::checkCUDAError("kern generate heightfield failed");
 
-    cudaDeviceSynchronize(); // TODO: move this out of here when splitting into two kernels and call synchronize only after launching all of one type of kernel (e.g. after launching all generate heightfield kernels)
+    cudaMemcpy(this->heightfield.data(), dev_heightfield, 256 * sizeof(unsigned char), cudaMemcpyDeviceToHost);
+    cudaMemcpy(this->biomeWeights.data(), dev_biomeWeights, 256 * (int)Biome::numBiomes * sizeof(float), cudaMemcpyDeviceToHost);
+    CudaUtils::checkCUDAError("cudaMemcpy to host failed");
+}
 
-    // TODO: when implementing for real, the two kernels will happen separately; will probably need to copy heightfield back to GPU before running this kernel
+void Chunk::fill(Block* dev_blocks, unsigned char* dev_heightfield, float* dev_biomeWeights)
+{
+    cudaMemcpy(dev_heightfield, this->heightfield.data(), 256 * sizeof(unsigned char), cudaMemcpyHostToDevice);
+    cudaMemcpy(dev_biomeWeights, this->biomeWeights.data(), 256 * (int)Biome::numBiomes * sizeof(float), cudaMemcpyHostToDevice);
+    CudaUtils::checkCUDAError("cudaMemcpy to device failed");
+
+    const dim3 blockSize3d(1, 256, 1);
+    const dim3 blocksPerGrid3d(16, 1, 16);
+
     kernFill<<<blocksPerGrid3d, blockSize3d>>>(
         dev_blocks, 
         dev_heightfield,
@@ -257,9 +265,7 @@ void Chunk::dummyFillCUDA(Block* dev_blocks, unsigned char* dev_heightfield, flo
     CudaUtils::checkCUDAError("kern fill failed");
     
     cudaMemcpy(this->blocks.data(), dev_blocks, 65536 * sizeof(Block), cudaMemcpyDeviceToHost);
-    CudaUtils::checkCUDAError("cudaMemcpy failed");
-
-    cudaDeviceSynchronize();
+    CudaUtils::checkCUDAError("cudaMemcpy to host failed");
 }
 
 static const std::array<vec3, 24> directionVertPositions = {

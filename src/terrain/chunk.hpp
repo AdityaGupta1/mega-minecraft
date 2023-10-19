@@ -50,7 +50,8 @@ public:
     bool isReadyForQueue();
     void setNotReadyForQueue();
 
-    void dummyFillCUDA(Block* dev_blocks, unsigned char* dev_heightfield, float* dev_biomeWeights);
+    void generateHeightfield(unsigned char* dev_heightfield, float* dev_biomeWeights);
+    void fill(Block* dev_blocks, unsigned char* dev_heightfield, float* dev_biomeWeights);
 
     void createVBOs();
     void bufferVBOs() override;
