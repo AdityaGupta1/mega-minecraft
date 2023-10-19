@@ -1,6 +1,5 @@
 #pragma once
 
-#include "cuda/cuda_utils.hpp"
 #include "block.hpp"
 
 enum class Biome : unsigned char
@@ -23,5 +22,5 @@ struct BiomeBlocks
 
 namespace BiomeUtils
 {
-    void init(); // implemented in chunk.cu so constant memory can live there
+    void init(); // implemented in biomeFuncs.hpp (included only by chunk.cu) so constant memory can live there
 }

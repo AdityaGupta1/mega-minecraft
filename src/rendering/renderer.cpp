@@ -87,7 +87,5 @@ void Renderer::draw(bool viewMatChanged, bool windowSizeChanged)
 
     terrain->draw(lambertShader);
 
-    //lambertShader.draw(chunk);
-
     glfwSwapBuffers(window);
 }

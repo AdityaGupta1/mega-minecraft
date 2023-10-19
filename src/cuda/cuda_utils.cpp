@@ -1,4 +1,4 @@
-#include "cuda_utils.hpp"
+#include "cudaUtils.hpp"
 
 #include <iostream>
 

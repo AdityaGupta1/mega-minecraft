@@ -1,7 +1,7 @@
 #include "terrain.hpp"
 
 #include "util/enums.hpp"
-#include "cuda/cuda_utils.hpp"
+#include "cuda/cudaUtils.hpp"
 #include <thread>
 
 #include <iostream>
