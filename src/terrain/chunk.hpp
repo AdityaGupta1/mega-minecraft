@@ -50,7 +50,6 @@ public:
     bool isReadyForQueue();
     void setNotReadyForQueue();
 
-    void dummyFill();
     void dummyFillCUDA(Block* dev_blocks, unsigned char* dev_heightfield, float* dev_biomeWeights);
 
     void createVBOs();

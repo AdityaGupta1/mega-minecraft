@@ -6,8 +6,6 @@
 #include "cuda/cuda_utils.hpp"
 #include <glm/gtc/noise.hpp>
 
-#include <iostream>
-
 Chunk::Chunk(ivec2 worldChunkPos)
     : worldChunkPos(worldChunkPos)
 {
@@ -60,40 +58,8 @@ int posToIndex(const ivec2 pos)
     return posToIndex(pos.x, pos.y);
 }
 
-void Chunk::dummyFill()
+__device__ float fbm(vec2 pos)
 {
-    for (int z = 0; z < 16; ++z)
-    {
-        for (int x = 0; x < 16; ++x)
-        {
-            int height = 48 + (x + z) / 2;
-            if ((x + z) % 4 == 1)
-            {
-                height += 10;
-            }
-            for (int y = 0; y < height; ++y)
-            {
-                Block block = Block::STONE;
-                if (y == height - 1)
-                {
-                    block = Block::GRASS;
-                }
-                else if (y < height - 1 && y >= height - 4)
-                {
-                    block = Block::DIRT;
-                }
-
-                this->blocks[posToIndex(x, y, z)] = block;
-            }
-        }
-    }
-}
-
-__device__
-float dummyNoise(vec2 pos)
-{
-    pos *= 0.01f;
-
     float fbm = 0.f;
     float amplitude = 1.f;
     for (int i = 0; i < 4; ++i)
@@ -102,8 +68,18 @@ float dummyNoise(vec2 pos)
         pos *= 2.f;
         fbm += amplitude * glm::simplex(pos);
     }
+    return fbm;
+}
 
-    return 64.f + 12.f * fbm;
+__device__ float getHeight(vec2 pos, Biome biome)
+{
+    switch (biome)
+    {
+    case Biome::PLAINS:
+        return 72.f + 12.f * fbm(pos * 0.01f);
+    case Biome::DESERT:
+        return 64.f + 5.f * fbm(pos * 0.005f);
+    }
 }
 
 __global__ void kernDummyGenerateHeightfield(unsigned char* heightfield, float* biomeWeights, ivec2 worldBlockPos)
@@ -115,10 +91,6 @@ __global__ void kernDummyGenerateHeightfield(unsigned char* heightfield, float* 
 
     const vec2 worldPos = vec2(worldBlockPos.x + x, worldBlockPos.y + z);
 
-    // height
-    int height = (int)dummyNoise(worldPos);
-    heightfield[idx] = height;
-
     // biomes
     float* biomeWeightsStart = biomeWeights + (int)Biome::numBiomes * idx;
     
@@ -126,6 +98,18 @@ __global__ void kernDummyGenerateHeightfield(unsigned char* heightfield, float* 
    
     biomeWeightsStart[(int)Biome::PLAINS] = moisture;
     biomeWeightsStart[(int)Biome::DESERT] = 1.f - moisture;
+
+    // height
+    float height = 0.f;
+    for (int i = 0; i < (int)Biome::numBiomes; ++i) 
+    {
+        float weight = biomeWeightsStart[i];
+        if (weight > 0.f)
+        {
+            height += weight * getHeight(worldPos, (Biome)i);
+        }
+    }
+    heightfield[idx] = (int)height;
 }
 
 __constant__ BiomeBlocks dev_biomeBlocks[(int)Biome::numBiomes];
@@ -153,9 +137,21 @@ __host__ __device__ inline unsigned int hash(unsigned int a)
     return a;
 }
 
+__host__ __device__ thrust::default_random_engine makeSeededRandomEngine(int x)
+{
+    int h = hash(x);
+    return thrust::default_random_engine(h);
+}
+
 __host__ __device__ thrust::default_random_engine makeSeededRandomEngine(int x, int y, int z)
 {
     int h = hash((1 << 31) | (x << 22) | y) ^ hash(z);
+    return thrust::default_random_engine(h);
+}
+
+__host__ __device__ thrust::default_random_engine makeSeededRandomEngine(int x, int y, int z, int w)
+{
+    int h = hash((1 << 31) | (x << 22) | (y << 11) | w) ^ hash(z);
     return thrust::default_random_engine(h);
 }
 
@@ -211,19 +207,12 @@ void Chunk::dummyFillCUDA(Block* dev_blocks, unsigned char* dev_heightfield, flo
     const dim3 blockSize3d(1, 256, 1);
     const dim3 blocksPerGrid3d(16, 1, 16);
 
-    cudaEvent_t start, mid, stop;
-    cudaEventCreate(&start);
-    cudaEventCreate(&mid);
-    cudaEventCreate(&stop);
-
-    cudaEventRecord(start);
     kernDummyGenerateHeightfield<<<blocksPerGrid2d, blockSize2d>>>(
         dev_heightfield,
         dev_biomeWeights,
         this->worldChunkPos * 16
     );
     CudaUtils::checkCUDAError("kern generate heightfield failed");
-    cudaEventRecord(mid);
 
     cudaDeviceSynchronize();
 
@@ -238,20 +227,8 @@ void Chunk::dummyFillCUDA(Block* dev_blocks, unsigned char* dev_heightfield, flo
     
     cudaMemcpy(this->blocks.data(), dev_blocks, 65536 * sizeof(Block), cudaMemcpyDeviceToHost);
     CudaUtils::checkCUDAError("cudaMemcpy failed");
-    cudaEventRecord(stop);
 
-    cudaEventSynchronize(stop);
-
-    //float milliseconds = 0;
-    //cudaEventElapsedTime(&milliseconds, start, stop);
-    //std::cout << "full ms elapsed: " << milliseconds << std::endl;
-    //cudaEventElapsedTime(&milliseconds, start, mid);
-    //std::cout << "mid ms elapsed: " << milliseconds << std::endl;
-    //std::cout << std::endl;
-
-    cudaEventDestroy(start);
-    cudaEventDestroy(mid);
-    cudaEventDestroy(stop);
+    cudaDeviceSynchronize();
 }
 
 static const std::array<vec3, 24> directionVertPositions = {
@@ -266,16 +243,6 @@ static const std::array<vec3, 24> directionVertPositions = {
 static const std::array<vec2, 16> uvOffsets = {
     vec2(0, 0), vec2(0.0625f, 0), vec2(0.0625f, 0.0625f), vec2(0, 0.0625f)
 };
-
-float randFromPosDir(ivec3 blockPos, int dir)
-{
-    return fract(sin(dot(vec4(vec3(blockPos), dir), vec4(453.29f, 817.46f, 296.14f, 572.85f))) * 43758.5453f);
-}
-
-float randFromRand(float rand)
-{
-    return fract(sin(rand * 134.78f) * 98345.1928f);
-}
 
 void Chunk::createVBOs()
 {
@@ -364,15 +331,15 @@ void Chunk::createVBOs()
                     int uvFlipIdx = -1;
                     if (sideUv.randRot || sideUv.randFlip)
                     {
-                        float rand = randFromPosDir(ivec3(worldChunkPos.x, 0, worldChunkPos.y) * 16 + thisPos, dirIdx);
+                        auto rng = makeSeededRandomEngine(worldChunkPos.x * 16 + thisPos.x, thisPos.y, worldChunkPos.y * 16 + thisPos.z, dirIdx);
+                        thrust::uniform_real_distribution<float> u04(0, 4);
                         if (sideUv.randRot)
                         {
-                            uvStartIdx = (int)(rand * 4.f);
-                            rand = randFromRand(rand);
+                            uvStartIdx = (int)u04(rng);
                         }
                         if (sideUv.randFlip)
                         {
-                            uvFlipIdx = (int)(rand * 4.f);
+                            uvFlipIdx = (int)u04(rng);
                         }
                     }
 

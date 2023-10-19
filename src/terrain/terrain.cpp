@@ -12,6 +12,14 @@
 
 #define MULTITHREADING 0
 
+// --------------------------------------------------
+#define TOTAL_ACTION_TIME 5
+// --------------------------------------------------
+#define ACTION_TIME_FILL 1
+#define ACTION_TIME_CREATE_VBOS 5
+#define ACTION_TIME_BUFFER_VBOS 5
+// --------------------------------------------------
+
 Terrain::Terrain()
 {
     initCuda();
@@ -232,9 +240,9 @@ void Terrain::tick()
     // Will probably want to get better estimates for how much time these things take, especially as
     // terrain generation becomes more complicated. This also means that all chunks get filled before
     // any get VBOs created, which should help reduce the frequency of VBO recreation.
-    int actionTimeLeft = 5;
+    int actionTimeLeft = TOTAL_ACTION_TIME;
 
-    while (!chunksToFill.empty() && actionTimeLeft >= 1)
+    while (!chunksToFill.empty() && actionTimeLeft >= ACTION_TIME_FILL)
     {
         needsUpdateChunks = true;
 
@@ -252,13 +260,13 @@ void Terrain::tick()
             }
         }
 
-        actionTimeLeft -= 1;
+        actionTimeLeft -= ACTION_TIME_FILL;
     }
 
 #if MULTITHREADING
     while (!chunksToCreateVbos.empty())
 #else
-    while (!chunksToCreateVbos.empty() && actionTimeLeft >= 5)
+    while (!chunksToCreateVbos.empty() && actionTimeLeft >= ACTION_TIME_CREATE_VBOS)
 #endif
     {
         needsUpdateChunks = true;
@@ -271,11 +279,11 @@ void Terrain::tick()
 #else
         this->createChunkVbos(chunkPtr);
 
-        actionTimeLeft -= 5;
+        actionTimeLeft -= ACTION_TIME_CREATE_VBOS;
 #endif
     }
 
-    while (!chunksToBufferVbos.empty() && actionTimeLeft >= 5)
+    while (!chunksToBufferVbos.empty() && actionTimeLeft >= ACTION_TIME_BUFFER_VBOS)
     {
         auto& chunkPtr = pop(chunksToBufferVbos);
 
@@ -283,7 +291,7 @@ void Terrain::tick()
         drawableChunks.insert(chunkPtr);
         chunkPtr->setState(ChunkState::DRAWABLE);
 
-        actionTimeLeft -= 5;
+        actionTimeLeft -= ACTION_TIME_BUFFER_VBOS;
     }
 
     // TODO do a kernel or launch a thread or something (based on queue of chunks to generate)
