@@ -8,7 +8,7 @@ enum class Biome : unsigned char
 {
     PLAINS,
     DESERT,
-    MUSHROOMS,
+    PURPLE_MUSHROOMS,
     METEORS,
 
     // not an actual biome, just for counting
@@ -25,7 +25,8 @@ struct BiomeBlocks
 enum class Feature : unsigned char
 {
     NONE,
-    SPHERE
+    SPHERE,
+    PURPLE_MUSHROOM
 };
 
 struct FeatureGen
