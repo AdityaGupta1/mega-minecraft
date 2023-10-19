@@ -8,7 +8,8 @@
 #include <glm/gtx/string_cast.hpp>
 
 #define CHUNK_VBOS_GEN_RADIUS 12
-#define CHUNK_FEATURE_PLACEMENTS_GEN_RADIUS (CHUNK_VBOS_GEN_RADIUS + 2)
+#define CHUNK_FILL_RADIUS (CHUNK_VBOS_GEN_RADIUS + 2)
+#define CHUNK_GEN_HEIGHTFIELDS_RADIUS (CHUNK_FILL_RADIUS + 2)
 
 #define MULTITHREADING 0
 
@@ -110,7 +111,7 @@ Zone* Terrain::createZone(ivec2 zonePos)
     return newZonePtr;
 }
 
-// This function looks at the area covered by CHUNK_FEATURE_PLACEMENTS_GEN_RADIUS. For each chunk, it first
+// This function looks at the area covered by CHUNK_GEN_HEIGHTFIELDS_RADIUS. For each chunk, it first
 // creates the chunk if it doesn't exist, also creating the associated zone if necsesary. Then, it looks at
 // the chunk's state and adds it to the correct queue iff chunk.readyForQueue == true. This also includes
 // setting readyForQueue to false so the chunk will be skipped until it's ready for the next state. The states 
@@ -118,9 +119,9 @@ Zone* Terrain::createZone(ivec2 zonePos)
 // execution. Kernels and threads are spawned from Terrain::tick().
 void Terrain::updateChunks()
 {
-    for (int dz = -CHUNK_FEATURE_PLACEMENTS_GEN_RADIUS; dz <= CHUNK_FEATURE_PLACEMENTS_GEN_RADIUS; ++dz)
+    for (int dz = -CHUNK_GEN_HEIGHTFIELDS_RADIUS; dz <= CHUNK_GEN_HEIGHTFIELDS_RADIUS; ++dz)
     {
-        for (int dx = -CHUNK_FEATURE_PLACEMENTS_GEN_RADIUS; dx <= CHUNK_FEATURE_PLACEMENTS_GEN_RADIUS; ++dx)
+        for (int dx = -CHUNK_GEN_HEIGHTFIELDS_RADIUS; dx <= CHUNK_GEN_HEIGHTFIELDS_RADIUS; ++dx)
         {
             ivec2 newChunkWorldChunkPos = currentChunkPos + ivec2(dx, dz);
             ivec2 newZoneWorldChunkPos = zonePosFromChunkPos(newChunkWorldChunkPos);
@@ -193,14 +194,22 @@ void Terrain::updateChunks()
                 chunkPtr->setNotReadyForQueue();
                 chunksToGatherFeaturePlacements.push(chunkPtr);
                 continue;
+            }
+
+            const ivec2 dist = abs(chunkPtr->worldChunkPos - this->currentChunkPos);
+            if (max(dist.x, dist.y) > CHUNK_FILL_RADIUS)
+            {
+                continue;
+            }
+
+            switch (chunkPtr->getState())
+            {
             case ChunkState::READY_TO_FILL:
                 chunkPtr->setNotReadyForQueue();
                 chunksToFill.push(chunkPtr);
                 continue;
             }
 
-            // don't create VBOs if not in range of CHUNK_VBOS_GEN_RADIUS
-            const ivec2 dist = abs(chunkPtr->worldChunkPos - this->currentChunkPos);
             if (max(dist.x, dist.y) > CHUNK_VBOS_GEN_RADIUS)
             {
                 continue;
