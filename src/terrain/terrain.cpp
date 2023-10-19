@@ -31,23 +31,42 @@ Terrain::~Terrain()
     freeCuda();
 }
 
-static Block* dev_blocks;
-static unsigned char* dev_heightfield;
-static float* dev_biomeWeights;
+static constexpr int numDevBlocks = TOTAL_ACTION_TIME / ACTION_TIME_FILL;
+static constexpr int numDevHeightfields = TOTAL_ACTION_TIME / min(ACTION_TIME_GENERATE_HEIGHTFIELD, ACTION_TIME_FILL);
+
+static std::array<Block*, numDevBlocks> dev_blocks;
+static std::array<unsigned char*, numDevHeightfields> dev_heightfields;
+static std::array<float*, numDevHeightfields> dev_biomeWeights;
 
 void Terrain::initCuda()
 {
-    cudaMalloc((void**)&dev_blocks, 65536 * sizeof(Block));
-    cudaMalloc((void**)&dev_heightfield, 256 * sizeof(unsigned char));
-    cudaMalloc((void**)&dev_biomeWeights, 256 * (int)Biome::numBiomes * sizeof(float));
+    for (int i = 0; i < numDevBlocks; ++i)
+    {
+        cudaMalloc((void**)&dev_blocks[i], 65536 * sizeof(Block));
+    }
+
+    for (int i = 0; i < numDevHeightfields; ++i)
+    {
+        cudaMalloc((void**)&dev_heightfields[i], 256 * sizeof(unsigned char));
+        cudaMalloc((void**)&dev_biomeWeights[i], 256 * (int)Biome::numBiomes * sizeof(float));
+    }
+
     CudaUtils::checkCUDAError("cudaMalloc failed");
 }
 
 void Terrain::freeCuda()
 {
-    cudaFree(dev_blocks);
-    cudaFree(dev_heightfield);
-    cudaFree(dev_biomeWeights);
+    for (int i = 0; i < numDevBlocks; ++i)
+    {
+        cudaFree(dev_blocks[i]);
+    }
+
+    for (int i = 0; i < numDevHeightfields; ++i)
+    {
+        cudaFree(dev_heightfields[i]);
+        cudaFree(dev_biomeWeights[i]);
+    }
+
     CudaUtils::checkCUDAError("cudaFree failed");
 }
 
@@ -247,16 +266,19 @@ void Terrain::tick()
     // any get VBOs created, which should help reduce the frequency of VBO recreation.
     int actionTimeLeft = TOTAL_ACTION_TIME;
 
+    int blocksIdx = 0;
+    int heightfieldIdx = 0;
+
     while (!chunksToGenerateHeightfield.empty() && actionTimeLeft >= ACTION_TIME_GENERATE_HEIGHTFIELD)
     {
         needsUpdateChunks = true;
 
         auto& chunkPtr = pop(chunksToGenerateHeightfield);
 
-        chunkPtr->generateHeightfield(dev_heightfield, dev_biomeWeights);
-        chunkPtr->setState(ChunkState::HAS_HEIGHTFIELD);
+        chunkPtr->generateHeightfield(dev_heightfields[heightfieldIdx], dev_biomeWeights[heightfieldIdx]);
+        ++heightfieldIdx;
 
-        cudaDeviceSynchronize(); // TODO move this outside of loop once streams are added
+        chunkPtr->setState(ChunkState::HAS_HEIGHTFIELD);
 
         actionTimeLeft -= ACTION_TIME_GENERATE_HEIGHTFIELD;
     }
@@ -267,10 +289,11 @@ void Terrain::tick()
 
         auto& chunkPtr = pop(chunksToFill);
 
-        chunkPtr->fill(dev_blocks, dev_heightfield, dev_biomeWeights);
-        chunkPtr->setState(ChunkState::IS_FILLED);
+        chunkPtr->fill(dev_blocks[blocksIdx], dev_heightfields[heightfieldIdx], dev_biomeWeights[heightfieldIdx]);
+        ++blocksIdx;
+        ++heightfieldIdx;
 
-        cudaDeviceSynchronize(); // TODO move this outside of loop once streams are added
+        chunkPtr->setState(ChunkState::IS_FILLED);
 
         for (int i = 0; i < 4; ++i)
         {
@@ -282,6 +305,11 @@ void Terrain::tick()
         }
 
         actionTimeLeft -= ACTION_TIME_FILL;
+    }
+
+    if (blocksIdx > 0 || heightfieldIdx > 0)
+    {
+        cudaDeviceSynchronize();
     }
 
 #if MULTITHREADING
