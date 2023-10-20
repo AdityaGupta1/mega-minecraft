@@ -3,8 +3,8 @@
 #include "util/enums.hpp"
 #include "cuda/cudaUtils.hpp"
 #include <thread>
-
 #include <iostream>
+#include <chrono>
 #include <glm/gtx/string_cast.hpp>
 
 #define CHUNK_VBOS_GEN_RADIUS 16
@@ -12,6 +12,8 @@
 #define CHUNK_GEN_HEIGHTFIELDS_RADIUS (CHUNK_FILL_RADIUS + 2)
 
 #define MULTITHREADING 0
+
+#define DEBUG_TIME_CHUNK_FILL 1
 
 // --------------------------------------------------
 #define TOTAL_ACTION_TIME 30
@@ -33,14 +35,22 @@ Terrain::~Terrain()
     freeCuda();
 }
 
+#if DEBUG_TIME_CHUNK_FILL
+bool startedTiming = false;
+bool finishedTiming = false;
+std::chrono::system_clock::time_point start;
+#endif
+
 static constexpr int numDevBlocks = TOTAL_ACTION_TIME / ACTION_TIME_FILL;
 static constexpr int numDevHeightfields = TOTAL_ACTION_TIME / min(ACTION_TIME_GENERATE_HEIGHTFIELD, ACTION_TIME_FILL);
+static constexpr int numStreams = max(numDevBlocks, numDevHeightfields);
 
 static std::array<Block*, numDevBlocks> dev_blocks;
 static std::array<FeaturePlacement*, numDevBlocks> dev_featurePlacements;
 
 static std::array<unsigned char*, numDevHeightfields> dev_heightfields;
 static std::array<float*, numDevHeightfields> dev_biomeWeights;
+static std::array<cudaStream_t, numStreams> streams;
 
 void Terrain::initCuda()
 {
@@ -57,6 +67,13 @@ void Terrain::initCuda()
     }
 
     CudaUtils::checkCUDAError("cudaMalloc failed");
+
+    for (int i = 0; i < numStreams; ++i)
+    {
+        cudaStreamCreate(&streams[i]);
+    }
+
+    CudaUtils::checkCUDAError("cudaStreamCreate failed");
 }
 
 void Terrain::freeCuda()
@@ -74,6 +91,13 @@ void Terrain::freeCuda()
     }
 
     CudaUtils::checkCUDAError("cudaFree failed");
+
+    for (int i = 0; i < numStreams; ++i)
+    {
+        cudaStreamDestroy(streams[i]);
+    }
+
+    CudaUtils::checkCUDAError("cudaStreamDestroy failed");
 }
 
 ivec2 zonePosFromChunkPos(ivec2 chunkPos)
@@ -284,6 +308,7 @@ void Terrain::tick()
 
     int blocksIdx = 0;
     int heightfieldIdx = 0;
+    int streamIdx = 0;
 
     while (!chunksToGenerateHeightfield.empty() && actionTimeLeft >= ACTION_TIME_GENERATE_HEIGHTFIELD)
     {
@@ -291,8 +316,13 @@ void Terrain::tick()
 
         auto& chunkPtr = chunksToGenerateHeightfield.front();
 
-        chunkPtr->generateHeightfield(dev_heightfields[heightfieldIdx], dev_biomeWeights[heightfieldIdx]);
+        chunkPtr->generateHeightfield(
+            dev_heightfields[heightfieldIdx], 
+            dev_biomeWeights[heightfieldIdx],
+            streams[streamIdx]
+        );
         ++heightfieldIdx;
+        ++streamIdx;
 
         chunkPtr->setState(ChunkState::HAS_HEIGHTFIELD_AND_FEATURE_PLACEMENTS);
 
@@ -318,9 +348,16 @@ void Terrain::tick()
 
         auto& chunkPtr = chunksToFill.front();
 
-        chunkPtr->fill(dev_blocks[blocksIdx], dev_heightfields[heightfieldIdx], dev_biomeWeights[heightfieldIdx], dev_featurePlacements[blocksIdx]);
+        chunkPtr->fill(
+            dev_blocks[blocksIdx], 
+            dev_heightfields[heightfieldIdx], 
+            dev_biomeWeights[heightfieldIdx], 
+            dev_featurePlacements[blocksIdx],
+            streams[streamIdx]
+        );
         ++blocksIdx;
         ++heightfieldIdx;
+        ++streamIdx;
 
         chunkPtr->setState(ChunkState::IS_FILLED);
 
@@ -337,7 +374,7 @@ void Terrain::tick()
         actionTimeLeft -= ACTION_TIME_FILL;
     }
 
-    if (blocksIdx > 0 || heightfieldIdx > 0)
+    if (streamIdx > 0)
     {
         cudaDeviceSynchronize();
     }
@@ -374,6 +411,27 @@ void Terrain::tick()
         chunksToBufferVbos.pop();
         actionTimeLeft -= ACTION_TIME_BUFFER_VBOS;
     }
+
+#if DEBUG_TIME_CHUNK_FILL
+    if (!finishedTiming)
+    {
+        bool areQueuesEmpty = chunksToGenerateHeightfield.empty() && chunksToGatherFeaturePlacements.empty()
+            && chunksToFill.empty() && chunksToCreateVbos.empty() && chunksToBufferVbos.empty();
+
+        if (!startedTiming && !areQueuesEmpty)
+        {
+            startedTiming = true;
+            start = std::chrono::system_clock::now();
+        }
+        else if (startedTiming && areQueuesEmpty)
+        {
+            finishedTiming = true;
+            std::chrono::system_clock::time_point end = std::chrono::system_clock::now();
+            std::chrono::duration<double> elapsedSeconds = end - start;
+            std::cout << "elapsed seconds: " << elapsedSeconds.count() << "s" << std::endl;
+        }
+    }
+#endif
 
 #if MULTITHREADING
     mutex.unlock();

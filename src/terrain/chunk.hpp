@@ -8,6 +8,7 @@
 #include "rendering/structs.hpp"
 #include "terrain.hpp"
 #include "biome.hpp"
+#include "cuda/cudaUtils.hpp"
 
 using namespace glm;
 
@@ -56,10 +57,10 @@ public:
     bool isReadyForQueue();
     void setNotReadyForQueue();
 
-    void generateHeightfield(unsigned char* dev_heightfield, float* dev_biomeWeights);
+    void generateHeightfield(unsigned char* dev_heightfield, float* dev_biomeWeights, cudaStream_t stream);
     static bool otherChunkGatherFeaturePlacements(Chunk* chunkPtr, Chunk* (&neighborChunks)[9][9], int centerX, int centerZ);
     void gatherFeaturePlacements();
-    void fill(Block* dev_blocks, unsigned char* dev_heightfield, float* dev_biomeWeights, FeaturePlacement* dev_featurePlacements);
+    void fill(Block* dev_blocks, unsigned char* dev_heightfield, float* dev_biomeWeights, FeaturePlacement* dev_featurePlacements, cudaStream_t stream);
 
     void createVBOs();
     void bufferVBOs() override;
