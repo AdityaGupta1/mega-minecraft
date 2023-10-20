@@ -235,6 +235,8 @@ void Chunk::generateHeightfield(
     cudaMemcpyAsync(this->biomeWeights.data(), dev_biomeWeights, 256 * (int)Biome::numBiomes * sizeof(float), cudaMemcpyDeviceToHost, stream);
     CudaUtils::checkCUDAError("cudaMemcpy to host failed");
 
+    cudaStreamSynchronize(stream);
+
     generateOwnFeaturePlacements();
 }
 
