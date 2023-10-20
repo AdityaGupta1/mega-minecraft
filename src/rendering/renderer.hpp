@@ -31,6 +31,8 @@ private:
     mat4 projMat;
     mat4 viewProjMat;
 
+    bool isZoomed{ false };
+
 public:
     Renderer(GLFWwindow* window, ivec2* windowSize, Terrain* terrain, Player* player);
 
@@ -44,6 +46,8 @@ private:
 
 public:
     void init();
+
+    void setZoomed(bool zoomed);
 
     void draw(bool viewMatChanged, bool windowSizeChanged);
 };

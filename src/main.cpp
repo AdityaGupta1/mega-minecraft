@@ -206,6 +206,16 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
             playerMovementMultiplier = 1.f;
         }
         break;
+    case GLFW_KEY_C:
+        if (action == GLFW_PRESS)
+        {
+            renderer->setZoomed(true);
+        }
+        else if (action == GLFW_RELEASE)
+        {
+            renderer->setZoomed(false);
+        }
+        break;
     }
 }
 

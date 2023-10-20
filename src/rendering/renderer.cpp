@@ -55,7 +55,8 @@ void Renderer::initTextures()
 
 void Renderer::setProjMat()
 {
-    projMat = glm::perspective(PI_OVER_FOUR, windowSize->x / (float)windowSize->y, 0.01f, 500.f);
+    float fovy = this->isZoomed ? (PI_OVER_FOUR / 2.8f) : PI_OVER_FOUR;
+    projMat = glm::perspective(fovy, windowSize->x / (float)windowSize->y, 0.01f, 1000.f);
 }
 
 void Renderer::init()
@@ -73,6 +74,12 @@ void Renderer::init()
     initShaders();
     initTextures();
 
+    setProjMat();
+}
+
+void Renderer::setZoomed(bool zoomed)
+{
+    this->isZoomed = zoomed;
     setProjMat();
 }
 
