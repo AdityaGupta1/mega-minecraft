@@ -16,7 +16,7 @@
 #define DEBUG_TIME_CHUNK_FILL 1
 
 // --------------------------------------------------
-#define TOTAL_ACTION_TIME 30
+#define TOTAL_ACTION_TIME 40
 // --------------------------------------------------
 #define ACTION_TIME_GENERATE_HEIGHTFIELD 5
 #define ACTION_TIME_GATHER_FEATURE_PLACEMENTS 1
@@ -438,7 +438,12 @@ void Terrain::tick()
 #endif
 }
 
-void Terrain::draw(const ShaderProgram& prog) {
+static const std::array<ivec3, 8> chunkCornerOffsets = {
+    ivec3(0, 0, 0), ivec3(16, 0, 0), ivec3(16, 0, 16), ivec3(0, 0, 16),
+    ivec3(0, 256, 0), ivec3(16, 256, 0), ivec3(16, 256, 16), ivec3(0, 256, 16)
+};
+
+void Terrain::draw(const ShaderProgram& prog, const Player& player) {
     mat4 modelMat = mat4(1);
 
     for (const auto& chunkPtr : drawableChunks)
@@ -447,14 +452,33 @@ void Terrain::draw(const ShaderProgram& prog) {
         if (max(dist.x, dist.y) > CHUNK_VBOS_GEN_RADIUS)
         {
             chunksToDestroyVbos.push(chunkPtr);
+            continue;
         }
-        else
+        
+        const auto& camPos = player.getPos();
+        const auto& camForward = player.getForward();
+
+        // cull chunks that are entirely behind camera
+        bool shouldCull = true;
+        for (int i = 0; i < 8; ++i)
         {
-            modelMat[3][0] = chunkPtr->worldChunkPos.x * 16.f;
-            modelMat[3][2] = chunkPtr->worldChunkPos.y * 16.f;
-            prog.setModelMat(modelMat);
-            prog.draw(*chunkPtr);
+            const vec3 chunkCorner = chunkPtr->worldBlockPos + chunkCornerOffsets[i];
+            if (glm::dot(chunkCorner - camPos, camForward) > 0)
+            {
+                shouldCull = false;
+                break;
+            }
         }
+
+        if (shouldCull)
+        {
+            continue;
+        }
+
+        modelMat[3][0] = chunkPtr->worldBlockPos.x;
+        modelMat[3][2] = chunkPtr->worldBlockPos.z;
+        prog.setModelMat(modelMat);
+        prog.draw(*chunkPtr);
     }
 }
 

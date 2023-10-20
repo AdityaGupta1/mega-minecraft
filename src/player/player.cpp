@@ -27,22 +27,22 @@ void Player::tick(bool* viewMatChanged)
     }
 }
 
-vec3 Player::getPos() 
+vec3 Player::getPos() const
 {
     return pos;
 }
 
-vec3 Player::getForward()
+vec3 Player::getForward() const
 {
     return forward;
 }
 
-vec3 Player::getRight()
+vec3 Player::getRight() const
 {
     return right;
 }
 
-vec3 Player::getUp()
+vec3 Player::getUp() const
 {
     return up;
 }

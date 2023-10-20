@@ -22,10 +22,10 @@ private:
 public:
     void tick(bool* viewMatChanged);
 
-    vec3 getPos();
-    vec3 getForward();
-    vec3 getRight();
-    vec3 getUp();
+    vec3 getPos() const;
+    vec3 getForward() const;
+    vec3 getRight() const;
+    vec3 getUp() const;
 
     mat4 getViewMat() const;
 

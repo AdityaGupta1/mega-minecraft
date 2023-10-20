@@ -97,7 +97,7 @@ void Renderer::draw(bool viewMatChanged, bool windowSizeChanged)
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, tex_blockDiffuse);
 
-    terrain->draw(lambertShader);
+    terrain->draw(lambertShader, *player);
 
     glfwSwapBuffers(window);
 }

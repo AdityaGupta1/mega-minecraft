@@ -10,6 +10,7 @@
 #include "util/utils.hpp"
 #include "rendering/shaderProgram.hpp"
 #include <mutex>
+#include "player/player.hpp"
 
 using namespace glm;
 
@@ -61,7 +62,7 @@ public:
 
     void tick();
 
-    void draw(const ShaderProgram& prog);
+    void draw(const ShaderProgram& prog, const Player& player);
 
     void setCurrentChunkPos(ivec2 newCurrentChunkPos);
 };
