@@ -148,8 +148,11 @@ void Renderer::draw(bool viewMatChanged, bool windowSizeChanged)
     if (viewMatChanged || windowSizeChanged)
     {
         viewProjMat = projMat * player->getViewMat();
+        invViewProjMat = glm::inverse(viewProjMat);
 
         lambertShader.setViewProjMat(viewProjMat);
+
+        skyShader.setInvViewProjMat(invViewProjMat);
     }
 
     glBindFramebuffer(GL_FRAMEBUFFER, fbo_main);

@@ -38,6 +38,7 @@ private:
     // other
     mat4 projMat;
     mat4 viewProjMat;
+    mat4 invViewProjMat;
 
     bool isZoomed{ false };
 

@@ -96,6 +96,7 @@ bool ShaderProgram::create(const std::string& vertFile, const std::string& fragF
 
     unif_modelMat = glGetUniformLocation(prog, "u_modelMat");
     unif_viewProjMat = glGetUniformLocation(prog, "u_viewProjMat");
+    unif_invViewProjMat = glGetUniformLocation(prog, "u_invViewProjMat");
 
     tex_blockDiffuse = glGetUniformLocation(prog, "tex_blockDiffuse");
     tex_bufColor = glGetUniformLocation(prog, "tex_bufColor");
@@ -119,6 +120,12 @@ void ShaderProgram::setViewProjMat(const glm::mat4& mat) const
 {
     useMe();
     glUniformMatrix4fv(unif_viewProjMat, 1, GL_FALSE, &mat[0][0]);
+}
+
+void ShaderProgram::setInvViewProjMat(const glm::mat4& mat) const
+{
+    useMe();
+    glUniformMatrix4fv(unif_invViewProjMat, 1, GL_FALSE, &mat[0][0]);
 }
 
 void ShaderProgram::setTexBlockDiffuse(int tex) const
