@@ -2,7 +2,7 @@
 
 const vec3 lightDir = normalize(vec3(5, 7, 3));
 const float lightStrength = 1.f;
-const vec3 ambientLight = vec3(0.8, 0.98, 1.0) * 0.2f;
+const vec3 ambientLight = vec3(0.8, 0.98, 1.0) * 0.16f;
 
 uniform sampler2D tex_blockDiffuse;
 

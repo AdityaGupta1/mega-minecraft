@@ -39,6 +39,11 @@ void Renderer::init()
     setProjMat();
 }
 
+void createPostProcessShader(ShaderProgram& prog, const std::string& frag)
+{
+    prog.create("shaders/passthrough_uvs.vert.glsl", frag);
+}
+
 void Renderer::initShaders()
 {
 #if CREATE_PASSTHROUGH_SHADERS
@@ -47,7 +52,8 @@ void Renderer::initShaders()
 #endif
 
     lambertShader.create("shaders/lambert.vert.glsl", "shaders/lambert.frag.glsl");
-    postProcessShader1.create("shaders/passthrough_uvs.vert.glsl", "shaders/postprocess_1.frag.glsl");
+    createPostProcessShader(skyShader, "shaders/sky.frag.glsl");
+    createPostProcessShader(postProcessShader1, "shaders/postprocess_1.frag.glsl");
 }
 
 void Renderer::initFbosAndTextures()
@@ -155,6 +161,8 @@ void Renderer::draw(bool viewMatChanged, bool windowSizeChanged)
     //glBindTexture(GL_TEXTURE_2D, tex_blockDiffuse);
 
     terrain->draw(lambertShader, *player);
+
+    skyShader.draw(fullscreenTri);
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glViewport(0, 0, windowSize->x, windowSize->y);
