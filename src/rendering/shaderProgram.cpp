@@ -6,9 +6,9 @@
 #include "structs.hpp"
 
 ShaderProgram::ShaderProgram()
-    : vertShader(), fragShader(), prog(), attr_pos(-1), unif_viewProjMat(-1)
-{
-}
+    : vertShader(), fragShader(), prog(), attr_pos(-1), attr_nor(-1), attr_uv(-1), unif_modelMat(-1), unif_viewProjMat(-1),
+      tex_blockDiffuse(-1), tex_bufColor(-1)
+{}
 
 void printShaderInfoLog(int shader)
 {
@@ -98,6 +98,7 @@ bool ShaderProgram::create(const std::string& vertFile, const std::string& fragF
     unif_viewProjMat = glGetUniformLocation(prog, "u_viewProjMat");
 
     tex_blockDiffuse = glGetUniformLocation(prog, "tex_blockDiffuse");
+    tex_bufColor = glGetUniformLocation(prog, "tex_bufColor");
 
     std::cout << "done" << std::endl;
     return true;
@@ -124,6 +125,12 @@ void ShaderProgram::setTexBlockDiffuse(int tex) const
 {
     useMe();
     glUniform1i(tex_blockDiffuse, tex);
+}
+
+void ShaderProgram::setTexBufColor(int tex) const
+{
+    useMe();
+    glUniform1i(tex_bufColor, tex);
 }
 
 void ShaderProgram::draw(Drawable& d) const

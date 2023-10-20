@@ -20,6 +20,7 @@ public:
     GLint unif_viewProjMat;
 
     GLint tex_blockDiffuse;
+    GLint tex_bufColor;
 
     ShaderProgram();
 
@@ -31,6 +32,7 @@ public:
     void setViewProjMat(const glm::mat4& mat) const;
 
     void setTexBlockDiffuse(int tex) const;
+    void setTexBufColor(int tex) const;
 
     void draw(Drawable &d) const;
 };

@@ -22,10 +22,17 @@ private:
     // shaders
     ShaderProgram passthroughShader;
     ShaderProgram passthroughUvsShader;
+
     ShaderProgram lambertShader;
+    ShaderProgram postProcessShader1;
+
+    // framebuffer objects
+    GLuint fbo_main;
+    GLuint rbo_main;
 
     // textures
     GLuint tex_blockDiffuse;
+    GLuint tex_bufColor;
 
     // other
     mat4 projMat;
@@ -40,7 +47,8 @@ public:
 
 private:
     void initShaders();
-    void initTextures();
+    void initFbosAndTextures();
+    void resizeTextures();
 
     void setProjMat();
 
