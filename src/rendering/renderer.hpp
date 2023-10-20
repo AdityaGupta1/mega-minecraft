@@ -42,6 +42,9 @@ private:
 
     bool isZoomed{ false };
 
+    float time{ 0 };
+    mat3 sunRotateMat;
+
 public:
     Renderer(GLFWwindow* window, ivec2* windowSize, Terrain* terrain, Player* player);
 
@@ -59,5 +62,5 @@ public:
 
     void setZoomed(bool zoomed);
 
-    void draw(bool viewMatChanged, bool windowSizeChanged);
+    void draw(float deltaTime, bool viewMatChanged, bool windowSizeChanged);
 };

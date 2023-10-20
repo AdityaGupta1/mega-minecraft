@@ -13,7 +13,7 @@
 
 Renderer::Renderer(GLFWwindow* window, ivec2* windowSize, Terrain* terrain, Player* player)
     : window(window), windowSize(windowSize), terrain(terrain), player(player), vao(-1),
-      fbo_main(-1), tex_blockDiffuse(-1), projMat(), viewProjMat()
+      fbo_main(-1), tex_blockDiffuse(-1), projMat(), viewProjMat(), invViewProjMat(), sunRotateMat()
 {}
 
 Renderer::~Renderer()
@@ -37,6 +37,11 @@ void Renderer::init()
     initFbosAndTextures();
 
     setProjMat();
+
+    const vec3 sunAxisForward = normalize(vec3(5, 2, 3));
+    const vec3 sunAxisRight = normalize(cross(sunAxisForward, vec3(0, 1, 0)));
+    const vec3 sunAxisUp = normalize(cross(sunAxisRight, sunAxisForward));
+    sunRotateMat = mat3(sunAxisRight, sunAxisForward, sunAxisUp);
 }
 
 void createPostProcessShader(ShaderProgram& prog, const std::string& frag)
@@ -137,7 +142,7 @@ void Renderer::setZoomed(bool zoomed)
     setProjMat();
 }
 
-void Renderer::draw(bool viewMatChanged, bool windowSizeChanged)
+void Renderer::draw(float deltaTime, bool viewMatChanged, bool windowSizeChanged)
 {
     if (windowSizeChanged)
     {
@@ -155,6 +160,11 @@ void Renderer::draw(bool viewMatChanged, bool windowSizeChanged)
         skyShader.setInvViewProjMat(invViewProjMat);
     }
 
+    time += deltaTime;
+
+    const float sunTime = time * 0.2f;
+    const vec3 sunDir = normalize(sunRotateMat * vec3(cos(sunTime), 0.7f, sin(sunTime)));
+
     glBindFramebuffer(GL_FRAMEBUFFER, fbo_main);
     glViewport(0, 0, windowSize->x, windowSize->y);
     glEnable(GL_DEPTH_TEST);
@@ -163,8 +173,10 @@ void Renderer::draw(bool viewMatChanged, bool windowSizeChanged)
     //glActiveTexture(GL_TEXTURE0);
     //glBindTexture(GL_TEXTURE_2D, tex_blockDiffuse);
 
+    lambertShader.setSunDir(sunDir);
     terrain->draw(lambertShader, *player);
 
+    skyShader.setSunDir(sunDir);
     skyShader.draw(fullscreenTri);
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);

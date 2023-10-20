@@ -1,10 +1,11 @@
 #version 330
 
-const vec3 lightDir = normalize(vec3(5, 7, 3));
 const float lightStrength = 1.f;
 const vec3 ambientLight = vec3(0.8, 0.98, 1.0) * 0.16f;
 
 uniform sampler2D tex_blockDiffuse;
+
+uniform vec3 u_sunDir;
 
 in vec3 fs_nor;
 in vec2 fs_uv;
@@ -14,8 +15,9 @@ out vec4 fragColor;
 void main() {
     vec4 diffuseCol = texture(tex_blockDiffuse, fs_uv);
 
-    float NdotL = max(dot(fs_nor, lightDir), 0.0);
-    vec3 lambert = diffuseCol.rgb * (ambientLight + (NdotL * lightStrength));
+    float lambert = max(dot(fs_nor, u_sunDir), 0.0);
+    lambert *= smoothstep(-0.2f, -0.1f, u_sunDir.y);
+    vec3 finalColor = diffuseCol.rgb * (ambientLight + (lambert * lightStrength));
 
-    fragColor = vec4(lambert, 1.f);
+    fragColor = vec4(finalColor, 1.f);
 }

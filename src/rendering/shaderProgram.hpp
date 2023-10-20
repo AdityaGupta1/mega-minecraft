@@ -20,6 +20,8 @@ public:
     GLint unif_viewProjMat;
     GLint unif_invViewProjMat;
 
+    GLint unif_sunDir;
+
     GLint tex_blockDiffuse;
     GLint tex_bufColor;
 
@@ -32,6 +34,8 @@ public:
     void setModelMat(const glm::mat4& mat) const;
     void setViewProjMat(const glm::mat4& mat) const;
     void setInvViewProjMat(const glm::mat4& mat) const;
+
+    void setSunDir(const glm::vec3& dir) const;
 
     void setTexBlockDiffuse(int tex) const;
     void setTexBufColor(int tex) const;
