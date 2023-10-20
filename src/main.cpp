@@ -241,7 +241,19 @@ void tick(float deltaTime)
 {
     if (playerMovement.x != 0 || playerMovement.y != 0 || playerMovement.z != 0)
     {
-        player->move(glm::vec3(playerMovement) * playerMovementSensitivity * playerMovementMultiplier * deltaTime);
+        glm::vec3 playerMovementNormalized;
+        if (playerMovement.x != 0 || playerMovement.z != 0)
+        {
+            glm::vec2 playerMovementHorizontal = glm::vec2(playerMovement.x, playerMovement.z);
+            playerMovementHorizontal = glm::normalize(playerMovementHorizontal) * glm::length(playerMovementHorizontal);
+            playerMovementNormalized = glm::vec3(playerMovementHorizontal.x, playerMovement.y, playerMovementHorizontal.y);
+        }
+        else
+        {
+            playerMovementNormalized = playerMovement;
+        }
+
+        player->move(glm::vec3(playerMovementNormalized) * playerMovementSensitivity * playerMovementMultiplier * deltaTime);
     }
     bool viewMatChanged;
     player->tick(&viewMatChanged);
