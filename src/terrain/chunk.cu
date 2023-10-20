@@ -115,7 +115,8 @@ __global__ void kernFill(
     unsigned char* heightfield, 
     float* biomeWeights, 
     FeaturePlacement* dev_featurePlacements, 
-    int numFeaturePlacements, 
+    int numFeaturePlacements,
+    ivec2 featureHeightBounds,
     ivec3 chunkWorldBlockPos)
 {
     const int x = (blockIdx.x * blockDim.x) + threadIdx.x;
@@ -150,8 +151,11 @@ __global__ void kernFill(
         block = biomeBlocks.blockMid;
     }
 
-    // TODO: early exit if this block is not within bounding box containing all features
-    // set block here if early exiting, otherwise set block later
+    if (y < featureHeightBounds[0] || y > featureHeightBounds[1])
+    {
+        blocks[idx] = block;
+        return;
+    }
 
     Block featureBlock;
     bool placedFeature = false;
@@ -322,7 +326,14 @@ void Chunk::gatherFeaturePlacements()
 
 void Chunk::fill(Block* dev_blocks, unsigned char* dev_heightfield, float* dev_biomeWeights, FeaturePlacement* dev_featurePlacements)
 {
-    // gather feature placements from self and neighboring chunks?
+    ivec2 allFeaturesHeightBounds = ivec2(256, -1);
+    for (const auto& featurePlacement : this->gatheredFeaturePlacements)
+    {
+        const auto& featureHeightBounds = BiomeUtils::getFeatureHeightBounds(featurePlacement.feature);
+        const ivec2 thisFeatureHeightBounds = ivec2(featurePlacement.pos.y) + featureHeightBounds;
+        allFeaturesHeightBounds[0] = min(allFeaturesHeightBounds[0], thisFeatureHeightBounds[0]);
+        allFeaturesHeightBounds[1] = max(allFeaturesHeightBounds[1], thisFeatureHeightBounds[1]);
+    }
 
     int numFeaturePlacements = this->gatheredFeaturePlacements.size();
     cudaMemcpy(dev_featurePlacements, this->gatheredFeaturePlacements.data(), numFeaturePlacements * sizeof(FeaturePlacement), cudaMemcpyHostToDevice);
@@ -341,6 +352,7 @@ void Chunk::fill(Block* dev_blocks, unsigned char* dev_heightfield, float* dev_b
         dev_biomeWeights,
         dev_featurePlacements,
         numFeaturePlacements,
+        allFeaturesHeightBounds,
         this->worldBlockPos
     );
     CudaUtils::checkCUDAError("kernFill failed");

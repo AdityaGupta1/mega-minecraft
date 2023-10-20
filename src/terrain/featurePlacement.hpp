@@ -99,7 +99,7 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
             }
             else
             {
-                pos2 = pos1 + normalize(pos1 - spline[i - 1]) * (1.5f * u01(rng) + 2.5f);
+                pos2 = pos1 + normalize(pos1 - spline[i - 1]) * (3.f + u01(rng) * 1.5f);
             }
 
             vec3 vecLine = pos2 - pos1;

@@ -50,6 +50,7 @@ private:
 
     Zone* createZone(ivec2 zonePos);
 
+    void updateChunk(int dx, int dz);
     void updateChunks();
 
     void createChunkVbos(Chunk* chunkPtr);

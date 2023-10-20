@@ -11,12 +11,9 @@
 #include <iostream>
 
 Renderer::Renderer(GLFWwindow* window, ivec2* windowSize, Terrain* terrain, Player* player)
-    : window(window), windowSize(windowSize), terrain(terrain), player(player),
-      passthroughShader(), lambertShader()
-{
-}
-
-Chunk chunk = Chunk(ivec2(0, 0));
+    : window(window), windowSize(windowSize), terrain(terrain), player(player), vao(-1),
+      passthroughShader(), lambertShader(), tex_blockDiffuse(-1), projMat(), viewProjMat()
+{}
 
 void Renderer::initShaders()
 {

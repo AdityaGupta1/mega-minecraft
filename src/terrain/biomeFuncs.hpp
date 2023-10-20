@@ -38,7 +38,7 @@ __device__ float getHeight(Biome biome, vec2 pos)
     switch (biome)
     {
     case Biome::PLAINS:
-        return 80.f + 12.f * fbm(pos * 0.01f);
+        return 80.f + 8.f * fbm(pos * 0.009f);
     case Biome::DESERT:
         return 70.f + 5.f * fbm(pos * 0.005f);
     case Biome::PURPLE_MUSHROOMS:
@@ -50,6 +50,8 @@ __device__ float getHeight(Biome biome, vec2 pos)
 
 __constant__ BiomeBlocks dev_biomeBlocks[(int)Biome::numBiomes];
 static std::array<std::vector<FeatureGen>, (int)Biome::numBiomes> biomeFeatureGens;
+
+static std::array<ivec2, (int)Feature::numFeatures> featureHeightBounds;
 
 void BiomeUtils::init()
 {
@@ -64,11 +66,19 @@ void BiomeUtils::init()
 
     delete[] host_biomeBlocks;
 
-    //biomeFeatureGens[(int)Biome::PLAINS] = { {Feature::SPHERE, 0.002f} };
     biomeFeatureGens[(int)Biome::PURPLE_MUSHROOMS] = { {Feature::PURPLE_MUSHROOM, 0.004f} };
+
+    featureHeightBounds[(int)Feature::NONE] = ivec2(0, 0);
+    featureHeightBounds[(int)Feature::SPHERE] = ivec2(-6, -6);
+    featureHeightBounds[(int)Feature::PURPLE_MUSHROOM] = ivec2(-2, 80);
 }
 
 std::vector<FeatureGen>& BiomeUtils::getBiomeFeatureGens(Biome biome)
 {
     return biomeFeatureGens[(int)biome];
+}
+
+ivec2 BiomeUtils::getFeatureHeightBounds(Feature feature)
+{
+    return featureHeightBounds[(int)feature];
 }

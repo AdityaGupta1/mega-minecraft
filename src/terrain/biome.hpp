@@ -26,7 +26,9 @@ enum class Feature : unsigned char
 {
     NONE,
     SPHERE,
-    PURPLE_MUSHROOM
+    PURPLE_MUSHROOM,
+
+    numFeatures
 };
 
 struct FeatureGen
@@ -43,7 +45,11 @@ struct FeaturePlacement
 
 namespace BiomeUtils
 {
+    using namespace glm;
+
     void init(); // implemented in biomeFuncs.hpp (included only by chunk.cu) so constant memory can live there
 
     std::vector<FeatureGen>& getBiomeFeatureGens(Biome biome);
+
+    ivec2 getFeatureHeightBounds(Feature feature);
 }

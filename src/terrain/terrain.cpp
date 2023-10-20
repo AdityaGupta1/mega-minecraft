@@ -7,7 +7,7 @@
 #include <iostream>
 #include <glm/gtx/string_cast.hpp>
 
-#define CHUNK_VBOS_GEN_RADIUS 12
+#define CHUNK_VBOS_GEN_RADIUS 16
 #define CHUNK_FILL_RADIUS (CHUNK_VBOS_GEN_RADIUS + 2)
 #define CHUNK_GEN_HEIGHTFIELDS_RADIUS (CHUNK_FILL_RADIUS + 2)
 
@@ -20,7 +20,7 @@
 #define ACTION_TIME_GATHER_FEATURE_PLACEMENTS 1
 #define ACTION_TIME_FILL 2
 #define ACTION_TIME_CREATE_VBOS 5
-#define ACTION_TIME_BUFFER_VBOS 20
+#define ACTION_TIME_BUFFER_VBOS 15
 // --------------------------------------------------
 
 Terrain::Terrain()
@@ -111,6 +111,109 @@ Zone* Terrain::createZone(ivec2 zonePos)
     return newZonePtr;
 }
 
+void Terrain::updateChunk(int dx, int dz)
+{
+    ivec2 newChunkWorldChunkPos = currentChunkPos + ivec2(dx, dz);
+    ivec2 newZoneWorldChunkPos = zonePosFromChunkPos(newChunkWorldChunkPos);
+
+    auto zoneIt = zones.find(newZoneWorldChunkPos);
+    Zone* zonePtr; // TODO maybe cache this and reuse if next chunk has same zone (which should be a common occurrence)
+    if (zoneIt == zones.end())
+    {
+        zonePtr = createZone(newZoneWorldChunkPos);
+    }
+    else
+    {
+        zonePtr = zoneIt->second.get();
+    }
+
+    ivec2 newChunkLocalChunkPos = newChunkWorldChunkPos - newZoneWorldChunkPos;
+    int chunkIdx = localChunkPosToIdx(newChunkLocalChunkPos);
+
+    if (zonePtr->chunks[chunkIdx] == nullptr)
+    {
+        auto chunkUptr = std::make_unique<Chunk>(newChunkWorldChunkPos);
+        chunkUptr->zonePtr = zonePtr;
+
+        for (int i = 0; i < 4; ++i)
+        {
+            const auto& neighborChunkDir = DirectionEnums::dirVecs[i];
+            const ivec2 neighborChunkLocalChunkPos = newChunkLocalChunkPos
+                + ivec2(neighborChunkDir.x, neighborChunkDir.z);
+
+            Zone* neighborZonePtr = zonePtr;
+            if (neighborChunkLocalChunkPos.x < 0 || neighborChunkLocalChunkPos.x >= 16
+                || neighborChunkLocalChunkPos.y < 0 || neighborChunkLocalChunkPos.y >= 16)
+            {
+                neighborZonePtr = zonePtr->neighbors[i * 2];
+
+                if (neighborZonePtr == nullptr)
+                {
+                    continue;
+                }
+            }
+
+            const int neighborChunkIdx = localChunkPosToIdx((neighborChunkLocalChunkPos + ivec2(16)) % 16);
+            const auto& neighborChunkUptr = neighborZonePtr->chunks[neighborChunkIdx];
+            if (neighborChunkUptr == nullptr)
+            {
+                continue;
+            }
+
+            chunkUptr->neighbors[i] = neighborChunkUptr.get();
+            neighborChunkUptr->neighbors[(i + 2) % 4] = chunkUptr.get();
+        }
+
+        zonePtr->chunks[chunkIdx] = std::move(chunkUptr);
+    }
+
+    Chunk* chunkPtr = zonePtr->chunks[chunkIdx].get();
+
+    if (!chunkPtr->isReadyForQueue())
+    {
+        return;
+    }
+
+    switch (chunkPtr->getState())
+    {
+    case ChunkState::EMPTY:
+        chunkPtr->setNotReadyForQueue();
+        chunksToGenerateHeightfield.push(chunkPtr);
+        return;
+    case ChunkState::HAS_HEIGHTFIELD_AND_FEATURE_PLACEMENTS:
+        chunkPtr->setNotReadyForQueue();
+        chunksToGatherFeaturePlacements.push(chunkPtr);
+        return;
+    }
+
+    const ivec2 dist = abs(chunkPtr->worldChunkPos - this->currentChunkPos);
+    if (max(dist.x, dist.y) > CHUNK_FILL_RADIUS)
+    {
+        return;
+    }
+
+    switch (chunkPtr->getState())
+    {
+    case ChunkState::READY_TO_FILL:
+        chunkPtr->setNotReadyForQueue();
+        chunksToFill.push(chunkPtr);
+        return;
+    }
+
+    if (max(dist.x, dist.y) > CHUNK_VBOS_GEN_RADIUS)
+    {
+        return;
+    }
+
+    switch (chunkPtr->getState())
+    {
+    case ChunkState::IS_FILLED:
+        chunkPtr->setNotReadyForQueue();
+        chunksToCreateVbos.push(chunkPtr);
+        return;
+    }
+}
+
 // This function looks at the area covered by CHUNK_GEN_HEIGHTFIELDS_RADIUS. For each chunk, it first
 // creates the chunk if it doesn't exist, also creating the associated zone if necsesary. Then, it looks at
 // the chunk's state and adds it to the correct queue iff chunk.readyForQueue == true. This also includes
@@ -123,105 +226,7 @@ void Terrain::updateChunks()
     {
         for (int dx = -CHUNK_GEN_HEIGHTFIELDS_RADIUS; dx <= CHUNK_GEN_HEIGHTFIELDS_RADIUS; ++dx)
         {
-            ivec2 newChunkWorldChunkPos = currentChunkPos + ivec2(dx, dz);
-            ivec2 newZoneWorldChunkPos = zonePosFromChunkPos(newChunkWorldChunkPos);
-
-            auto zoneIt = zones.find(newZoneWorldChunkPos);
-            Zone* zonePtr; // TODO maybe cache this and reuse if next chunk has same zone (which should be a common occurrence)
-            if (zoneIt == zones.end())
-            {
-                zonePtr = createZone(newZoneWorldChunkPos);
-            }
-            else
-            {
-                zonePtr = zoneIt->second.get();
-            }
-
-            ivec2 newChunkLocalChunkPos = newChunkWorldChunkPos - newZoneWorldChunkPos;
-            int chunkIdx = localChunkPosToIdx(newChunkLocalChunkPos);
-
-            if (zonePtr->chunks[chunkIdx] == nullptr)
-            {
-                auto chunkUptr = std::make_unique<Chunk>(newChunkWorldChunkPos);
-                chunkUptr->zonePtr = zonePtr;
-
-                for (int i = 0; i < 4; ++i)
-                {
-                    const auto& neighborChunkDir = DirectionEnums::dirVecs[i];
-                    const ivec2 neighborChunkLocalChunkPos = newChunkLocalChunkPos 
-                        + ivec2(neighborChunkDir.x, neighborChunkDir.z);
-
-                    Zone* neighborZonePtr = zonePtr;
-                    if (neighborChunkLocalChunkPos.x < 0 || neighborChunkLocalChunkPos.x >= 16
-                        || neighborChunkLocalChunkPos.y < 0 || neighborChunkLocalChunkPos.y >= 16)
-                    {
-                        neighborZonePtr = zonePtr->neighbors[i * 2];
-
-                        if (neighborZonePtr == nullptr)
-                        {
-                            continue;
-                        }
-                    }
-
-                    const int neighborChunkIdx = localChunkPosToIdx((neighborChunkLocalChunkPos + ivec2(16)) % 16);
-                    const auto& neighborChunkUptr = neighborZonePtr->chunks[neighborChunkIdx];
-                    if (neighborChunkUptr == nullptr)
-                    {
-                        continue;
-                    }
-
-                    chunkUptr->neighbors[i] = neighborChunkUptr.get();
-                    neighborChunkUptr->neighbors[(i + 2) % 4] = chunkUptr.get();
-                }
-
-                zonePtr->chunks[chunkIdx] = std::move(chunkUptr);
-            }
-
-            Chunk* chunkPtr = zonePtr->chunks[chunkIdx].get();
-
-            if (!chunkPtr->isReadyForQueue())
-            {
-                continue;
-            }
-
-            switch (chunkPtr->getState())
-            {
-            case ChunkState::EMPTY:
-                chunkPtr->setNotReadyForQueue();
-                chunksToGenerateHeightfield.push(chunkPtr);
-                continue;
-            case ChunkState::HAS_HEIGHTFIELD_AND_FEATURE_PLACEMENTS:
-                chunkPtr->setNotReadyForQueue();
-                chunksToGatherFeaturePlacements.push(chunkPtr);
-                continue;
-            }
-
-            const ivec2 dist = abs(chunkPtr->worldChunkPos - this->currentChunkPos);
-            if (max(dist.x, dist.y) > CHUNK_FILL_RADIUS)
-            {
-                continue;
-            }
-
-            switch (chunkPtr->getState())
-            {
-            case ChunkState::READY_TO_FILL:
-                chunkPtr->setNotReadyForQueue();
-                chunksToFill.push(chunkPtr);
-                continue;
-            }
-
-            if (max(dist.x, dist.y) > CHUNK_VBOS_GEN_RADIUS)
-            {
-                continue;
-            }
-            
-            switch (chunkPtr->getState())
-            {
-            case ChunkState::IS_FILLED:
-                chunkPtr->setNotReadyForQueue();
-                chunksToCreateVbos.push(chunkPtr);
-                continue;
-            }
+            updateChunk(dx, dz);
         }
     }
 }
