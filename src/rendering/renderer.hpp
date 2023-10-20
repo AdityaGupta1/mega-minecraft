@@ -4,6 +4,7 @@
 #include <GLFW/glfw3.h>
 #include "terrain/terrain.hpp"
 #include "player/player.hpp"
+#include "fullscreenTri.hpp"
 
 class Renderer
 {
@@ -15,8 +16,12 @@ private:
 
     GLuint vao;
 
+    // drawables
+    FullscreenTri fullscreenTri;
+
     // shaders
     ShaderProgram passthroughShader;
+    ShaderProgram passthroughUvsShader;
     ShaderProgram lambertShader;
 
     // textures
@@ -28,6 +33,8 @@ private:
 
 public:
     Renderer(GLFWwindow* window, ivec2* windowSize, Terrain* terrain, Player* player);
+
+    ~Renderer();
 
 private:
     void initShaders();

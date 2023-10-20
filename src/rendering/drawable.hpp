@@ -9,9 +9,7 @@ protected:
 
     GLuint bufIdx;
     GLuint bufVerts;
-
-    bool idxGenerated{ false };
-    bool vertsGenerated{ false };
+    GLuint bufTriInfo;
 
 public:
     Drawable();
@@ -24,7 +22,11 @@ public:
 
     void generateIdx();
     void generateVerts();
+    void generateTriInfo();
+    void generateUvs();
 
     bool bindIdx();
     bool bindVerts();
+    bool bindTriInfo();
+    bool bindUvs();
 };

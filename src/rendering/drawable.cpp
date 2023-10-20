@@ -1,7 +1,7 @@
 #include "drawable.hpp"
 
 Drawable::Drawable()
-    : bufIdx(), bufVerts()
+    : bufIdx(-1), bufVerts(-1), bufTriInfo(-1)
 {
 }
 
@@ -9,8 +9,9 @@ void Drawable::destroyVBOs()
 {
     glDeleteBuffers(1, &bufIdx);
     glDeleteBuffers(1, &bufVerts);
+    glDeleteBuffers(1, &bufTriInfo);
 
-    idxGenerated = vertsGenerated = false;
+    bufIdx = bufVerts = bufTriInfo = -1;
 
     idxCount = -1;
 }
@@ -28,29 +29,39 @@ int Drawable::getIdxCount() const
 void Drawable::generateIdx()
 {
     glGenBuffers(1, &bufIdx);
-    idxGenerated = true;
 }
 
 void Drawable::generateVerts()
 {
     glGenBuffers(1, &bufVerts);
-    vertsGenerated = true;
+}
+
+void Drawable::generateTriInfo()
+{
+    glGenBuffers(1, &bufTriInfo);
+}
+
+bool bindBuf(GLenum target, GLuint& buffer)
+{
+    if (buffer != -1)
+    {
+        glBindBuffer(target, buffer);
+        return true;
+    }
+    return false;
 }
 
 bool Drawable::bindIdx()
 {
-    if (idxGenerated)
-    {
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, bufIdx);
-    }
-    return idxGenerated;
+    return bindBuf(GL_ELEMENT_ARRAY_BUFFER, bufIdx);
 }
 
 bool Drawable::bindVerts()
 {
-    if (vertsGenerated)
-    {
-        glBindBuffer(GL_ARRAY_BUFFER, bufVerts);
-    }
-    return vertsGenerated;
+    return bindBuf(GL_ARRAY_BUFFER, bufVerts);
+}
+
+bool Drawable::bindTriInfo()
+{
+    return bindBuf(GL_ARRAY_BUFFER, bufTriInfo);
 }

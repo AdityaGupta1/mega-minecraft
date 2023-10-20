@@ -4,20 +4,31 @@
 #include "rendering/renderingUtils.hpp"
 #include <glm/gtc/matrix_transform.hpp>
 #include "util/utils.hpp"
+#include <iostream>
 
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 
-#include <iostream>
+#define CREATE_PASSTHROUGH_SHADERS 0
 
 Renderer::Renderer(GLFWwindow* window, ivec2* windowSize, Terrain* terrain, Player* player)
     : window(window), windowSize(windowSize), terrain(terrain), player(player), vao(-1),
-      passthroughShader(), lambertShader(), tex_blockDiffuse(-1), projMat(), viewProjMat()
+      tex_blockDiffuse(-1), projMat(), viewProjMat()
 {}
+
+Renderer::~Renderer()
+{
+    fullscreenTri.destroyVBOs();
+
+    glDeleteVertexArrays(1, &vao);
+}
 
 void Renderer::initShaders()
 {
+#if CREATE_PASSTHROUGH_SHADERS
     passthroughShader.create("shaders/passthrough.vert.glsl", "shaders/passthrough.frag.glsl");
+    passthroughUvsShader.create("shaders/passthrough_uvs.vert.glsl", "shaders/passthrough_uvs.frag.glsl");
+#endif
     lambertShader.create("shaders/lambert.vert.glsl", "shaders/lambert.frag.glsl");
 }
 
@@ -56,6 +67,8 @@ void Renderer::init()
 
     glGenVertexArrays(1, &vao);
     glBindVertexArray(vao);
+
+    fullscreenTri.bufferVBOs();
 
     initShaders();
     initTextures();

@@ -146,7 +146,7 @@ void ShaderProgram::draw(Drawable& d) const
         if (attr_nor != -1)
         {
             glEnableVertexAttribArray(attr_nor);
-            glVertexAttribPointer(attr_nor, 3, GL_FLOAT, false, sizeof(Vertex), (void*)sizeof(glm::vec3));
+            glVertexAttribPointer(attr_nor, 3, GL_FLOAT, false, sizeof(Vertex), (void*)(sizeof(glm::vec3)));
         }
 
         if (attr_uv != -1)
@@ -155,11 +155,23 @@ void ShaderProgram::draw(Drawable& d) const
             glVertexAttribPointer(attr_uv, 2, GL_FLOAT, false, sizeof(Vertex), (void*)(2 * sizeof(glm::vec3)));
         }
     }
+    else if (d.bindTriInfo())
+    {
+        if (attr_pos != -1)
+        {
+            glEnableVertexAttribArray(attr_pos);
+            glVertexAttribPointer(attr_pos, 3, GL_FLOAT, false, 5 * sizeof(float), (void*)0);
+        }
+
+        if (attr_uv != -1)
+        {
+            glEnableVertexAttribArray(attr_uv);
+            glVertexAttribPointer(attr_uv, 2, GL_FLOAT, false, 5 * sizeof(float), (void*)(3 * sizeof(float)));
+        }
+    }
 
     d.bindIdx();
     glDrawElements(d.drawMode(), d.getIdxCount(), GL_UNSIGNED_INT, 0);
-
-    // TODO disable vertex attrib arrays here? I don't think that's necessary though
 
     RenderingUtils::printGLErrors();
 }
