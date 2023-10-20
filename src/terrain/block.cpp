@@ -15,7 +15,7 @@ std::unordered_map<Block, BlockUvs> blockUvs = {
     {Block::SNOW, BlockUvs(ivec2(8, 0)).setRandomRotation()},
     {Block::SNOWY_GRASS, BlockUvs(ivec2(9, 0), ivec2(8, 0), ivec2(0, 0)).setRandomRotation(false, true, true)},
     {Block::MUSHROOM_STEM, BlockUvs(ivec2(10, 0))},
-    {Block::MUSHROOM_UNDERSIDE, BlockUvs(ivec2(11, 0)).setRandomRotation()},
+    {Block::MUSHROOM_UNDERSIDE, BlockUvs(ivec2(11, 0)).setRandomFlip()},
     {Block::MUSHROOM_CAP_PURPLE, BlockUvs(ivec2(12, 0))}
 };
 

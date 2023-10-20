@@ -87,7 +87,7 @@ void Renderer::initFbosAndTextures()
     glActiveTexture(GL_TEXTURE1);
     glGenTextures(1, &tex_bufColor);
     glBindTexture(GL_TEXTURE_2D, tex_bufColor);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, windowSize->x, windowSize->y, 0, GL_RGB, GL_FLOAT, NULL);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, windowSize->x, windowSize->y, 0, GL_RGBA, GL_FLOAT, NULL);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, tex_bufColor, 0);
@@ -113,7 +113,7 @@ void Renderer::resizeTextures()
 {
     glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_2D, tex_bufColor);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, windowSize->x, windowSize->y, 0, GL_RGB, GL_FLOAT, NULL);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, windowSize->x, windowSize->y, 0, GL_RGBA, GL_FLOAT, NULL);
 
     glBindRenderbuffer(GL_RENDERBUFFER, rbo_main);
     glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, windowSize->x, windowSize->y);
