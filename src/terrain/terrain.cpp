@@ -7,7 +7,7 @@
 #include <chrono>
 #include <glm/gtx/string_cast.hpp>
 
-#define CHUNK_VBOS_GEN_RADIUS 12
+#define CHUNK_VBOS_GEN_RADIUS 16
 #define CHUNK_FILL_RADIUS (CHUNK_VBOS_GEN_RADIUS + 2)
 #define CHUNK_GEN_HEIGHTFIELDS_RADIUS (CHUNK_FILL_RADIUS + 2)
 
@@ -477,8 +477,8 @@ void Terrain::draw(const ShaderProgram& prog, const Player* player) {
             }
         }
 
-        modelMat[3][0] = chunkPtr->worldBlockPos.x;
-        modelMat[3][2] = chunkPtr->worldBlockPos.z;
+        modelMat[3][0] = (float)chunkPtr->worldBlockPos.x;
+        modelMat[3][2] = (float)chunkPtr->worldBlockPos.z;
         prog.setModelMat(modelMat);
         prog.draw(*chunkPtr);
     }

@@ -41,6 +41,7 @@ private:
     mat4 projMat;
     mat4 viewProjMat;
     mat4 invViewProjMat;
+    mat4 sunProjMat;
 
     bool isZoomed{ false };
     bool isTimePaused{ true };

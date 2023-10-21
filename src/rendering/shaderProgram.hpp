@@ -18,7 +18,9 @@ public:
 
     GLint unif_modelMat;
     GLint unif_viewProjMat;
-    GLint unif_invViewProjMat;
+    GLint unif_invViewProjMat; // TODO: see if this actually ends up getting used somewhere
+    GLint unif_viewTransposeMat;
+    GLint unif_projMat;
     GLint unif_sunViewProjMat;
 
     GLint unif_sunDir;
@@ -36,6 +38,8 @@ public:
     void setModelMat(const glm::mat4& mat) const;
     void setViewProjMat(const glm::mat4& mat) const;
     void setInvViewProjMat(const glm::mat4& mat) const;
+    void setViewTransposeMat(const glm::mat4& mat) const;
+    void setProjMat(const glm::mat4& mat) const;
     void setSunViewProjMat(const glm::mat4& mat) const;
 
     void setSunDir(const glm::vec3& dir) const;

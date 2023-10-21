@@ -8,7 +8,7 @@
 ShaderProgram::ShaderProgram()
     : vertShader(), fragShader(), prog(), 
       attr_pos(-1), attr_nor(-1), attr_uv(-1), 
-      unif_modelMat(-1), unif_viewProjMat(-1), unif_invViewProjMat(-1), unif_sunViewProjMat(-1),
+      unif_modelMat(-1), unif_viewProjMat(-1), unif_invViewProjMat(-1), unif_sunViewProjMat(-1), unif_viewTransposeMat(-1), unif_projMat(-1),
       unif_sunDir(-1),
       tex_blockDiffuse(-1), tex_bufColor(-1), tex_shadowMap(-1)
 {}
@@ -100,6 +100,8 @@ bool ShaderProgram::create(const std::string& vertFile, const std::string& fragF
     unif_modelMat = glGetUniformLocation(prog, "u_modelMat");
     unif_viewProjMat = glGetUniformLocation(prog, "u_viewProjMat");
     unif_invViewProjMat = glGetUniformLocation(prog, "u_invViewProjMat");
+    unif_viewTransposeMat = glGetUniformLocation(prog, "u_viewTransposeMat");
+    unif_projMat = glGetUniformLocation(prog, "u_projMat");
     unif_sunViewProjMat = glGetUniformLocation(prog, "u_sunViewProjMat");
 
     unif_sunDir = glGetUniformLocation(prog, "u_sunDir");
@@ -133,6 +135,18 @@ void ShaderProgram::setInvViewProjMat(const glm::mat4& mat) const
 {
     useMe();
     glUniformMatrix4fv(unif_invViewProjMat, 1, GL_FALSE, &mat[0][0]);
+}
+
+void ShaderProgram::setViewTransposeMat(const glm::mat4& mat) const
+{
+    useMe();
+    glUniformMatrix4fv(unif_viewTransposeMat, 1, GL_FALSE, &mat[0][0]);
+}
+
+void ShaderProgram::setProjMat(const glm::mat4& mat) const
+{
+    useMe();
+    glUniformMatrix4fv(unif_projMat, 1, GL_FALSE, &mat[0][0]);
 }
 
 void ShaderProgram::setSunViewProjMat(const glm::mat4& mat) const
