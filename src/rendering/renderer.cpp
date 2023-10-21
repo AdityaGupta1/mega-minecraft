@@ -19,11 +19,11 @@ Renderer::Renderer(GLFWwindow* window, ivec2* windowSize, Terrain* terrain, Play
       fbo_main(-1), rbo_main(-1), fbo_shadow(-1), tex_blockDiffuse(-1), tex_bufColor(-1), tex_shadow(-1),
       projMat(), viewProjMat(), invViewProjMat(), sunProjMat(), sunRotateMat()
 {
-    int orthoSize = 420;
+    float orthoSize = 420.f;
     sunProjMat = glm::ortho<float>(
         -orthoSize, orthoSize,
         -orthoSize, orthoSize,
-        -1000, 1000
+        -1000.f, 1000.f
     );
 }
 
