@@ -379,6 +379,15 @@ static const std::array<ivec3, 24> directionVertPositions = {
     ivec3(0, 0, 0), ivec3(1, 0, 0), ivec3(1, 0, 1), ivec3(0, 0, 1)
 };
 
+const static std::array<int, 6> dirNormals = {
+        0x1,   // ivec3(0, 0, 1),
+        0x40,  // ivec3(1, 0, 0),
+        0x5,   // ivec3(0, 0, -1),
+        0x140, // ivec3(-1, 0, 0),
+        0x8,   // ivec3(0, 1, 0),
+        0x28   // ivec3(0, -1, 0)
+};
+
 static const std::array<ivec2, 16> uvOffsets = {
     ivec2(0, 0), ivec2(1, 0), ivec2(1, 1), ivec2(0, 1)
 };
@@ -489,7 +498,8 @@ void Chunk::createVBOs()
                         Vertex& vert = verts.back();
 
                         vert.pos = vec3(thisPos + directionVertPositions[dirIdx * 4 + j]);
-                        vert.nor = direction;
+
+                        int norUv = dirNormals[dirIdx];
 
                         ivec2 uvOffset = uvOffsets[(uvStartIdx + j) % 4];
                         if (uvFlipIdx != -1)
@@ -503,7 +513,14 @@ void Chunk::createVBOs()
                                 uvOffset.y = 1 - uvOffset.y;
                             }
                         }
-                        vert.uv = vec2(sideUv.uv + uvOffset) * 0.0625f;
+                        ivec2 finalUv = (sideUv.uv + uvOffset) * 16; // TODO support 1/16 block precision (define UVs in pixel coords instead of block coords)
+
+                        int uvX = finalUv.x << 18;
+                        int uvY = finalUv.y << 9;
+                        norUv |= uvX;
+                        norUv |= uvY;
+
+                        vert.norUv = norUv;
                     }
 
                     idx.push_back(idx1);

@@ -13,8 +13,9 @@ public:
     GLuint prog;
 
     GLint attr_pos;
-    GLint attr_nor;
+    GLint attr_nor; // TODO: see if this actually ends up getting used somewhere
     GLint attr_uv;
+    GLint attr_norUv;
 
     GLint unif_modelMat;
     GLint unif_viewProjMat;
