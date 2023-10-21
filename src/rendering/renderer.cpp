@@ -230,7 +230,6 @@ void Renderer::draw(float deltaTime, bool viewMatChanged, bool windowSizeChanged
     glClear(GL_DEPTH_BUFFER_BIT);
 
     glEnable(GL_DEPTH_TEST);
-    //glDisable(GL_CULL_FACE);
     glCullFace(GL_FRONT);
 
     vec3 playerPosXZ = player->getPos();
@@ -250,11 +249,7 @@ void Renderer::draw(float deltaTime, bool viewMatChanged, bool windowSizeChanged
     glViewport(0, 0, windowSize->x, windowSize->y);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    //glEnable(GL_CULL_FACE);
     glCullFace(GL_BACK);
-
-    //glActiveTexture(GL_TEXTURE0);
-    //glBindTexture(GL_TEXTURE_2D, tex_blockDiffuse);
 
     lambertShader.setSunViewProjMat(sunViewProjMat);
     lambertShader.setSunDir(sunDir);
@@ -271,9 +266,6 @@ void Renderer::draw(float deltaTime, bool viewMatChanged, bool windowSizeChanged
     glViewport(0, 0, windowSize->x, windowSize->y);
 
     glDisable(GL_DEPTH_TEST);
-
-    //glActiveTexture(GL_TEXTURE1);
-    //glBindTexture(GL_TEXTURE_2D, tex_bufColor);
 
     postProcessShader1.draw(fullscreenTri);
 
