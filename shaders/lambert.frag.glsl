@@ -1,8 +1,5 @@
 #version 330
 
-#define MIN_BIAS 0.005
-#define MAX_BIAS 0.01
-
 const float sunlightStrength = 1.f;
 const vec3 ambientLight = vec3(0.8, 0.98, 1.0) * 0.16f;
 
@@ -20,10 +17,7 @@ out vec4 fragColor;
 float calculateShadow() {
     vec3 projCoords = fs_lightPosSpace.xyz / fs_lightPosSpace.w;
     projCoords = (projCoords + 1.f) / 2.f;
-
-    // float bias = max(MAX_BIAS * (1.0 - dot(fs_nor, u_sunDir)), MIN_BIAS);
-    float bias = 0.f;
-    return texture(tex_shadowMap, vec3(projCoords.xy, projCoords.z - bias));
+    return texture(tex_shadowMap, projCoords);
 }  
 
 void main() {
