@@ -24,7 +24,7 @@ Renderer::~Renderer()
     glDeleteVertexArrays(1, &vao);
 }
 
-void Renderer::init()
+bool Renderer::init()
 {
     glClearColor(0.37f, 1.f, 0.94f, 1.f);
     glEnable(GL_DEPTH_TEST);
@@ -36,8 +36,13 @@ void Renderer::init()
 
     fullscreenTri.bufferVBOs();
 
-    initShaders();
-    initFbosAndTextures();
+    bool success = true;
+    success &= initShaders();
+    success &= initFbosAndTextures();
+    if (!success)
+    {
+        return false;
+    }
 
     setProjMat();
 
@@ -45,29 +50,35 @@ void Renderer::init()
     const vec3 sunAxisRight = normalize(cross(sunAxisForward, vec3(0, 1, 0)));
     const vec3 sunAxisUp = normalize(cross(sunAxisRight, sunAxisForward));
     sunRotateMat = mat3(sunAxisRight, sunAxisForward, sunAxisUp);
+
+    return true;
 }
 
-void createCustomShader(ShaderProgram& prog, const std::string& name)
+bool createCustomShader(ShaderProgram& prog, const std::string& name)
 {
-    prog.create("shaders/" + name + ".vert.glsl", "shaders/" + name + ".frag.glsl");
+    return prog.create("shaders/" + name + ".vert.glsl", "shaders/" + name + ".frag.glsl");
 }
 
-void createPostProcessShader(ShaderProgram& prog, const std::string& frag)
+bool createPostProcessShader(ShaderProgram& prog, const std::string& frag)
 {
-    prog.create("shaders/passthrough_uvs.vert.glsl", "shaders/" + frag + ".frag.glsl");
+    return prog.create("shaders/passthrough_uvs.vert.glsl", "shaders/" + frag + ".frag.glsl");
 }
 
-void Renderer::initShaders()
+bool Renderer::initShaders()
 {
+    bool success = true;
+
 #if CREATE_PASSTHROUGH_SHADERS
-    passthroughShader.create("shaders/passthrough.vert.glsl", "shaders/passthrough.frag.glsl");
-    passthroughUvsShader.create("shaders/passthrough_uvs.vert.glsl", "shaders/passthrough_uvs.frag.glsl");
+    success &= passthroughShader.create("shaders/passthrough.vert.glsl", "shaders/passthrough.frag.glsl");
+    success &= passthroughUvsShader.create("shaders/passthrough_uvs.vert.glsl", "shaders/passthrough_uvs.frag.glsl");
 #endif
 
-    createCustomShader(lambertShader, "lambert");
-    createPostProcessShader(skyShader, "sky");
-    createCustomShader(shadowShader, "shadow");
-    createPostProcessShader(postProcessShader1, "postprocess_1");
+    success &= createCustomShader(lambertShader, "lambert");
+    success &= createPostProcessShader(skyShader, "sky");
+    success &= createCustomShader(shadowShader, "shadow");
+    success &= createPostProcessShader(postProcessShader1, "postprocess_1");
+
+    return success;
 }
 
 bool checkFramebufferStatus()
@@ -81,7 +92,7 @@ bool checkFramebufferStatus()
     return true;
 }
 
-void Renderer::initFbosAndTextures()
+bool Renderer::initFbosAndTextures()
 {
     stbi_set_flip_vertically_on_load(true);
 
@@ -134,7 +145,7 @@ void Renderer::initFbosAndTextures()
 
     if (!checkFramebufferStatus())
     {
-        return;
+        return false;
     }
 
     std::cout << "created fbo_main" << std::endl;
@@ -162,10 +173,12 @@ void Renderer::initFbosAndTextures()
 
     if (!checkFramebufferStatus())
     {
-        return;
+        return false;
     }
 
     std::cout << "created fbo_shadow" << std::endl;
+
+    return true;
 }
 
 void Renderer::resizeTextures()

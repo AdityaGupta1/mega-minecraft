@@ -54,14 +54,14 @@ public:
     ~Renderer();
 
 private:
-    void initShaders();
-    void initFbosAndTextures();
+    bool initShaders();
+    bool initFbosAndTextures();
     void resizeTextures();
 
     void setProjMat();
 
 public:
-    void init();
+    bool init();
 
     void setZoomed(bool zoomed);
     void toggleTimePaused();

@@ -99,7 +99,10 @@ bool init(int argc, char **argv) {
     initGame();
 
     renderer = std::make_unique<Renderer>(window, &windowSize, terrain.get(), player.get());
-    renderer->init();
+    if (!renderer->init())
+    {
+        return false;
+    }
 
     return true;
 }
