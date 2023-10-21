@@ -62,7 +62,7 @@ public:
 
     void tick();
 
-    void draw(const ShaderProgram& prog, const Player& player);
+    void draw(const ShaderProgram& prog, const Player* player);
 
     void setCurrentChunkPos(ivec2 newCurrentChunkPos);
 };

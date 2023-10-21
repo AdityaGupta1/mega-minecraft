@@ -7,7 +7,7 @@
 #include <chrono>
 #include <glm/gtx/string_cast.hpp>
 
-#define CHUNK_VBOS_GEN_RADIUS 16
+#define CHUNK_VBOS_GEN_RADIUS 12
 #define CHUNK_FILL_RADIUS (CHUNK_VBOS_GEN_RADIUS + 2)
 #define CHUNK_GEN_HEIGHTFIELDS_RADIUS (CHUNK_FILL_RADIUS + 2)
 
@@ -443,7 +443,7 @@ static const std::array<ivec3, 8> chunkCornerOffsets = {
     ivec3(0, 256, 0), ivec3(16, 256, 0), ivec3(16, 256, 16), ivec3(0, 256, 16)
 };
 
-void Terrain::draw(const ShaderProgram& prog, const Player& player) {
+void Terrain::draw(const ShaderProgram& prog, const Player* player) {
     mat4 modelMat = mat4(1);
 
     for (const auto& chunkPtr : drawableChunks)
@@ -454,25 +454,27 @@ void Terrain::draw(const ShaderProgram& prog, const Player& player) {
             chunksToDestroyVbos.push(chunkPtr);
             continue;
         }
-        
-        const auto& camPos = player.getPos();
-        const auto& camForward = player.getForward();
 
-        // cull chunks that are entirely behind camera
-        bool shouldCull = true;
-        for (int i = 0; i < 8; ++i)
+        if (player != nullptr)
         {
-            const vec3 chunkCorner = chunkPtr->worldBlockPos + chunkCornerOffsets[i];
-            if (glm::dot(chunkCorner - camPos, camForward) > 0)
+            const auto& camPos = player->getPos();
+            const auto& camForward = player->getForward();
+
+            bool shouldCull = true;
+            for (int i = 0; i < 8; ++i)
             {
-                shouldCull = false;
-                break;
+                const vec3 chunkCorner = chunkPtr->worldBlockPos + chunkCornerOffsets[i];
+                if (glm::dot(chunkCorner - camPos, camForward) > 0)
+                {
+                    shouldCull = false;
+                    break;
+                }
             }
-        }
 
-        if (shouldCull)
-        {
-            continue;
+            if (shouldCull)
+            {
+                continue;
+            }
         }
 
         modelMat[3][0] = chunkPtr->worldBlockPos.x;

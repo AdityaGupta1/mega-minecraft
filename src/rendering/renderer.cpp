@@ -11,9 +11,12 @@
 
 #define CREATE_PASSTHROUGH_SHADERS 0
 
+#define SHADOW_MAP_SIZE 4096
+
 Renderer::Renderer(GLFWwindow* window, ivec2* windowSize, Terrain* terrain, Player* player)
     : window(window), windowSize(windowSize), terrain(terrain), player(player), vao(-1),
-      fbo_main(-1), tex_blockDiffuse(-1), projMat(), viewProjMat(), invViewProjMat(), sunRotateMat()
+      fbo_main(-1), rbo_main(-1), fbo_shadow(-1), tex_blockDiffuse(-1), tex_bufColor(-1), tex_shadow(-1),
+      projMat(), viewProjMat(), invViewProjMat(), sunRotateMat()
 {}
 
 Renderer::~Renderer()
@@ -67,6 +70,17 @@ void Renderer::initShaders()
     createPostProcessShader(postProcessShader1, "postprocess_1");
 }
 
+bool checkFramebufferStatus()
+{
+    if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+    {
+        std::cout << "framebuffer no worky" << std::endl;
+        return false;
+    }
+
+    return true;
+}
+
 void Renderer::initFbosAndTextures()
 {
     stbi_set_flip_vertically_on_load(true);
@@ -95,6 +109,7 @@ void Renderer::initFbosAndTextures()
     stbi_image_free(data);
 
     lambertShader.setTexBlockDiffuse(0);
+    shadowShader.setTexBlockDiffuse(0); // for testing alpha of fragments
 
     std::cout << "loaded blocks_diffuse.png" << std::endl;
 
@@ -115,15 +130,42 @@ void Renderer::initFbosAndTextures()
     glBindRenderbuffer(GL_RENDERBUFFER, 0);
     glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, rbo_main);
 
-    if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+    postProcessShader1.setTexBufColor(1);
+
+    if (!checkFramebufferStatus())
     {
-        std::cout << "framebuffer no worky" << std::endl;
         return;
     }
 
-    postProcessShader1.setTexBufColor(1);
-
     std::cout << "created fbo_main" << std::endl;
+
+    glGenFramebuffers(1, &fbo_shadow);
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo_shadow);
+
+    glActiveTexture(GL_TEXTURE2);
+    glGenTextures(1, &tex_shadow);
+    glBindTexture(GL_TEXTURE_2D, tex_shadow);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, SHADOW_MAP_SIZE, SHADOW_MAP_SIZE, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+    float borderColor[] = { 1.0f, 1.0f, 1.0f, 1.0f };
+    glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, borderColor);
+
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo_shadow);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, tex_shadow, 0);
+    glDrawBuffer(GL_NONE);
+    glReadBuffer(GL_NONE);
+
+    lambertShader.setTexShadowMap(2);
+
+    if (!checkFramebufferStatus())
+    {
+        return;
+    }
+
+    std::cout << "created fbo_shadow" << std::endl;
 }
 
 void Renderer::resizeTextures()
@@ -171,22 +213,53 @@ void Renderer::draw(float deltaTime, bool viewMatChanged, bool windowSizeChanged
     const float sunTime = time * 0.2f;
     const vec3 sunDir = normalize(sunRotateMat * vec3(cos(sunTime), 0.7f, sin(sunTime)));
 
+    // ============================================================
+    // SHADOW
+    // ============================================================
+
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo_shadow);
+    glViewport(0, 0, SHADOW_MAP_SIZE, SHADOW_MAP_SIZE);
+    glClear(GL_DEPTH_BUFFER_BIT);
+
+    glEnable(GL_DEPTH_TEST);
+    glDisable(GL_CULL_FACE);
+
+    vec3 playerPosXZ = player->getPos();
+    playerPosXZ.y = 0;
+    const mat4 sunViewMat = glm::lookAt(sunDir + playerPosXZ, playerPosXZ, vec3(0, 1, 0));
+    int orthoSize = 420;
+    const mat4 sunViewProjMat = glm::ortho<float>(-orthoSize, orthoSize, -orthoSize, orthoSize, -orthoSize, orthoSize) * sunViewMat;
+
+    shadowShader.setSunViewProjMat(sunViewProjMat);
+    terrain->draw(shadowShader, nullptr);
+
+    // ============================================================
+    // G-BUFFER
+    // ============================================================
+
     glBindFramebuffer(GL_FRAMEBUFFER, fbo_main);
     glViewport(0, 0, windowSize->x, windowSize->y);
-    glEnable(GL_DEPTH_TEST);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    glEnable(GL_CULL_FACE);
 
     //glActiveTexture(GL_TEXTURE0);
     //glBindTexture(GL_TEXTURE_2D, tex_blockDiffuse);
 
+    lambertShader.setSunViewProjMat(sunViewProjMat);
     lambertShader.setSunDir(sunDir);
-    terrain->draw(lambertShader, *player);
+    terrain->draw(lambertShader, player);
 
     skyShader.setSunDir(sunDir);
     skyShader.draw(fullscreenTri);
 
+    // ============================================================
+    // VIEWPORT
+    // ============================================================
+
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glViewport(0, 0, windowSize->x, windowSize->y);
+
     glDisable(GL_DEPTH_TEST);
 
     //glActiveTexture(GL_TEXTURE1);

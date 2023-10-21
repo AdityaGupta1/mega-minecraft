@@ -6,8 +6,11 @@
 #include "structs.hpp"
 
 ShaderProgram::ShaderProgram()
-    : vertShader(), fragShader(), prog(), attr_pos(-1), attr_nor(-1), attr_uv(-1), unif_modelMat(-1), unif_viewProjMat(-1),
-      tex_blockDiffuse(-1), tex_bufColor(-1)
+    : vertShader(), fragShader(), prog(), 
+      attr_pos(-1), attr_nor(-1), attr_uv(-1), 
+      unif_modelMat(-1), unif_viewProjMat(-1), unif_invViewProjMat(-1), unif_sunViewProjMat(-1),
+      unif_sunDir(-1),
+      tex_blockDiffuse(-1), tex_bufColor(-1), tex_shadowMap(-1)
 {}
 
 void printShaderInfoLog(int shader)
@@ -97,11 +100,13 @@ bool ShaderProgram::create(const std::string& vertFile, const std::string& fragF
     unif_modelMat = glGetUniformLocation(prog, "u_modelMat");
     unif_viewProjMat = glGetUniformLocation(prog, "u_viewProjMat");
     unif_invViewProjMat = glGetUniformLocation(prog, "u_invViewProjMat");
+    unif_sunViewProjMat = glGetUniformLocation(prog, "u_sunViewProjMat");
 
     unif_sunDir = glGetUniformLocation(prog, "u_sunDir");
 
     tex_blockDiffuse = glGetUniformLocation(prog, "tex_blockDiffuse");
     tex_bufColor = glGetUniformLocation(prog, "tex_bufColor");
+    tex_shadowMap = glGetUniformLocation(prog, "tex_shadowMap");
 
     std::cout << "done" << std::endl;
     return true;
@@ -130,6 +135,12 @@ void ShaderProgram::setInvViewProjMat(const glm::mat4& mat) const
     glUniformMatrix4fv(unif_invViewProjMat, 1, GL_FALSE, &mat[0][0]);
 }
 
+void ShaderProgram::setSunViewProjMat(const glm::mat4& mat) const
+{
+    useMe();
+    glUniformMatrix4fv(unif_sunViewProjMat, 1, GL_FALSE, &mat[0][0]);
+}
+
 void ShaderProgram::setSunDir(const glm::vec3& dir) const
 {
     useMe();
@@ -146,6 +157,12 @@ void ShaderProgram::setTexBufColor(int tex) const
 {
     useMe();
     glUniform1i(tex_bufColor, tex);
+}
+
+void ShaderProgram::setTexShadowMap(int tex) const
+{
+    useMe();
+    glUniform1i(tex_shadowMap, tex);
 }
 
 void ShaderProgram::draw(Drawable& d) const

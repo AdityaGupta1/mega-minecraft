@@ -2,6 +2,7 @@
 
 uniform mat4 u_modelMat;
 uniform mat4 u_viewProjMat;
+uniform mat4 u_sunViewProjMat;
 
 in vec3 vs_pos;
 in vec3 vs_nor;
@@ -9,6 +10,7 @@ in vec2 vs_uv;
 
 out vec3 fs_nor;
 out vec2 fs_uv;
+out vec4 fs_lightPosSpace;
 
 vec3 rand(vec3 v) {
     return fract(sin(vec3(
@@ -24,4 +26,5 @@ void main() {
 
     fs_nor = vs_nor;
     fs_uv = vs_uv;
+    fs_lightPosSpace = u_sunViewProjMat * vec4(modelPos.xyz / modelPos.w, 1);
 }

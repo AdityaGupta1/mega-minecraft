@@ -29,12 +29,13 @@ private:
     ShaderProgram postProcessShader1;
 
     // framebuffer objects
-    GLuint fbo_main;
-    GLuint rbo_main;
+    GLuint fbo_main, rbo_main;
+    GLuint fbo_shadow;
 
     // textures
     GLuint tex_blockDiffuse;
     GLuint tex_bufColor;
+    GLuint tex_shadow;
 
     // other
     mat4 projMat;
