@@ -11,7 +11,7 @@
 
 #define CREATE_PASSTHROUGH_SHADERS 0
 
-#define SHADOW_MAP_SIZE 4096
+#define SHADOW_MAP_SIZE 8192
 
 Renderer::Renderer(GLFWwindow* window, ivec2* windowSize, Terrain* terrain, Player* player)
     : window(window), windowSize(windowSize), terrain(terrain), player(player), vao(-1),
@@ -146,12 +146,12 @@ void Renderer::initFbosAndTextures()
     glGenTextures(1, &tex_shadow);
     glBindTexture(GL_TEXTURE_2D, tex_shadow);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, SHADOW_MAP_SIZE, SHADOW_MAP_SIZE, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
-    float borderColor[] = { 1.0f, 1.0f, 1.0f, 1.0f };
-    glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, borderColor);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_FUNC, GL_LEQUAL);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_R_TO_TEXTURE);
 
     glBindFramebuffer(GL_FRAMEBUFFER, fbo_shadow);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, tex_shadow, 0);
@@ -190,6 +190,11 @@ void Renderer::setZoomed(bool zoomed)
     setProjMat();
 }
 
+void Renderer::toggleTimePaused()
+{
+    this->isTimePaused = !this->isTimePaused;
+}
+
 void Renderer::draw(float deltaTime, bool viewMatChanged, bool windowSizeChanged)
 {
     if (windowSizeChanged)
@@ -208,7 +213,10 @@ void Renderer::draw(float deltaTime, bool viewMatChanged, bool windowSizeChanged
         skyShader.setInvViewProjMat(invViewProjMat);
     }
 
-    time += deltaTime;
+    if (!isTimePaused)
+    {
+        time += deltaTime;
+    }
 
     const float sunTime = time * 0.2f;
     const vec3 sunDir = normalize(sunRotateMat * vec3(cos(sunTime), 0.7f, sin(sunTime)));
@@ -222,7 +230,8 @@ void Renderer::draw(float deltaTime, bool viewMatChanged, bool windowSizeChanged
     glClear(GL_DEPTH_BUFFER_BIT);
 
     glEnable(GL_DEPTH_TEST);
-    glDisable(GL_CULL_FACE);
+    //glDisable(GL_CULL_FACE);
+    glCullFace(GL_FRONT);
 
     vec3 playerPosXZ = player->getPos();
     playerPosXZ.y = 0;
@@ -241,7 +250,8 @@ void Renderer::draw(float deltaTime, bool viewMatChanged, bool windowSizeChanged
     glViewport(0, 0, windowSize->x, windowSize->y);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    glEnable(GL_CULL_FACE);
+    //glEnable(GL_CULL_FACE);
+    glCullFace(GL_BACK);
 
     //glActiveTexture(GL_TEXTURE0);
     //glBindTexture(GL_TEXTURE_2D, tex_blockDiffuse);

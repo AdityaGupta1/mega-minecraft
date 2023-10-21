@@ -43,6 +43,7 @@ private:
     mat4 invViewProjMat;
 
     bool isZoomed{ false };
+    bool isTimePaused{ true };
 
     float time{ 0 };
     mat3 sunRotateMat;
@@ -63,6 +64,7 @@ public:
     void init();
 
     void setZoomed(bool zoomed);
+    void toggleTimePaused();
 
     void draw(float deltaTime, bool viewMatChanged, bool windowSizeChanged);
 };

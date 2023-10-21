@@ -216,6 +216,12 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
             renderer->setZoomed(false);
         }
         break;
+    case GLFW_KEY_P:
+        if (action == GLFW_RELEASE)
+        {
+            renderer->toggleTimePaused();
+        }
+        break;
     }
 }
 
