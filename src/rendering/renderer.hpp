@@ -25,6 +25,7 @@ private:
 
     ShaderProgram lambertShader;
     ShaderProgram skyShader;
+    ShaderProgram shadowShader;
     ShaderProgram postProcessShader1;
 
     // framebuffer objects

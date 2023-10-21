@@ -1,7 +1,7 @@
 #include "drawable.hpp"
 
 Drawable::Drawable()
-    : bufIdx(-1), bufVerts(-1), bufTriInfo(-1)
+    : bufIdx(-1), bufVerts(-1), bufFullscreenTriInfo(-1)
 {
 }
 
@@ -9,9 +9,9 @@ void Drawable::destroyVBOs()
 {
     glDeleteBuffers(1, &bufIdx);
     glDeleteBuffers(1, &bufVerts);
-    glDeleteBuffers(1, &bufTriInfo);
+    glDeleteBuffers(1, &bufFullscreenTriInfo);
 
-    bufIdx = bufVerts = bufTriInfo = -1;
+    bufIdx = bufVerts = bufFullscreenTriInfo = -1;
 
     idxCount = -1;
 }
@@ -36,9 +36,9 @@ void Drawable::generateVerts()
     glGenBuffers(1, &bufVerts);
 }
 
-void Drawable::generateTriInfo()
+void Drawable::generateFullscreenTriInfo()
 {
-    glGenBuffers(1, &bufTriInfo);
+    glGenBuffers(1, &bufFullscreenTriInfo);
 }
 
 bool bindBuf(GLenum target, GLuint& buffer)
@@ -61,7 +61,7 @@ bool Drawable::bindVerts()
     return bindBuf(GL_ARRAY_BUFFER, bufVerts);
 }
 
-bool Drawable::bindTriInfo()
+bool Drawable::bindFullscreenTriInfo()
 {
-    return bindBuf(GL_ARRAY_BUFFER, bufTriInfo);
+    return bindBuf(GL_ARRAY_BUFFER, bufFullscreenTriInfo);
 }

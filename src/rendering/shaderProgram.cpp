@@ -47,7 +47,7 @@ void printLinkInfoLog(int prog)
 
 bool ShaderProgram::create(const std::string& vertFile, const std::string& fragFile)
 {
-    std::cout << "creating shader from " << vertFile << " and " << fragFile << "..." << std::endl;
+    std::cout << "creating shader from " << vertFile << " and " << fragFile << "...    ";
 
     vertShader = glCreateShader(GL_VERTEX_SHADER);
     fragShader = glCreateShader(GL_FRAGMENT_SHADER);
@@ -177,7 +177,7 @@ void ShaderProgram::draw(Drawable& d) const
             glVertexAttribPointer(attr_uv, 2, GL_FLOAT, false, sizeof(Vertex), (void*)(2 * sizeof(glm::vec3)));
         }
     }
-    else if (d.bindTriInfo())
+    else if (d.bindFullscreenTriInfo())
     {
         if (attr_pos != -1)
         {

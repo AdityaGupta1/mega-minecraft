@@ -44,9 +44,14 @@ void Renderer::init()
     sunRotateMat = mat3(sunAxisRight, sunAxisForward, sunAxisUp);
 }
 
+void createCustomShader(ShaderProgram& prog, const std::string& name)
+{
+    prog.create("shaders/" + name + ".vert.glsl", "shaders/" + name + ".frag.glsl");
+}
+
 void createPostProcessShader(ShaderProgram& prog, const std::string& frag)
 {
-    prog.create("shaders/passthrough_uvs.vert.glsl", frag);
+    prog.create("shaders/passthrough_uvs.vert.glsl", "shaders/" + frag + ".frag.glsl");
 }
 
 void Renderer::initShaders()
@@ -56,9 +61,10 @@ void Renderer::initShaders()
     passthroughUvsShader.create("shaders/passthrough_uvs.vert.glsl", "shaders/passthrough_uvs.frag.glsl");
 #endif
 
-    lambertShader.create("shaders/lambert.vert.glsl", "shaders/lambert.frag.glsl");
-    createPostProcessShader(skyShader, "shaders/sky.frag.glsl");
-    createPostProcessShader(postProcessShader1, "shaders/postprocess_1.frag.glsl");
+    createCustomShader(lambertShader, "lambert");
+    createPostProcessShader(skyShader, "sky");
+    createCustomShader(shadowShader, "shadow");
+    createPostProcessShader(postProcessShader1, "postprocess_1");
 }
 
 void Renderer::initFbosAndTextures()

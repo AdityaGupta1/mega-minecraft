@@ -15,7 +15,7 @@ void FullscreenTri::bufferVBOs()
     bindIdx();
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, 3 * sizeof(GLuint), idx, GL_STATIC_DRAW);
 
-    generateTriInfo();
-    bindTriInfo();
+    generateFullscreenTriInfo();
+    bindFullscreenTriInfo();
     glBufferData(GL_ARRAY_BUFFER, 15 * sizeof(float), triInfo, GL_STATIC_DRAW);
 }

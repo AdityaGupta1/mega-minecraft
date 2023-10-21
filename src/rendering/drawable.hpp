@@ -9,7 +9,7 @@ protected:
 
     GLuint bufIdx;
     GLuint bufVerts;
-    GLuint bufTriInfo;
+    GLuint bufFullscreenTriInfo;
 
 public:
     Drawable();
@@ -22,11 +22,11 @@ public:
 
     void generateIdx();
     void generateVerts();
-    void generateTriInfo();
+    void generateFullscreenTriInfo();
     void generateUvs();
 
     bool bindIdx();
     bool bindVerts();
-    bool bindTriInfo();
+    bool bindFullscreenTriInfo();
     bool bindUvs();
 };
