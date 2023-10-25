@@ -217,6 +217,7 @@ bool Renderer::initFbosAndTextures()
     glBindImageTexture(0, tex_volume, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA16F);
 
     lambertShader.setTexVolume(3);
+    skyShader.setTexVolume(3);
 
     volumeFillShader.setTexVolume(0);
     volumeRaymarchShader.setTexVolume(0);
