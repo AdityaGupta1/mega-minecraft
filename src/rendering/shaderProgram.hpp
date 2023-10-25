@@ -26,6 +26,7 @@ public:
     GLint unif_sunViewProjMat;
 
     GLint unif_sunDir;
+    GLint unif_moonDir;
     GLint unif_fogColor;
 
     GLint tex_blockDiffuse;
@@ -50,7 +51,8 @@ public:
     void setProjMat(const glm::mat4& mat) const;
     void setSunViewProjMat(const glm::mat4& mat) const;
 
-    void setSunDir(const glm::vec3& dir) const;
+    void setSunDir(const glm::vec4& dir) const;
+    void setMoonDir(const glm::vec4& dir) const;
     void setFogColor(const glm::vec3& col) const;
 
     void setTexBlockDiffuse(int tex) const;

@@ -53,7 +53,7 @@ bool Renderer::init()
 
     setProjMat();
 
-    const vec3 sunAxisForward = normalize(vec3(6, 2, 2));
+    const vec3 sunAxisForward = normalize(vec3(6.0f, -2.0f, 2.0f));
     const vec3 sunAxisRight = normalize(cross(sunAxisForward, vec3(0, 1, 0)));
     const vec3 sunAxisUp = normalize(cross(sunAxisRight, sunAxisForward));
     sunRotateMat = mat3(sunAxisRight, sunAxisForward, sunAxisUp);
@@ -275,7 +275,8 @@ void Renderer::draw(float deltaTime, bool viewMatChanged, bool windowSizeChanged
     }
 
     const float sunTime = time * 0.2f;
-    const vec3 sunDir = normalize(sunRotateMat * vec3(cos(sunTime), 0.7f, sin(sunTime)));
+    const vec3 sunDirXYZ = normalize(sunRotateMat * vec3(cos(sunTime), 0.55f, sin(sunTime)));
+    const vec4 sunDir = vec4(sunDirXYZ, smoothstep(-0.1f, 0.1f, sunDirXYZ.y));
 
     // ============================================================
     // SHADOW
@@ -291,7 +292,7 @@ void Renderer::draw(float deltaTime, bool viewMatChanged, bool windowSizeChanged
     vec3 playerPosXZ = player->getPos();
     playerPosXZ.y = 0;
     playerPosXZ = 16.f * floor(playerPosXZ / 16.f);
-    const mat4 sunViewMat = glm::lookAt(sunDir + playerPosXZ, playerPosXZ, vec3(0, 1, 0));
+    const mat4 sunViewMat = glm::lookAt(sunDirXYZ + playerPosXZ, playerPosXZ, vec3(0, 1, 0));
     const mat4 sunViewProjMat = sunProjMat * sunViewMat;
 
     shadowShader.setSunViewProjMat(sunViewProjMat);
@@ -300,10 +301,6 @@ void Renderer::draw(float deltaTime, bool viewMatChanged, bool windowSizeChanged
     // ============================================================
     // VOLUMETRIC FOG
     // ============================================================
-
-    // TODO: maybe consider doing this after g-buffer rendering to take advantage of depth pass?
-    //       and then combine the volume color in a later step
-    //       could also solve the problem of rendering fog for sky and terrain separately
 
     volumeFillShader.setSunDir(sunDir);
     volumeFillShader.setSunViewProjMat(sunViewProjMat);

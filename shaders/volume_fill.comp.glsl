@@ -40,6 +40,9 @@ float getPhaseFunction(float cosPhi, float gFactor)
     return (1 - gFactor2) / pow(abs(1 + gFactor2 - 2 * gFactor * cosPhi), 1.5f) * PI_OVER_FOUR;
 }
 
+const vec3 sunColor = vec3(0.9922, 0.9843, 0.8275);
+const vec3 sunOppositeColor = vec3(0.8275, 0.8354, 0.9922);
+
 vec3 getSunLighting(vec3 worldPos, vec3 viewDirection)
 {
     vec4 lightSpacePos = u_sunViewProjMat * vec4(worldPos, 1);
@@ -47,10 +50,13 @@ vec3 getSunLighting(vec3 worldPos, vec3 viewDirection)
     shadowCoords = (shadowCoords + 1.f) * 0.5f;
     float visibility = texture(tex_shadowMap, shadowCoords);
 
-    //float sunPhaseFunctionValue = getPhaseFunction(dot(vec3(u_sunDir), viewDirection), 0); // last value = anisotropy
+    float cosPhi = dot(u_sunDir.xyz, viewDirection);
+    //float sunPhaseFunctionValue = getPhaseFunction(cosPhi, 0); // last value = anisotropy
     float sunPhaseFunctionValue = PI_OVER_FOUR;
 
-    return visibility * vec3(0.9922, 0.9843, 0.8275) * sunPhaseFunctionValue; // static sun color for now
+    //vec3 sunMixColor = mix(sunOppositeColor, sunColor, (cosPhi + 1.f) * 0.5);
+    vec3 sunMixColor = sunColor;
+    return visibility * sunMixColor * sunPhaseFunctionValue;
 }
 
 void main()

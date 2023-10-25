@@ -7,13 +7,13 @@
 #include <chrono>
 #include <glm/gtx/string_cast.hpp>
 
-#define CHUNK_VBOS_GEN_RADIUS 16
+#define CHUNK_VBOS_GEN_RADIUS 12
 #define CHUNK_FILL_RADIUS (CHUNK_VBOS_GEN_RADIUS + 2)
 #define CHUNK_GEN_HEIGHTFIELDS_RADIUS (CHUNK_FILL_RADIUS + 2)
 
 #define MULTITHREADING 0
 
-#define DEBUG_TIME_CHUNK_FILL 1
+#define DEBUG_TIME_CHUNK_FILL 0
 
 // --------------------------------------------------
 #define TOTAL_ACTION_TIME 40

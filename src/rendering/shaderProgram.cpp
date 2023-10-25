@@ -10,7 +10,7 @@ ShaderProgram::ShaderProgram()
     : vertShader(-1), fragShader(-1), compShader(-1), prog(-1), 
       attr_pos(-1), attr_nor(-1), attr_uv(-1), 
       unif_modelMat(-1), unif_viewProjMat(-1), unif_invViewProjMat(-1), unif_viewMat(-1), unif_invViewMat(-1), unif_projMat(-1), unif_sunViewProjMat(-1),
-      unif_sunDir(-1), unif_fogColor(-1),
+      unif_sunDir(-1), unif_moonDir(-1), unif_fogColor(-1),
       tex_blockDiffuse(-1), tex_bufColor(-1), tex_shadowMap(-1), tex_volume(-1)
 {}
 
@@ -64,6 +64,7 @@ void ShaderProgram::createUniformVariables()
     unif_sunViewProjMat = glGetUniformLocation(prog, "u_sunViewProjMat");
 
     unif_sunDir = glGetUniformLocation(prog, "u_sunDir");
+    unif_moonDir = glGetUniformLocation(prog, "u_moonDir");
     unif_fogColor = glGetUniformLocation(prog, "u_fogColor");
 
     tex_blockDiffuse = glGetUniformLocation(prog, "tex_blockDiffuse");
@@ -231,10 +232,16 @@ void ShaderProgram::setSunViewProjMat(const glm::mat4& mat) const
     glUniformMatrix4fv(unif_sunViewProjMat, 1, GL_FALSE, &mat[0][0]);
 }
 
-void ShaderProgram::setSunDir(const glm::vec3& dir) const
+void ShaderProgram::setSunDir(const glm::vec4& dir) const
 {
     useMe();
-    glUniform3fv(unif_sunDir, 1, &dir[0]);
+    glUniform4fv(unif_sunDir, 1, &dir[0]);
+}
+
+void ShaderProgram::setMoonDir(const glm::vec4& dir) const
+{
+    useMe();
+    glUniform4fv(unif_moonDir, 1, &dir[0]);
 }
 
 void ShaderProgram::setFogColor(const glm::vec3& col) const
