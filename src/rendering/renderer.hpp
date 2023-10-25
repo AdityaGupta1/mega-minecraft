@@ -28,6 +28,7 @@ private:
     ShaderProgram shadowShader;
     ShaderProgram postProcessShader1;
     ShaderProgram postProcessShaderFinal;
+    ShaderProgram bloomBlurShader;
 
     ShaderProgram volumeFillShader;
     ShaderProgram volumeRaymarchShader;
@@ -35,7 +36,8 @@ private:
     // framebuffer objects
     GLuint fbo_main, rbo_main;
     GLuint fbo_shadow;
-    GLuint fbo_postprocess1, rbo_postprocess1;
+    GLuint fbo_postprocess1;
+    GLuint fbo_bloom1, fbo_bloom2;
 
     // textures
     GLuint tex_blockDiffuse; // tex unit 0
@@ -43,7 +45,8 @@ private:
     GLuint tex_bufColor2; // tex unit 4
     GLuint tex_shadow; // tex unit 2
     GLuint tex_volume; // tex unit 3, image unit 0
-    GLuint tex_bufBloomColor; // tex unit 5
+    GLuint tex_bufBloomColor1; // tex unit 5
+    GLuint tex_bufBloomColor2; // also tex unit 5, used for ping-ponging
 
     // other
     mat4 projMat{};

@@ -11,6 +11,7 @@ ShaderProgram::ShaderProgram()
       attr_pos(-1), attr_nor(-1), attr_uv(-1), 
       unif_modelMat(-1), unif_viewProjMat(-1), unif_invViewProjMat(-1), unif_viewMat(-1), unif_invViewMat(-1), unif_projMat(-1), unif_sunViewProjMat(-1),
       unif_sunDir(-1), unif_moonDir(-1), unif_fogColor(-1),
+      unif_horizontal(-1),
       tex_blockDiffuse(-1), tex_bufColor(-1), tex_shadowMap(-1), tex_volume(-1), tex_bufBloomColor(-1)
 {}
 
@@ -66,6 +67,8 @@ void ShaderProgram::createUniformVariables()
     unif_sunDir = glGetUniformLocation(prog, "u_sunDir");
     unif_moonDir = glGetUniformLocation(prog, "u_moonDir");
     unif_fogColor = glGetUniformLocation(prog, "u_fogColor");
+
+    unif_horizontal = glGetUniformLocation(prog, "u_horizontal");
 
     tex_blockDiffuse = glGetUniformLocation(prog, "tex_blockDiffuse");
     tex_bufColor = glGetUniformLocation(prog, "tex_bufColor");
@@ -248,6 +251,12 @@ void ShaderProgram::setFogColor(const glm::vec3& col) const
 {
     useMe();
     glUniform3fv(unif_fogColor, 1, &col[0]);
+}
+
+void ShaderProgram::setHorizontal(bool horizontal) const
+{
+    useMe();
+    glUniform1i(unif_horizontal, horizontal);
 }
 
 void ShaderProgram::setTexBlockDiffuse(int tex) const

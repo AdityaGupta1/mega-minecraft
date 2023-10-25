@@ -16,8 +16,8 @@
 
 Renderer::Renderer(GLFWwindow* window, ivec2* windowSize, Terrain* terrain, Player* player)
     : window(window), windowSize(windowSize), terrain(terrain), player(player), vao(-1),
-      fbo_main(-1), rbo_main(-1), fbo_shadow(-1), fbo_postprocess1(-1), rbo_postprocess1(-1),
-      tex_blockDiffuse(-1), tex_bufColor1(-1), tex_bufColor2(-1), tex_shadow(-1), tex_volume(-1), tex_bufBloomColor(-1)
+      fbo_main(-1), rbo_main(-1), fbo_shadow(-1), fbo_postprocess1(-1), fbo_bloom1(-1), fbo_bloom2(-1),
+      tex_blockDiffuse(-1), tex_bufColor1(-1), tex_bufColor2(-1), tex_shadow(-1), tex_volume(-1), tex_bufBloomColor1(-1), tex_bufBloomColor2(-1)
 {
     float orthoSize = 420.f;
     sunProjMat = glm::ortho<float>(
@@ -93,6 +93,7 @@ bool Renderer::initShaders()
     success &= createCustomShader(shadowShader, "shadow");
     success &= createPostProcessShader(postProcessShader1, "postprocess_1");
     success &= createPostProcessShader(postProcessShaderFinal, "postprocess_final");
+    success &= createPostProcessShader(bloomBlurShader, "bloom_blur");
 
     success &= createComputeShader(volumeFillShader, "volume_fill");
     success &= createComputeShader(volumeRaymarchShader, "volume_raymarch");
@@ -266,21 +267,21 @@ bool Renderer::initFbosAndTextures()
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, tex_bufColor2, 0);
 
     glActiveTexture(GL_TEXTURE5);
-    glGenTextures(1, &tex_bufBloomColor);
-    glBindTexture(GL_TEXTURE_2D, tex_bufBloomColor);
+    glGenTextures(1, &tex_bufBloomColor2);
+    glBindTexture(GL_TEXTURE_2D, tex_bufBloomColor2);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, windowSize->x, windowSize->y, 0, GL_RGBA, GL_FLOAT, NULL);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, tex_bufBloomColor, 0);
+
+    glGenTextures(1, &tex_bufBloomColor1);
+    glBindTexture(GL_TEXTURE_2D, tex_bufBloomColor1);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, windowSize->x, windowSize->y, 0, GL_RGBA, GL_FLOAT, NULL);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, tex_bufBloomColor1, 0);
 
     GLuint attachments[2] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1 };
     glDrawBuffers(2, attachments);
-
-    glGenRenderbuffers(1, &rbo_postprocess1);
-    glBindRenderbuffer(GL_RENDERBUFFER, rbo_postprocess1);
-    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, windowSize->x, windowSize->y);
-    glBindRenderbuffer(GL_RENDERBUFFER, 0);
-    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, rbo_postprocess1);
 
     if (!checkFramebufferStatus("postprocess 1"))
     {
@@ -290,7 +291,33 @@ bool Renderer::initFbosAndTextures()
     postProcessShaderFinal.setTexBufColor(4);
     postProcessShaderFinal.setTexBufBloomColor(5);
 
+    bloomBlurShader.setTexBufBloomColor(5);
+
     std::cout << "created fbo_postprocess1" << std::endl;
+
+    // ============================================================
+    // BLOOM
+    // ============================================================
+
+    glGenFramebuffers(1, &fbo_bloom1);
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo_bloom1);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, tex_bufBloomColor2, 0);
+
+    if (!checkFramebufferStatus("bloom 1"))
+    {
+        return false;
+    }
+
+    glGenFramebuffers(1, &fbo_bloom2);
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo_bloom2);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, tex_bufBloomColor1, 0);
+
+    if (!checkFramebufferStatus("bloom 2"))
+    {
+        return false;
+    }
+
+    std::cout << "created fbo_bloom1 and fbo_bloom2" << std::endl;
 
     if (RenderingUtils::printGLErrors())
     {
@@ -312,13 +339,12 @@ void Renderer::resizeTextures()
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, windowSize->x, windowSize->y, 0, GL_RGBA, GL_FLOAT, NULL);
     
     glActiveTexture(GL_TEXTURE5);
-    glBindTexture(GL_TEXTURE_2D, tex_bufBloomColor);
+    glBindTexture(GL_TEXTURE_2D, tex_bufBloomColor2);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, windowSize->x, windowSize->y, 0, GL_RGBA, GL_FLOAT, NULL);
+    glBindTexture(GL_TEXTURE_2D, tex_bufBloomColor1);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, windowSize->x, windowSize->y, 0, GL_RGBA, GL_FLOAT, NULL);
 
     glBindRenderbuffer(GL_RENDERBUFFER, rbo_main);
-    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, windowSize->x, windowSize->y);
-
-    glBindRenderbuffer(GL_RENDERBUFFER, rbo_postprocess1);
     glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, windowSize->x, windowSize->y);
 }
 
@@ -366,7 +392,7 @@ void Renderer::draw(float deltaTime, bool viewMatChanged, bool windowSizeChanged
         time += deltaTime;
     }
 
-    const float sunTime = time * 0.2f - 2.8f;
+    const float sunTime = time * 0.2f;
     float cosSunTime = cos(sunTime);
     float sinSunTime = sin(sunTime);
     const vec4 sunDir = sunDir3To4(normalize(sunRotateMat * vec3(cosSunTime, 0.55f, sinSunTime)));
@@ -451,18 +477,33 @@ void Renderer::draw(float deltaTime, bool viewMatChanged, bool windowSizeChanged
     // ============================================================
 
     glBindFramebuffer(GL_FRAMEBUFFER, fbo_postprocess1);
-    glViewport(0, 0, windowSize->x, windowSize->y);
 
     glDisable(GL_DEPTH_TEST);
 
     postProcessShader1.draw(fullscreenTri);
 
     // ============================================================
+    // BLOOM
+    // ============================================================
+
+    glActiveTexture(GL_TEXTURE5);
+    bool horizontal = true;
+    int amount = 5;
+    for (int i = 0; i < amount * 2; ++i)
+    {
+        glBindFramebuffer(GL_FRAMEBUFFER, horizontal ? fbo_bloom1 : fbo_bloom2);
+        bloomBlurShader.setHorizontal(horizontal);
+        glBindTexture(GL_TEXTURE_2D, horizontal ? tex_bufBloomColor1 : tex_bufBloomColor2);
+        bloomBlurShader.draw(fullscreenTri);
+        horizontal = !horizontal;
+    }
+    glBindTexture(GL_TEXTURE_2D, tex_bufBloomColor1);
+
+    // ============================================================
     // VIEWPORT (POSTPROCESS FINAL)
     // ============================================================
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    glViewport(0, 0, windowSize->x, windowSize->y);
 
     postProcessShaderFinal.draw(fullscreenTri);
 

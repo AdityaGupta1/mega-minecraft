@@ -29,6 +29,8 @@ public:
     GLint unif_moonDir;
     GLint unif_fogColor;
 
+    GLint unif_horizontal;
+
     GLint tex_blockDiffuse;
     GLint tex_bufColor;
     GLint tex_shadowMap;
@@ -55,6 +57,8 @@ public:
     void setSunDir(const glm::vec4& dir) const;
     void setMoonDir(const glm::vec4& dir) const;
     void setFogColor(const glm::vec3& col) const;
+
+    void setHorizontal(bool horizontal) const;
 
     void setTexBlockDiffuse(int tex) const;
     void setTexBufColor(int tex) const;

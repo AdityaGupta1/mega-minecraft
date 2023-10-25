@@ -24,9 +24,9 @@ void main() {
     float sunFactor = u_sunDir.w;
     vec3 finalColor;
     if (dot(worldDir, u_sunDir.xyz) > 0.998f) {
-        finalColor = vec3(1.0f, 0.8070f, 0.2542f) * 2.5f;
+        finalColor = vec3(1.0f, 0.8070f, 0.2542f) * 5.0f;
     } else if (dot(worldDir, u_moonDir.xyz) > 0.9992f) {
-        finalColor = vec3(0.6584f, 0.8879f, 1.0f) * 1.5f;
+        finalColor = vec3(0.6584f, 0.8879f, 1.0f) * 3.0f;
     } else {
         finalColor = vec3(0.5, 0.8, 1.0) * 0.2 * mix(0.1, 1.0, sunFactor);
     }
