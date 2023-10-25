@@ -17,7 +17,7 @@
 Renderer::Renderer(GLFWwindow* window, ivec2* windowSize, Terrain* terrain, Player* player)
     : window(window), windowSize(windowSize), terrain(terrain), player(player), vao(-1),
       fbo_main(-1), rbo_main(-1), fbo_shadow(-1), fbo_postprocess1(-1), rbo_postprocess1(-1),
-      tex_blockDiffuse(-1), tex_bufColor1(-1), tex_bufColor2(-1), tex_shadow(-1), tex_volume(-1), tex_bufBloomColor(-1),
+      tex_blockDiffuse(-1), tex_bufColor1(-1), tex_bufColor2(-1), tex_shadow(-1), tex_volume(-1), tex_bufBloomColor(-1)
 {
     float orthoSize = 420.f;
     sunProjMat = glm::ortho<float>(
