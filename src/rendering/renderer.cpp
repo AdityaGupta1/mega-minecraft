@@ -16,8 +16,7 @@
 
 Renderer::Renderer(GLFWwindow* window, ivec2* windowSize, Terrain* terrain, Player* player)
     : window(window), windowSize(windowSize), terrain(terrain), player(player), vao(-1),
-      fbo_main(-1), rbo_main(-1), fbo_shadow(-1), tex_blockDiffuse(-1), tex_bufColor(-1), tex_shadow(-1),
-      projMat(), viewProjMat(), invViewProjMat(), sunProjMat(), sunRotateMat()
+      fbo_main(-1), rbo_main(-1), fbo_shadow(-1), tex_blockDiffuse(-1), tex_bufColor(-1), tex_shadow(-1), tex_volume(-1)
 {
     float orthoSize = 420.f;
     sunProjMat = glm::ortho<float>(
@@ -72,6 +71,11 @@ bool createPostProcessShader(ShaderProgram& prog, const std::string& frag)
     return prog.create("shaders/passthrough_uvs.vert.glsl", "shaders/" + frag + ".frag.glsl");
 }
 
+bool createComputeShader(ShaderProgram& prog, const std::string& comp)
+{
+    return prog.createCompute("shaders/" + comp + ".comp.glsl");
+}
+
 bool Renderer::initShaders()
 {
     bool success = true;
@@ -85,6 +89,9 @@ bool Renderer::initShaders()
     success &= createPostProcessShader(skyShader, "sky");
     success &= createCustomShader(shadowShader, "shadow");
     success &= createPostProcessShader(postProcessShader1, "postprocess_1");
+
+    success &= createComputeShader(volumeFillShader, "volume_fill");
+    success &= createComputeShader(volumeRaymarchShader, "volume_raymarch");
 
     return success;
 }
@@ -188,11 +195,31 @@ bool Renderer::initFbosAndTextures()
     }
 
     lambertShader.setTexShadowMap(2);
+    volumeFillShader.setTexShadowMap(2);
+
 #if DEBUG_DISPLAY_SHADOW_MAP
     postProcessShader1.setTexBufColor(2);
 #endif
 
     std::cout << "created fbo_shadow" << std::endl;
+
+    glGenTextures(1, &tex_volume);
+    // 3 is the TEXTURE IMAGE UNIT
+    glActiveTexture(GL_TEXTURE3);
+    glBindTexture(GL_TEXTURE_3D, tex_volume);
+    glTexImage3D(GL_TEXTURE_3D, 0, GL_RGBA16F, 320, 180, 128, 0, GL_RGBA, GL_FLOAT, 0);
+    glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    // 0 is the IMAGE UNIT
+    glBindImageTexture(0, tex_volume, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA16F);
+
+    lambertShader.setTexVolume(3);
+
+    volumeFillShader.setTexVolume(0);
+    volumeRaymarchShader.setTexVolume(0);
 
     return true;
 }
@@ -232,14 +259,13 @@ void Renderer::draw(float deltaTime, bool viewMatChanged, bool windowSizeChanged
         resizeTextures();
     }
 
-    if (viewMatChanged || windowSizeChanged)
+    bool setViewMat = viewMatChanged || windowSizeChanged;
+    if (setViewMat)
     {
-        viewProjMat = projMat * player->getViewMat();
-
-        lambertShader.setViewProjMat(viewProjMat);
-
-        skyShader.setViewTransposeMat(glm::transpose(player->getViewMat()));
-        skyShader.setProjMat(projMat);
+        viewMat = player->getViewMat();
+        viewProjMat = projMat * viewMat;
+        invViewProjMat = glm::inverse(viewProjMat);
+        invViewMat = glm::inverse(player->getViewMat());
     }
 
     if (!isTimePaused)
@@ -270,6 +296,31 @@ void Renderer::draw(float deltaTime, bool viewMatChanged, bool windowSizeChanged
     terrain->draw(shadowShader, nullptr);
 
     // ============================================================
+    // VOLUMETRIC FOG
+    // ============================================================
+
+    // TODO: maybe consider doing this after g-buffer rendering to take advantage of depth pass?
+    //       and then combine the volume color in a later step
+    //       could also solve the problem of rendering fog for sky and terrain separately
+
+    volumeFillShader.setSunDir(sunDir);
+    volumeFillShader.setSunViewProjMat(sunViewProjMat);
+
+    if (setViewMat)
+    {
+        volumeFillShader.setViewProjMat(viewProjMat);
+        volumeFillShader.setInvViewProjMat(invViewProjMat);
+        volumeFillShader.setViewMat(viewMat);
+        volumeFillShader.setInvViewMat(invViewMat);
+    }
+
+    volumeFillShader.dispatchCompute(320, 180, 128); // TODO: make sure these work group sizes aren't stupid (e.g. 1 thread per warp would be very bad)
+    glMemoryBarrier(GL_ALL_BARRIER_BITS);
+
+    volumeRaymarchShader.dispatchCompute(320, 180, 1);
+    glMemoryBarrier(GL_ALL_BARRIER_BITS);
+
+    // ============================================================
     // G-BUFFER
     // ============================================================
 
@@ -279,9 +330,20 @@ void Renderer::draw(float deltaTime, bool viewMatChanged, bool windowSizeChanged
 
     glCullFace(GL_BACK);
 
+    if (setViewMat)
+    {
+        lambertShader.setViewProjMat(viewProjMat);
+    }
+
     lambertShader.setSunViewProjMat(sunViewProjMat);
     lambertShader.setSunDir(sunDir);
     terrain->draw(lambertShader, player);
+
+    if (setViewMat)
+    {
+        skyShader.setInvViewMat(invViewMat);
+        skyShader.setProjMat(projMat);
+    }
 
     skyShader.setSunDir(sunDir);
     skyShader.draw(fullscreenTri);

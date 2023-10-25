@@ -28,26 +28,32 @@ private:
     ShaderProgram shadowShader;
     ShaderProgram postProcessShader1;
 
+    ShaderProgram volumeFillShader;
+    ShaderProgram volumeRaymarchShader;
+
     // framebuffer objects
     GLuint fbo_main, rbo_main;
     GLuint fbo_shadow;
 
     // textures
-    GLuint tex_blockDiffuse;
-    GLuint tex_bufColor;
-    GLuint tex_shadow;
+    GLuint tex_blockDiffuse; // tex unit 0
+    GLuint tex_bufColor; // tex unit 1
+    GLuint tex_shadow; // tex unit 2
+    GLuint tex_volume; // tex unit 3, image unit 0
 
     // other
-    mat4 projMat;
-    mat4 viewProjMat;
-    mat4 invViewProjMat;
-    mat4 sunProjMat;
+    mat4 projMat{};
+    mat4 viewProjMat{};
+    mat4 invViewProjMat{};
+    mat4 viewMat{};
+    mat4 invViewMat{};
+    mat4 sunProjMat{};
 
     bool isZoomed{ false };
     bool isTimePaused{ true };
 
     float time{ 0 };
-    mat3 sunRotateMat;
+    mat3 sunRotateMat{};
 
 public:
     Renderer(GLFWwindow* window, ivec2* windowSize, Terrain* terrain, Player* player);

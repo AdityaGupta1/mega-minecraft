@@ -6,11 +6,11 @@
 #include "structs.hpp"
 
 ShaderProgram::ShaderProgram()
-    : vertShader(), fragShader(), prog(), 
+    : vertShader(-1), fragShader(-1), compShader(-1), prog(-1), 
       attr_pos(-1), attr_nor(-1), attr_uv(-1), 
-      unif_modelMat(-1), unif_viewProjMat(-1), unif_invViewProjMat(-1), unif_sunViewProjMat(-1), unif_viewTransposeMat(-1), unif_projMat(-1),
+      unif_modelMat(-1), unif_viewProjMat(-1), unif_invViewProjMat(-1), unif_viewMat(-1), unif_invViewMat(-1), unif_projMat(-1), unif_sunViewProjMat(-1),
       unif_sunDir(-1),
-      tex_blockDiffuse(-1), tex_bufColor(-1), tex_shadowMap(-1)
+      tex_blockDiffuse(-1), tex_bufColor(-1), tex_shadowMap(-1), tex_volume(-1)
 {}
 
 void printShaderInfoLog(int shader)
@@ -48,6 +48,57 @@ void printLinkInfoLog(int prog)
     }
 }
 
+void ShaderProgram::createUniformVariables()
+{
+    attr_pos = glGetAttribLocation(prog, "vs_pos");
+    attr_nor = glGetAttribLocation(prog, "vs_nor");
+    attr_uv = glGetAttribLocation(prog, "vs_uv");
+
+    unif_modelMat = glGetUniformLocation(prog, "u_modelMat");
+    unif_viewProjMat = glGetUniformLocation(prog, "u_viewProjMat");
+    unif_invViewProjMat = glGetUniformLocation(prog, "u_invViewProjMat");
+    unif_viewMat = glGetUniformLocation(prog, "u_viewMat");
+    unif_invViewMat = glGetUniformLocation(prog, "u_invViewMat");
+    unif_projMat = glGetUniformLocation(prog, "u_projMat");
+    unif_sunViewProjMat = glGetUniformLocation(prog, "u_sunViewProjMat");
+
+    unif_sunDir = glGetUniformLocation(prog, "u_sunDir");
+
+    tex_blockDiffuse = glGetUniformLocation(prog, "tex_blockDiffuse");
+    tex_bufColor = glGetUniformLocation(prog, "tex_bufColor");
+    tex_shadowMap = glGetUniformLocation(prog, "tex_shadowMap");
+
+    if ((tex_volume = glGetUniformLocation(prog, "img_volume")) == -1) {
+        tex_volume = glGetUniformLocation(prog, "tex_volume");
+    }
+}
+
+bool checkShaderCompiled(GLint shader)
+{
+    GLint compiled;
+    glGetShaderiv(shader, GL_COMPILE_STATUS, &compiled);
+    if (!compiled)
+    {
+        printShaderInfoLog(shader);
+        return false;
+    }
+
+    return true;
+}
+
+bool checkProgLinked(GLint prog)
+{
+    GLint linked;
+    glGetProgramiv(prog, GL_LINK_STATUS, &linked);
+    if (!linked)
+    {
+        printLinkInfoLog(prog);
+        return false;
+    }
+
+    return true;
+}
+
 bool ShaderProgram::create(const std::string& vertFile, const std::string& fragFile)
 {
     std::cout << "creating shader from " << vertFile << " and " << fragFile << "...    ";
@@ -67,17 +118,8 @@ bool ShaderProgram::create(const std::string& vertFile, const std::string& fragF
     glCompileShader(vertShader);
     glCompileShader(fragShader);
 
-    GLint compiled;
-    glGetShaderiv(vertShader, GL_COMPILE_STATUS, &compiled);
-    if (!compiled)
+    if (!checkShaderCompiled(vertShader) || !checkShaderCompiled(fragShader))
     {
-        printShaderInfoLog(vertShader);
-        return false;
-    }
-    glGetShaderiv(fragShader, GL_COMPILE_STATUS, &compiled);
-    if (!compiled)
-    {
-        printShaderInfoLog(fragShader);
         return false;
     }
 
@@ -85,11 +127,8 @@ bool ShaderProgram::create(const std::string& vertFile, const std::string& fragF
     glAttachShader(prog, fragShader);
     glLinkProgram(prog);
 
-    GLint linked;
-    glGetProgramiv(prog, GL_LINK_STATUS, &linked);
-    if (!linked)
+    if (!checkProgLinked(prog))
     {
-        printLinkInfoLog(prog);
         return false;
     }
 
@@ -97,18 +136,40 @@ bool ShaderProgram::create(const std::string& vertFile, const std::string& fragF
     attr_nor = glGetAttribLocation(prog, "vs_nor");
     attr_uv = glGetAttribLocation(prog, "vs_uv");
 
-    unif_modelMat = glGetUniformLocation(prog, "u_modelMat");
-    unif_viewProjMat = glGetUniformLocation(prog, "u_viewProjMat");
-    unif_invViewProjMat = glGetUniformLocation(prog, "u_invViewProjMat");
-    unif_viewTransposeMat = glGetUniformLocation(prog, "u_viewTransposeMat");
-    unif_projMat = glGetUniformLocation(prog, "u_projMat");
-    unif_sunViewProjMat = glGetUniformLocation(prog, "u_sunViewProjMat");
+    createUniformVariables();
 
-    unif_sunDir = glGetUniformLocation(prog, "u_sunDir");
+    std::cout << "done" << std::endl;
+    return true;
+}
 
-    tex_blockDiffuse = glGetUniformLocation(prog, "tex_blockDiffuse");
-    tex_bufColor = glGetUniformLocation(prog, "tex_bufColor");
-    tex_shadowMap = glGetUniformLocation(prog, "tex_shadowMap");
+bool ShaderProgram::createCompute(const std::string& compFile)
+{
+    std::cout << "creating compute shader from " << compFile << "...    ";
+
+    compShader = glCreateShader(GL_COMPUTE_SHADER);
+    prog = glCreateProgram();
+
+    const std::string compText = Utils::readFile(compFile);
+
+    const char* compChars = compText.c_str();
+
+    glShaderSource(compShader, 1, (const char**)&compText, 0);
+    glCompileShader(compShader);
+
+    if (!checkShaderCompiled(compShader))
+    {
+        return false;
+    }
+
+    glAttachShader(prog, compShader);
+    glLinkProgram(prog);
+
+    if (!checkProgLinked(prog))
+    {
+        return false;
+    }
+
+    createUniformVariables();
 
     std::cout << "done" << std::endl;
     return true;
@@ -137,10 +198,16 @@ void ShaderProgram::setInvViewProjMat(const glm::mat4& mat) const
     glUniformMatrix4fv(unif_invViewProjMat, 1, GL_FALSE, &mat[0][0]);
 }
 
-void ShaderProgram::setViewTransposeMat(const glm::mat4& mat) const
+void ShaderProgram::setViewMat(const glm::mat4& mat) const
 {
     useMe();
-    glUniformMatrix4fv(unif_viewTransposeMat, 1, GL_FALSE, &mat[0][0]);
+    glUniformMatrix4fv(unif_viewMat, 1, GL_FALSE, &mat[0][0]);
+}
+
+void ShaderProgram::setInvViewMat(const glm::mat4& mat) const
+{
+    useMe();
+    glUniformMatrix4fv(unif_invViewMat, 1, GL_FALSE, &mat[0][0]);
 }
 
 void ShaderProgram::setProjMat(const glm::mat4& mat) const
@@ -177,6 +244,12 @@ void ShaderProgram::setTexShadowMap(int tex) const
 {
     useMe();
     glUniform1i(tex_shadowMap, tex);
+}
+
+void ShaderProgram::setTexVolume(int tex) const
+{
+    useMe();
+    glUniform1i(tex_volume, tex);
 }
 
 void ShaderProgram::draw(Drawable& d) const
@@ -227,4 +300,10 @@ void ShaderProgram::draw(Drawable& d) const
     glDrawElements(d.drawMode(), d.getIdxCount(), GL_UNSIGNED_INT, 0);
 
     RenderingUtils::printGLErrors();
+}
+
+void ShaderProgram::dispatchCompute(int groupsX, int groupsY, int groupsZ)
+{
+    useMe();
+    glDispatchCompute(groupsX, groupsY, groupsZ);
 }

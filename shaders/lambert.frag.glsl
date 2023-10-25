@@ -5,12 +5,14 @@ const vec3 ambientLight = vec3(0.8, 0.98, 1.0) * 0.16f;
 
 uniform sampler2D tex_blockDiffuse;
 uniform sampler2DShadow tex_shadowMap;
+uniform sampler3D tex_volume;
 
 uniform vec3 u_sunDir;
 
 in vec3 fs_nor;
 in vec2 fs_uv;
-in vec4 fs_lightPosSpace;
+in vec4 fs_lightSpacePos;
+in vec4 fs_volumePos;
 
 out vec4 fragColor;
 
@@ -37,7 +39,7 @@ vec2 poissonDisk[NUM_SHADOW_SAMPLES] = vec2[](
 #define POISSON_DISK_SIZE 0.0001f
 
 float calculateShadow() {
-    vec3 shadowCoords = fs_lightPosSpace.xyz / fs_lightPosSpace.w;
+    vec3 shadowCoords = fs_lightSpacePos.xyz / fs_lightSpacePos.w;
     shadowCoords = (shadowCoords + 1.f) * 0.5f;
 
     float visibility = 1.0;
@@ -58,6 +60,15 @@ void main() {
 
     float sunVisibility = calculateShadow();
     vec3 finalColor = (ambientLight + (lambert * sunlightStrength * sunVisibility)) * diffuseCol.rgb;
+
+    vec4 scatteringInformation = texture(tex_volume, vec3(fs_volumePos));
+    vec3 inScattering = scatteringInformation.rgb;
+    float transmittance = scatteringInformation.a;
+
+    vec3 colorWithFog = finalColor.rgb * transmittance + inScattering;
+
+    float fogFactor = 0.5f * clamp(1 - dot(normalize(vec3(u_sunDir)), vec3(0, 1, 0)), 0, 1);
+    finalColor = mix(finalColor, colorWithFog, fogFactor);
 
     fragColor = vec4(finalColor, 1.f);
 }
