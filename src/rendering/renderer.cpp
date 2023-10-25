@@ -290,6 +290,7 @@ void Renderer::draw(float deltaTime, bool viewMatChanged, bool windowSizeChanged
 
     vec3 playerPosXZ = player->getPos();
     playerPosXZ.y = 0;
+    playerPosXZ = 16.f * floor(playerPosXZ / 16.f);
     const mat4 sunViewMat = glm::lookAt(sunDir + playerPosXZ, playerPosXZ, vec3(0, 1, 0));
     const mat4 sunViewProjMat = sunProjMat * sunViewMat;
 
