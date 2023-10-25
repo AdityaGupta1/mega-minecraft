@@ -32,7 +32,7 @@ float volumeZPosToDepth(float volumePosZ)
 float getDensity(vec3 worldPos)
 {
     float exponentialDecay = exp(-0.05f * (worldPos.y - 63));
-    return mix(0.f, 0.6f, clamp(exponentialDecay, 0.2f, 1.0f));
+    return mix(0.0f, 0.6f, clamp(exponentialDecay, 0.2f, 1.0f));
 }
 
 //float getPhaseFunction(float cosPhi, float gFactor)
