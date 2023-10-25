@@ -1,6 +1,6 @@
 #version 430
 
-#define PI 3.1415926535897932384626f
+#include defines.glsl
 
 layout(local_size_x = 320, local_size_y = 1, local_size_z = 1) in;
 layout(rgba16f) uniform image3D img_volume;
