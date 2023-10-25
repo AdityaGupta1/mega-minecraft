@@ -252,6 +252,11 @@ void Renderer::toggleTimePaused()
     this->isTimePaused = !this->isTimePaused;
 }
 
+vec4 sunDir3To4(const vec3& sunDirXYZ)
+{
+    return vec4(sunDirXYZ, smoothstep(-0.1f, 0.1f, sunDirXYZ.y));
+}
+
 void Renderer::draw(float deltaTime, bool viewMatChanged, bool windowSizeChanged)
 {
     if (windowSizeChanged)
@@ -274,9 +279,11 @@ void Renderer::draw(float deltaTime, bool viewMatChanged, bool windowSizeChanged
         time += deltaTime;
     }
 
-    const float sunTime = time * 0.2f;
-    const vec3 sunDirXYZ = normalize(sunRotateMat * vec3(cos(sunTime), 0.55f, sin(sunTime)));
-    const vec4 sunDir = vec4(sunDirXYZ, smoothstep(-0.1f, 0.1f, sunDirXYZ.y));
+    const float sunTime = time * 0.2f - 2.8f;
+    float cosSunTime = cos(sunTime);
+    float sinSunTime = sin(sunTime);
+    const vec4 sunDir = sunDir3To4(normalize(sunRotateMat * vec3(cosSunTime, 0.55f, sinSunTime)));
+    const vec4 moonDir = sunDir3To4(normalize(sunRotateMat * vec3(-cosSunTime, 0.55f, -sinSunTime)));
 
     // ============================================================
     // SHADOW
@@ -292,7 +299,8 @@ void Renderer::draw(float deltaTime, bool viewMatChanged, bool windowSizeChanged
     vec3 playerPosXZ = player->getPos();
     playerPosXZ.y = 0;
     playerPosXZ = 16.f * floor(playerPosXZ / 16.f);
-    const mat4 sunViewMat = glm::lookAt(sunDirXYZ + playerPosXZ, playerPosXZ, vec3(0, 1, 0));
+    vec3 sunMoonDir = sunDir.w > 0 ? vec3(sunDir) : vec3(moonDir);
+    const mat4 sunViewMat = glm::lookAt(sunMoonDir + playerPosXZ, playerPosXZ, vec3(0, 1, 0));
     const mat4 sunViewProjMat = sunProjMat * sunViewMat;
 
     shadowShader.setSunViewProjMat(sunViewProjMat);
@@ -302,9 +310,8 @@ void Renderer::draw(float deltaTime, bool viewMatChanged, bool windowSizeChanged
     // VOLUMETRIC FOG
     // ============================================================
 
-    volumeFillShader.setSunDir(sunDir);
     volumeFillShader.setSunViewProjMat(sunViewProjMat);
-    volumeFillShader.setFogColor(vec3(1.0f, 1.0f, 0.93f));
+    volumeFillShader.setFogColor(sunDir.w * vec3(1.0f, 1.0f, 0.93f) + moonDir.w * vec3(0.93f, 0.98f, 1.0f) * 0.22f);
 
     if (setViewMat)
     {
@@ -337,6 +344,7 @@ void Renderer::draw(float deltaTime, bool viewMatChanged, bool windowSizeChanged
 
     lambertShader.setSunViewProjMat(sunViewProjMat);
     lambertShader.setSunDir(sunDir);
+    lambertShader.setMoonDir(moonDir);
 
     terrain->draw(lambertShader, player);
 
@@ -347,6 +355,8 @@ void Renderer::draw(float deltaTime, bool viewMatChanged, bool windowSizeChanged
     }
 
     skyShader.setSunDir(sunDir);
+    skyShader.setMoonDir(moonDir);
+
     skyShader.draw(fullscreenTri);
 
     // ============================================================

@@ -6,6 +6,7 @@ uniform mat4 u_invViewMat;
 uniform mat4 u_projMat;
 
 uniform vec4 u_sunDir;
+uniform vec4 u_moonDir;
 
 in vec2 fs_uv;
 
@@ -20,11 +21,12 @@ void main() {
     vec3 worldDir = normalize(camForward + (ndc.x / u_projMat[0][0] * camRight) + (ndc.y / u_projMat[1][1] * camUp));
     vec3 worldPos = camPos + 160 * worldDir; // depth = 160 for volumetric fog
 
-    float sunFactor = u_sunDir.w; // TODO: move back to volumetric fog section once finalColor is calculated for real
-
+    float sunFactor = u_sunDir.w;
     vec3 finalColor;
     if (dot(worldDir, u_sunDir.xyz) > 0.998f) {
-        finalColor = vec3(1.f, 1.f, 1.f);
+        finalColor = vec3(1.0f, 0.8070f, 0.2542f) * 2.f;
+    } else if (dot(worldDir, u_moonDir.xyz) > 0.9992f) {
+        finalColor = vec3(0.6584f, 0.8879f, 1.0f);
     } else {
         finalColor = vec3(0.5, 0.8, 1.0) * 0.2 * mix(0.1, 1.0, sunFactor);
     }
@@ -39,7 +41,7 @@ void main() {
     vec3 colorWithFog = finalColor.rgb * transmittance + inScattering;
 
     float fogFactor = 0.5f * clamp(1 - dot(normalize(u_sunDir.xyz), vec3(0, 1, 0)), 0, 1);
-    finalColor = mix(finalColor, colorWithFog, fogFactor * sunFactor);
+    finalColor = mix(finalColor, colorWithFog, fogFactor);
 
     // set output color
     // -----------------------------------

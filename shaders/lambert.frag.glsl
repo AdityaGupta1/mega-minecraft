@@ -2,7 +2,8 @@
 
 #include defines.glsl
 
-const float sunlightStrength = 1.f;
+const vec3 sunLight = vec3(1.0f, 1.0f, 1.0f);
+const vec3 moonLight = vec3(0.8070f, 0.9823f, 1.0f) * 0.15f;
 const vec3 ambientLight = vec3(0.8, 0.98, 1.0) * 0.16f;
 
 uniform sampler2D tex_blockDiffuse;
@@ -10,6 +11,7 @@ uniform sampler2DShadow tex_shadowMap;
 uniform sampler3D tex_volume;
 
 uniform vec4 u_sunDir;
+uniform vec4 u_moonDir;
 
 in vec3 fs_pos;
 in vec3 fs_nor;
@@ -59,14 +61,21 @@ void main() {
     vec4 diffuseCol = texture(tex_blockDiffuse, fs_uv);
 
     float sunFactor = u_sunDir.w;
+    float moonFactor = u_moonDir.w;
 
-    float lambert = max(dot(fs_nor, u_sunDir.xyz), 0.0);
-    lambert *= sunFactor;
+    vec3 lambert;
+    if (sunFactor > 0) {
+        lambert = max(dot(fs_nor, u_sunDir.xyz), 0.0) * sunLight * sunFactor;
+    } else if (moonFactor > 0) {
+        lambert = max(dot(fs_nor, u_moonDir.xyz), 0.0) * moonLight * moonFactor;
+    } else {
+        lambert = vec3(0);
+    }
 
     float sunVisibility = calculateShadow();
     vec3 finalColor = (
-        ambientLight * mix(0.5, 1.0, sunFactor)
-        + (lambert * sunlightStrength * sunVisibility)
+        ambientLight * (0.2 + 0.4 * (1 - sunFactor) + 0.2 * (1 - moonFactor))
+        + (lambert * sunVisibility)
     ) * diffuseCol.rgb;
 
     vec4 scatteringInformation = texture(tex_volume, vec3(fs_volumePos));
@@ -76,7 +85,7 @@ void main() {
     vec3 colorWithFog = finalColor.rgb * transmittance + inScattering;
 
     float fogFactor = 0.5f * clamp(1 - dot(normalize(u_sunDir.xyz), vec3(0, 1, 0)), 0, 1);
-    finalColor = mix(finalColor, colorWithFog, fogFactor * sunFactor);
+    finalColor = mix(finalColor, colorWithFog, fogFactor);
 
     fragColor = vec4(finalColor, 1.f);
 }
