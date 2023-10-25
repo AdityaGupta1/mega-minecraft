@@ -4,6 +4,7 @@
 #include <iostream>
 #include "renderingUtils.hpp"
 #include "structs.hpp"
+#include <regex>
 
 ShaderProgram::ShaderProgram()
     : vertShader(-1), fragShader(-1), compShader(-1), prog(-1), 
@@ -100,6 +101,13 @@ bool checkProgLinked(GLint prog)
     return true;
 }
 
+static const std::string definesText = Utils::readFile("shaders/defines.glsl");
+
+std::string readFileAndInsertDefines(const std::string& file)
+{
+    return std::regex_replace(Utils::readFile(file), std::regex("#include defines\\.glsl"), definesText);
+}
+
 bool ShaderProgram::create(const std::string& vertFile, const std::string& fragFile)
 {
     std::cout << "creating shader from " << vertFile << " and " << fragFile << "...    ";
@@ -108,8 +116,8 @@ bool ShaderProgram::create(const std::string& vertFile, const std::string& fragF
     fragShader = glCreateShader(GL_FRAGMENT_SHADER);
     prog = glCreateProgram();
 
-    const std::string vertText = Utils::readFile(vertFile);
-    const std::string fragText = Utils::readFile(fragFile);
+    const std::string vertText = readFileAndInsertDefines(vertFile);
+    const std::string fragText = readFileAndInsertDefines(fragFile);
 
     const char* vertChars = vertText.c_str();
     const char* fragChars = fragText.c_str();
@@ -150,7 +158,7 @@ bool ShaderProgram::createCompute(const std::string& compFile)
     compShader = glCreateShader(GL_COMPUTE_SHADER);
     prog = glCreateProgram();
 
-    const std::string compText = Utils::readFile(compFile);
+    const std::string compText = readFileAndInsertDefines(compFile);
 
     const char* compChars = compText.c_str();
 

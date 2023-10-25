@@ -1,5 +1,7 @@
 #version 330
 
+#include defines.glsl
+
 const float sunlightStrength = 1.f;
 const vec3 ambientLight = vec3(0.8, 0.98, 1.0) * 0.12f;
 
@@ -9,6 +11,7 @@ uniform sampler3D tex_volume;
 
 uniform vec3 u_sunDir;
 
+in vec3 fs_pos;
 in vec3 fs_nor;
 in vec2 fs_uv;
 in vec4 fs_lightSpacePos;
