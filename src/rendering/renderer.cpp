@@ -311,8 +311,8 @@ void Renderer::draw(float deltaTime, bool viewMatChanged, bool windowSizeChanged
     {
         volumeFillShader.setViewProjMat(viewProjMat);
         volumeFillShader.setInvViewProjMat(invViewProjMat);
-        volumeFillShader.setViewMat(viewMat);
         volumeFillShader.setInvViewMat(invViewMat);
+        volumeFillShader.setProjMat(projMat);
     }
 
     volumeFillShader.dispatchCompute(1, 180, 128);

@@ -14,8 +14,8 @@ uniform mat4 u_sunViewProjMat;
 uniform mat4 u_viewProjMat;
 uniform mat4 u_invViewProjMat;
 
-uniform mat4 u_viewMat;
 uniform mat4 u_invViewMat;
+uniform mat4 u_projMat;
 
 uniform vec3 u_fogColor;
 
@@ -41,45 +41,6 @@ float getPhaseFunction(float cosPhi, float gFactor)
     return (1 - gFactor2) / pow(abs(1 + gFactor2 - 2 * gFactor * cosPhi), 1.5f) * PI_OVER_FOUR;
 }
 
-//#define NUM_SHADOW_SAMPLES 16
-//vec2 poissonDisk[NUM_SHADOW_SAMPLES] = vec2[](
-//    vec2(-0.94201624, -0.39906216),
-//    vec2(0.94558609, -0.76890725),
-//    vec2(-0.094184101, -0.92938870),
-//    vec2(0.34495938, 0.29387760),
-//    vec2(-0.91588581, 0.45771432),
-//    vec2(-0.81544232, -0.87912464),
-//    vec2(-0.38277543, 0.27676845),
-//    vec2(0.97484398, 0.75648379),
-//    vec2(0.44323325, -0.97511554),
-//    vec2(0.53742981, -0.47373420),
-//    vec2(-0.26496911, -0.41893023),
-//    vec2(0.79197514, 0.19090188),
-//    vec2(-0.24188840, 0.99706507),
-//    vec2(-0.81409955, 0.91437590),
-//    vec2(0.19984126, 0.78641367),
-//    vec2(0.14383161, -0.14100790)
-//    );
-//
-//#define POISSON_DISK_SIZE 0.0001f
-//
-//float calculateShadow(vec3 worldPos)
-//{
-//    vec4 lightSpacePos = u_sunViewProjMat * vec4(worldPos, 1);
-//    vec3 shadowCoords = lightSpacePos.xyz / lightSpacePos.w;
-//    shadowCoords = (shadowCoords + 1.f) * 0.5f;
-//
-//    float visibility = 1.0;
-//    const float visiblityPerSample = 1.f / NUM_SHADOW_SAMPLES;
-//    for (int i = 0; i < NUM_SHADOW_SAMPLES; ++i)
-//    {
-//        vec3 diskCoords = vec3(shadowCoords.xy + poissonDisk[i] * POISSON_DISK_SIZE, shadowCoords.z);
-//        visibility -= visiblityPerSample * (1.f - texture(tex_shadowMap, diskCoords));
-//    }
-//
-//    return visibility;
-//}
-
 vec3 getSunLighting(vec3 worldPos, vec3 viewDirection)
 {
     vec4 lightSpacePos = u_sunViewProjMat * vec4(worldPos, 1);
@@ -98,18 +59,12 @@ void main()
     vec3 screenCoords = screenCoordsFromThreadPos(gl_GlobalInvocationID.xyz);
     float linearDepth = volumeZPosToDepth(screenCoords.z);
 
-    // use matrix, change NDC, invert matrix
-    // TODO: make this less stupid
-    // =======================================
-    const vec3 cameraPos = u_invViewMat[3].xyz;
-    const vec3 cameraForward = -vec3(u_viewMat[0][2], u_viewMat[1][2], u_viewMat[2][2]);
-
-    vec4 depthWorldPos = vec4(cameraPos + (cameraForward * linearDepth), 1);
-    vec4 depthNDCPos = u_viewProjMat * depthWorldPos;
-    vec4 actualNDCPos = vec4(screenCoords.xy * depthNDCPos.w, depthNDCPos.zw);
-    vec4 worldPos = u_invViewProjMat * actualNDCPos;
-    worldPos /= worldPos.w;
-    // =======================================
+    const vec3 camPos = u_invViewMat[3].xyz;
+    const vec3 camForward = -vec3(u_invViewMat[2]);
+    const vec3 camRight = vec3(u_invViewMat[0]);
+    const vec3 camUp = vec3(u_invViewMat[1]);
+    vec3 worldDir = normalize(camForward + (screenCoords.x / u_projMat[0][0] * camRight) + (screenCoords.y / u_projMat[1][1] * camUp));
+    vec3 worldPos = camPos + worldDir * linearDepth;
 
     float layerThickness = volumeZPosToDepth(screenCoords.z + (1.f / 128.f)) - linearDepth;
 
@@ -117,7 +72,7 @@ void main()
     float scattering = 0.03 * dustDensity * layerThickness;
     //float absorption = 0.0f;
 
-    vec3 viewDirection = normalize(vec3(worldPos) - vec3(cameraPos));
+    vec3 viewDirection = normalize(vec3(worldPos) - vec3(camPos));
 
     vec3 lighting = getSunLighting(vec3(worldPos), viewDirection);
     lighting *= u_fogColor;
