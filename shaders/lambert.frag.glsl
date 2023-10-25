@@ -1,7 +1,7 @@
 #version 330
 
 const float sunlightStrength = 1.f;
-const vec3 ambientLight = vec3(0.8, 0.98, 1.0) * 0.16f;
+const vec3 ambientLight = vec3(0.8, 0.98, 1.0) * 0.12f;
 
 uniform sampler2D tex_blockDiffuse;
 uniform sampler2DShadow tex_shadowMap;
@@ -55,8 +55,10 @@ float calculateShadow() {
 void main() {
     vec4 diffuseCol = texture(tex_blockDiffuse, fs_uv);
 
+    float nightFactor = smoothstep(-0.1f, 0.1f, u_sunDir.y);
+
     float lambert = max(dot(fs_nor, u_sunDir), 0.0);
-    lambert *= smoothstep(-0.1f, 0.1f, u_sunDir.y);
+    lambert *= nightFactor;
 
     float sunVisibility = calculateShadow();
     vec3 finalColor = (ambientLight + (lambert * sunlightStrength * sunVisibility)) * diffuseCol.rgb;
@@ -68,7 +70,7 @@ void main() {
     vec3 colorWithFog = finalColor.rgb * transmittance + inScattering;
 
     float fogFactor = 0.5f * clamp(1 - dot(normalize(vec3(u_sunDir)), vec3(0, 1, 0)), 0, 1);
-    finalColor = mix(finalColor, colorWithFog, fogFactor);
+    finalColor = mix(finalColor, colorWithFog, fogFactor * nightFactor);
 
     fragColor = vec4(finalColor, 1.f);
 }

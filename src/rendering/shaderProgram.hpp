@@ -26,6 +26,7 @@ public:
     GLint unif_sunViewProjMat;
 
     GLint unif_sunDir;
+    GLint unif_fogColor;
 
     GLint tex_blockDiffuse;
     GLint tex_bufColor;
@@ -50,6 +51,7 @@ public:
     void setSunViewProjMat(const glm::mat4& mat) const;
 
     void setSunDir(const glm::vec3& dir) const;
+    void setFogColor(const glm::vec3& col) const;
 
     void setTexBlockDiffuse(int tex) const;
     void setTexBufColor(int tex) const;

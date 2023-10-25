@@ -236,7 +236,7 @@ void Renderer::resizeTextures()
 
 void Renderer::setProjMat()
 {
-    float fovy = this->isZoomed ? (PI_OVER_FOUR / 2.8f) : PI_OVER_FOUR;
+    float fovy = this->isZoomed ? (PI_OVER_FOUR * 0.36f) : PI_OVER_FOUR;
     projMat = glm::perspective(fovy, windowSize->x / (float)windowSize->y, 0.01f, 1000.f);
 }
 
@@ -305,6 +305,7 @@ void Renderer::draw(float deltaTime, bool viewMatChanged, bool windowSizeChanged
 
     volumeFillShader.setSunDir(sunDir);
     volumeFillShader.setSunViewProjMat(sunViewProjMat);
+    volumeFillShader.setFogColor(vec3(1.0f, 1.0f, 0.93f));
 
     if (setViewMat)
     {
@@ -314,10 +315,10 @@ void Renderer::draw(float deltaTime, bool viewMatChanged, bool windowSizeChanged
         volumeFillShader.setInvViewMat(invViewMat);
     }
 
-    volumeFillShader.dispatchCompute(320, 180, 128); // TODO: make sure these work group sizes aren't stupid (e.g. 1 thread per warp would be very bad)
+    volumeFillShader.dispatchCompute(1, 180, 128);
     glMemoryBarrier(GL_ALL_BARRIER_BITS);
 
-    volumeRaymarchShader.dispatchCompute(320, 180, 1);
+    volumeRaymarchShader.dispatchCompute(1, 180, 1);
     glMemoryBarrier(GL_ALL_BARRIER_BITS);
 
     // ============================================================
@@ -337,6 +338,7 @@ void Renderer::draw(float deltaTime, bool viewMatChanged, bool windowSizeChanged
 
     lambertShader.setSunViewProjMat(sunViewProjMat);
     lambertShader.setSunDir(sunDir);
+
     terrain->draw(lambertShader, player);
 
     if (setViewMat)
