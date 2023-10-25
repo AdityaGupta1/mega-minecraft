@@ -33,6 +33,7 @@ public:
     GLint tex_bufColor;
     GLint tex_shadowMap;
     GLint tex_volume; // image or texture, either one
+    GLint tex_bufBloomColor;
 
     ShaderProgram();
 
@@ -59,6 +60,7 @@ public:
     void setTexBufColor(int tex) const;
     void setTexShadowMap(int tex) const;
     void setTexVolume(int tex) const;
+    void setTexBufBloomColor(int tex) const;
 
     void draw(Drawable &d) const;
     void dispatchCompute(int groupsX, int groupsY, int groupsZ);

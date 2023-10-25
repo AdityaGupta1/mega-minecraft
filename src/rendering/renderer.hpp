@@ -27,6 +27,7 @@ private:
     ShaderProgram skyShader;
     ShaderProgram shadowShader;
     ShaderProgram postProcessShader1;
+    ShaderProgram postProcessShaderFinal;
 
     ShaderProgram volumeFillShader;
     ShaderProgram volumeRaymarchShader;
@@ -34,12 +35,15 @@ private:
     // framebuffer objects
     GLuint fbo_main, rbo_main;
     GLuint fbo_shadow;
+    GLuint fbo_postprocess1, rbo_postprocess1;
 
     // textures
     GLuint tex_blockDiffuse; // tex unit 0
-    GLuint tex_bufColor; // tex unit 1
+    GLuint tex_bufColor1; // tex unit 1
+    GLuint tex_bufColor2; // tex unit 4
     GLuint tex_shadow; // tex unit 2
     GLuint tex_volume; // tex unit 3, image unit 0
+    GLuint tex_bufBloomColor; // tex unit 5
 
     // other
     mat4 projMat{};

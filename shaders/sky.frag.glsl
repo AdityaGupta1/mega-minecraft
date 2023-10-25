@@ -10,7 +10,7 @@ uniform vec4 u_moonDir;
 
 in vec2 fs_uv;
 
-out vec4 fragColor;
+out vec4 out_color;
 
 void main() {
     vec3 camPos = u_invViewMat[3].xyz;
@@ -24,9 +24,9 @@ void main() {
     float sunFactor = u_sunDir.w;
     vec3 finalColor;
     if (dot(worldDir, u_sunDir.xyz) > 0.998f) {
-        finalColor = vec3(1.0f, 0.8070f, 0.2542f) * 3.f;
+        finalColor = vec3(1.0f, 0.8070f, 0.2542f) * 2.0f;
     } else if (dot(worldDir, u_moonDir.xyz) > 0.9992f) {
-        finalColor = vec3(0.6584f, 0.8879f, 1.0f) * 1.5f;
+        finalColor = vec3(0.6584f, 0.8879f, 1.0f) * 1.2f;
     } else {
         finalColor = vec3(0.5, 0.8, 1.0) * 0.2 * mix(0.1, 1.0, sunFactor);
     }
@@ -46,5 +46,5 @@ void main() {
     // set output color
     // -----------------------------------
 
-    fragColor = vec4(finalColor, 1.f);
+    out_color = vec4(finalColor, 1.f);
 }

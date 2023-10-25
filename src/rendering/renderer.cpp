@@ -16,7 +16,8 @@
 
 Renderer::Renderer(GLFWwindow* window, ivec2* windowSize, Terrain* terrain, Player* player)
     : window(window), windowSize(windowSize), terrain(terrain), player(player), vao(-1),
-      fbo_main(-1), rbo_main(-1), fbo_shadow(-1), tex_blockDiffuse(-1), tex_bufColor(-1), tex_shadow(-1), tex_volume(-1)
+      fbo_main(-1), rbo_main(-1), fbo_shadow(-1), fbo_postprocess1(-1), rbo_postprocess1(-1),
+      tex_blockDiffuse(-1), tex_bufColor1(-1), tex_shadow(-1), tex_volume(-1)
 {
     float orthoSize = 420.f;
     sunProjMat = glm::ortho<float>(
@@ -37,6 +38,10 @@ bool Renderer::init()
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_CULL_FACE);
     glCullFace(GL_BACK);
+
+    glClampColorARB(GL_CLAMP_READ_COLOR_ARB, GL_FALSE);
+    glClampColorARB(GL_CLAMP_VERTEX_COLOR_ARB, GL_FALSE);
+    glClampColorARB(GL_CLAMP_FRAGMENT_COLOR_ARB, GL_FALSE);
 
     glGenVertexArrays(1, &vao);
     glBindVertexArray(vao);
@@ -89,6 +94,7 @@ bool Renderer::initShaders()
     success &= createPostProcessShader(skyShader, "sky");
     success &= createCustomShader(shadowShader, "shadow");
     success &= createPostProcessShader(postProcessShader1, "postprocess_1");
+    success &= createPostProcessShader(postProcessShaderFinal, "postprocess_final");
 
     success &= createComputeShader(volumeFillShader, "volume_fill");
     success &= createComputeShader(volumeRaymarchShader, "volume_raymarch");
@@ -96,11 +102,11 @@ bool Renderer::initShaders()
     return success;
 }
 
-bool checkFramebufferStatus()
+bool checkFramebufferStatus(const std::string& name)
 {
     if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
     {
-        std::cout << "framebuffer no worky" << std::endl;
+        std::cout << name << " framebuffer no worky" << std::endl;
         return false;
     }
 
@@ -109,6 +115,10 @@ bool checkFramebufferStatus()
 
 bool Renderer::initFbosAndTextures()
 {
+    // ============================================================
+    // BLOCK TEXTURES
+    // ============================================================
+
     stbi_set_flip_vertically_on_load(true);
 
     glActiveTexture(GL_TEXTURE0);
@@ -139,16 +149,20 @@ bool Renderer::initFbosAndTextures()
 
     std::cout << "loaded blocks_diffuse.png" << std::endl;
 
+    // ============================================================
+    // MAIN FRAMEBUFFER
+    // ============================================================
+
     glGenFramebuffers(1, &fbo_main);
     glBindFramebuffer(GL_FRAMEBUFFER, fbo_main);
 
     glActiveTexture(GL_TEXTURE1);
-    glGenTextures(1, &tex_bufColor);
-    glBindTexture(GL_TEXTURE_2D, tex_bufColor);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, windowSize->x, windowSize->y, 0, GL_RGBA, GL_FLOAT, NULL);
+    glGenTextures(1, &tex_bufColor1);
+    glBindTexture(GL_TEXTURE_2D, tex_bufColor1);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, windowSize->x, windowSize->y, 0, GL_RGBA, GL_FLOAT, NULL);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, tex_bufColor, 0);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, tex_bufColor1, 0);
 
     glGenRenderbuffers(1, &rbo_main);
     glBindRenderbuffer(GL_RENDERBUFFER, rbo_main);
@@ -156,7 +170,7 @@ bool Renderer::initFbosAndTextures()
     glBindRenderbuffer(GL_RENDERBUFFER, 0);
     glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, rbo_main);
 
-    if (!checkFramebufferStatus())
+    if (!checkFramebufferStatus("main"))
     {
         return false;
     }
@@ -164,6 +178,10 @@ bool Renderer::initFbosAndTextures()
     postProcessShader1.setTexBufColor(1);
 
     std::cout << "created fbo_main" << std::endl;
+
+    // ============================================================
+    // SHADOW FRAMEBUFFER
+    // ============================================================
 
     glGenFramebuffers(1, &fbo_shadow);
     glBindFramebuffer(GL_FRAMEBUFFER, fbo_shadow);
@@ -189,7 +207,7 @@ bool Renderer::initFbosAndTextures()
     glDrawBuffer(GL_NONE);
     glReadBuffer(GL_NONE);
 
-    if (!checkFramebufferStatus())
+    if (!checkFramebufferStatus("shadow"))
     {
         return false;
     }
@@ -202,6 +220,10 @@ bool Renderer::initFbosAndTextures()
 #endif
 
     std::cout << "created fbo_shadow" << std::endl;
+
+    // ============================================================
+    // VOLUMETRIC FOG TEXTURE
+    // ============================================================
 
     glGenTextures(1, &tex_volume);
     // 3 is the TEXTURE IMAGE UNIT
@@ -222,16 +244,67 @@ bool Renderer::initFbosAndTextures()
     volumeFillShader.setTexVolume(0);
     volumeRaymarchShader.setTexVolume(0);
 
+    // ============================================================
+    // POSTPROCESS FRAMEBUFFER 1
+    // ============================================================
+
+    glGenFramebuffers(1, &fbo_postprocess1);
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo_postprocess1);
+
+    glActiveTexture(GL_TEXTURE4);
+    glGenTextures(1, &tex_bufColor2);
+    glBindTexture(GL_TEXTURE_2D, tex_bufColor2);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, windowSize->x, windowSize->y, 0, GL_RGBA, GL_FLOAT, NULL);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, tex_bufColor2, 0);
+
+    glActiveTexture(GL_TEXTURE5);
+    glGenTextures(1, &tex_bufBloomColor);
+    glBindTexture(GL_TEXTURE_2D, tex_bufBloomColor);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, windowSize->x, windowSize->y, 0, GL_RGBA, GL_FLOAT, NULL);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, tex_bufBloomColor, 0);
+
+    GLuint attachments[2] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1 };
+    glDrawBuffers(2, attachments);
+
+    glGenRenderbuffers(1, &rbo_postprocess1);
+    glBindRenderbuffer(GL_RENDERBUFFER, rbo_postprocess1);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, windowSize->x, windowSize->y);
+    glBindRenderbuffer(GL_RENDERBUFFER, 0);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, rbo_postprocess1);
+
+    if (!checkFramebufferStatus("postprocess 1"))
+    {
+        return false;
+    }
+
+    postProcessShaderFinal.setTexBufColor(4);
+    postProcessShaderFinal.setTexBufBloomColor(5);
+
     return true;
 }
 
 void Renderer::resizeTextures()
 {
     glActiveTexture(GL_TEXTURE1);
-    glBindTexture(GL_TEXTURE_2D, tex_bufColor);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, windowSize->x, windowSize->y, 0, GL_RGBA, GL_FLOAT, NULL);
+    glBindTexture(GL_TEXTURE_2D, tex_bufColor1);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, windowSize->x, windowSize->y, 0, GL_RGBA, GL_FLOAT, NULL);
+
+    glActiveTexture(GL_TEXTURE4);
+    glBindTexture(GL_TEXTURE_2D, tex_bufColor2);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, windowSize->x, windowSize->y, 0, GL_RGBA, GL_FLOAT, NULL);
+    
+    glActiveTexture(GL_TEXTURE5);
+    glBindTexture(GL_TEXTURE_2D, tex_bufBloomColor);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, windowSize->x, windowSize->y, 0, GL_RGBA, GL_FLOAT, NULL);
 
     glBindRenderbuffer(GL_RENDERBUFFER, rbo_main);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, windowSize->x, windowSize->y);
+
+    glBindRenderbuffer(GL_RENDERBUFFER, rbo_postprocess1);
     glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, windowSize->x, windowSize->y);
 }
 
@@ -328,7 +401,7 @@ void Renderer::draw(float deltaTime, bool viewMatChanged, bool windowSizeChanged
     glMemoryBarrier(GL_ALL_BARRIER_BITS);
 
     // ============================================================
-    // G-BUFFER
+    // G-BUFFER (MAIN)
     // ============================================================
 
     glBindFramebuffer(GL_FRAMEBUFFER, fbo_main);
@@ -360,15 +433,24 @@ void Renderer::draw(float deltaTime, bool viewMatChanged, bool windowSizeChanged
     skyShader.draw(fullscreenTri);
 
     // ============================================================
-    // VIEWPORT
+    // POSTPROCESS 1
     // ============================================================
 
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo_postprocess1);
     glViewport(0, 0, windowSize->x, windowSize->y);
 
     glDisable(GL_DEPTH_TEST);
 
     postProcessShader1.draw(fullscreenTri);
+
+    // ============================================================
+    // VIEWPORT (POSTPROCESS FINAL)
+    // ============================================================
+
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glViewport(0, 0, windowSize->x, windowSize->y);
+
+    postProcessShaderFinal.draw(fullscreenTri);
 
     glfwSwapBuffers(window);
 }

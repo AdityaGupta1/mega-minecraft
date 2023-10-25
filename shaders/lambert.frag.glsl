@@ -19,7 +19,7 @@ in vec2 fs_uv;
 in vec4 fs_lightSpacePos;
 in vec4 fs_volumePos;
 
-out vec4 fragColor;
+out vec4 out_color;
 
 #define NUM_SHADOW_SAMPLES 16
 vec2 poissonDisk[NUM_SHADOW_SAMPLES] = vec2[](
@@ -87,5 +87,5 @@ void main() {
     float fogFactor = 0.5f * clamp(1 - dot(normalize(u_sunDir.xyz), vec3(0, 1, 0)), 0, 1);
     finalColor = mix(finalColor, colorWithFog, fogFactor);
 
-    fragColor = vec4(finalColor, 1.f);
+    out_color = vec4(finalColor, 1.f);
 }
