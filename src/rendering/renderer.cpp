@@ -39,19 +39,17 @@ bool Renderer::init()
     glEnable(GL_CULL_FACE);
     glCullFace(GL_BACK);
 
-    glClampColorARB(GL_CLAMP_READ_COLOR_ARB, GL_FALSE);
-    glClampColorARB(GL_CLAMP_VERTEX_COLOR_ARB, GL_FALSE);
-    glClampColorARB(GL_CLAMP_FRAGMENT_COLOR_ARB, GL_FALSE);
-
     glGenVertexArrays(1, &vao);
     glBindVertexArray(vao);
 
     fullscreenTri.bufferVBOs();
 
-    bool success = true;
-    success &= initShaders();
-    success &= initFbosAndTextures();
-    if (!success)
+    if (!initShaders())
+    {
+        return false;
+    }
+
+    if (!initFbosAndTextures())
     {
         return false;
     }
@@ -98,6 +96,12 @@ bool Renderer::initShaders()
 
     success &= createComputeShader(volumeFillShader, "volume_fill");
     success &= createComputeShader(volumeRaymarchShader, "volume_raymarch");
+
+    if (RenderingUtils::printGLErrors())
+    {
+        std::cerr << "ERROR: Renderer::initShaders()" << std::endl;
+        return false;
+    }
 
     return success;
 }
@@ -244,6 +248,8 @@ bool Renderer::initFbosAndTextures()
     volumeFillShader.setTexVolume(0);
     volumeRaymarchShader.setTexVolume(0);
 
+    std::cout << "created tex_volume" << std::endl;
+
     // ============================================================
     // POSTPROCESS FRAMEBUFFER 1
     // ============================================================
@@ -283,6 +289,14 @@ bool Renderer::initFbosAndTextures()
 
     postProcessShaderFinal.setTexBufColor(4);
     postProcessShaderFinal.setTexBufBloomColor(5);
+
+    std::cout << "created fbo_postprocess1" << std::endl;
+
+    if (RenderingUtils::printGLErrors())
+    {
+        std::cerr << "ERROR: Renderer::initFbosAndTextures()" << std::endl;
+        return false;
+    }
 
     return true;
 }

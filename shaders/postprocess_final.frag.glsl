@@ -26,5 +26,7 @@ void main() {
     vec3 finalColor = texture(tex_bufColor, fs_uv).rgb;
     //finalColor += texture(tex_bufBloomColor, fs_uv).rgb;
 
+    finalColor = texture(tex_bufBloomColor, fs_uv).rgb;
+
     out_color = hdrToLdr(finalColor);
 }

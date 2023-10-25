@@ -327,7 +327,10 @@ void ShaderProgram::draw(Drawable& d) const
     d.bindIdx();
     glDrawElements(d.drawMode(), d.getIdxCount(), GL_UNSIGNED_INT, 0);
 
-    RenderingUtils::printGLErrors();
+    if (RenderingUtils::printGLErrors())
+    {
+        std::cerr << "ERROR: ShaderProgram::draw()" << std::endl;
+    }
 }
 
 void ShaderProgram::dispatchCompute(int groupsX, int groupsY, int groupsZ)
