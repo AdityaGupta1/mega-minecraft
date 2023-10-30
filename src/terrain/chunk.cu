@@ -288,7 +288,7 @@ void Chunk::floodFill(Chunk* (&neighborChunks)[diameter][diameter], ChunkState m
 
 template<std::size_t diameter>
 void Chunk::iterateNeighborChunks(Chunk* const (&neighborChunks)[diameter][diameter], ChunkState currentState, ChunkState nextState,
-    std::function<bool(Chunk* chunkPtr, Chunk* const (&neighborChunks)[diameter][diameter], int centerX, int centerZ)> chunkProcessor)
+    ChunkProcessorFunc<diameter> chunkProcessorFunc)
 {
     int start = diameter / 4; // assuming diameter = (4k + 1) for some k
     int end = diameter - start;
@@ -304,13 +304,21 @@ void Chunk::iterateNeighborChunks(Chunk* const (&neighborChunks)[diameter][diame
                 continue;
             }
 
-            bool isReady = chunkProcessor(chunkPtr, neighborChunks, centerX, centerZ);
+            bool isReady = chunkProcessorFunc(chunkPtr, neighborChunks, centerX, centerZ);
             if (isReady)
             {
                 chunkPtr->setState(nextState);
             }
         }
     }
+}
+
+template<std::size_t diameter>
+void Chunk::floodFillAndIterateNeighbors(ChunkState currentState, ChunkState nextState, ChunkProcessorFunc<diameter> chunkProcessorFunc)
+{
+    Chunk* neighborChunks[diameter][diameter] = {};
+    floodFill<diameter>(neighborChunks, currentState);
+    iterateNeighborChunks<diameter>(neighborChunks, currentState, nextState, chunkProcessorFunc);
 }
 
 bool Chunk::otherChunkGatherFeaturePlacements(Chunk* chunkPtr, Chunk* const (&neighborChunks)[9][9], int centerX, int centerZ)
@@ -341,12 +349,9 @@ bool Chunk::otherChunkGatherFeaturePlacements(Chunk* chunkPtr, Chunk* const (&ne
 
 void Chunk::gatherFeaturePlacements()
 {
-    Chunk* neighborChunks[9][9] = {};
-    floodFill(neighborChunks, ChunkState::HAS_HEIGHTFIELD_AND_FEATURE_PLACEMENTS);
-    iterateNeighborChunks<9>(
-        neighborChunks, 
-        ChunkState::HAS_HEIGHTFIELD_AND_FEATURE_PLACEMENTS, 
-        ChunkState::READY_TO_FILL, 
+    floodFillAndIterateNeighbors<9>(
+        ChunkState::HAS_HEIGHTFIELD_AND_FEATURE_PLACEMENTS,
+        ChunkState::READY_TO_FILL,
         &Chunk::otherChunkGatherFeaturePlacements
     );
 }

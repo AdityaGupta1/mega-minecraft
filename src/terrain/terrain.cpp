@@ -16,13 +16,13 @@
 #define DEBUG_TIME_CHUNK_FILL 0
 
 // --------------------------------------------------
-#define TOTAL_ACTION_TIME 40
+#define TOTAL_ACTION_TIME 60
 // --------------------------------------------------
 #define ACTION_TIME_GENERATE_HEIGHTFIELD 5
 #define ACTION_TIME_GATHER_FEATURE_PLACEMENTS 1
 #define ACTION_TIME_FILL 2
 #define ACTION_TIME_CREATE_VBOS 5
-#define ACTION_TIME_BUFFER_VBOS 15
+#define ACTION_TIME_BUFFER_VBOS (TOTAL_ACTION_TIME / 3)
 // --------------------------------------------------
 
 Terrain::Terrain()

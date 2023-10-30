@@ -25,6 +25,9 @@ enum class ChunkState : unsigned char
 };
 
 class Chunk : public Drawable {
+    template<std::size_t diameter>
+    using ChunkProcessorFunc = std::function<bool(Chunk* chunkPtr, Chunk* const (&neighborChunks)[diameter][diameter], int centerX, int centerZ)>;
+
 private:
     ChunkState state{ ChunkState::EMPTY };
     bool readyForQueue{ true };
@@ -60,13 +63,17 @@ public:
 
     void generateHeightfield(unsigned char* dev_heightfield, float* dev_biomeWeights, cudaStream_t stream);
 
+private:
     template<std::size_t diameter>
     void floodFill(Chunk* (&neighborChunks)[diameter][diameter], ChunkState minState);
     template<std::size_t diameter>
-    void iterateNeighborChunks(Chunk* const (&neighborChunks)[diameter][diameter], ChunkState currentState, ChunkState nextState,
-        std::function<bool(Chunk* chunkPtr, Chunk* const (&neighborChunks)[diameter][diameter], int centerX, int centerZ)> chunkProcessor);
-    
+    void iterateNeighborChunks(Chunk* const (&neighborChunks)[diameter][diameter], ChunkState currentState, ChunkState nextState, ChunkProcessorFunc<diameter> chunkProcessorFunc);
+    template<std::size_t diameter>
+    void floodFillAndIterateNeighbors(ChunkState currentState, ChunkState nextState, ChunkProcessorFunc<diameter> chunkProcessorFunc);
+
     static bool otherChunkGatherFeaturePlacements(Chunk* chunkPtr, Chunk* const (&neighborChunks)[9][9], int centerX, int centerZ);
+
+public:
     void gatherFeaturePlacements();
 
     void fill(Block* dev_blocks, unsigned char* dev_heightfield, float* dev_biomeWeights, FeaturePlacement* dev_featurePlacements, cudaStream_t stream);
