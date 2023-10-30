@@ -9,6 +9,7 @@
 #include "terrain.hpp"
 #include "biome.hpp"
 #include "cuda/cudaUtils.hpp"
+#include <functional>
 
 using namespace glm;
 
@@ -61,6 +62,10 @@ public:
 
     template<std::size_t diameter>
     void floodFill(Chunk* (&neighborChunks)[diameter][diameter], ChunkState minState);
+    template<std::size_t diameter>
+    void iterateNeighborChunks(Chunk* const (&neighborChunks)[diameter][diameter], ChunkState currentState, ChunkState nextState,
+        std::function<bool(Chunk* chunkPtr, Chunk* const (&neighborChunks)[diameter][diameter], int centerX, int centerZ)> chunkProcessor);
+    
     static bool otherChunkGatherFeaturePlacements(Chunk* chunkPtr, Chunk* const (&neighborChunks)[9][9], int centerX, int centerZ);
     void gatherFeaturePlacements();
 

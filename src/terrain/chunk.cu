@@ -285,6 +285,34 @@ void Chunk::floodFill(Chunk* (&neighborChunks)[diameter][diameter], ChunkState m
     }
 }
 
+
+template<std::size_t diameter>
+void Chunk::iterateNeighborChunks(Chunk* const (&neighborChunks)[diameter][diameter], ChunkState currentState, ChunkState nextState,
+    std::function<bool(Chunk* chunkPtr, Chunk* const (&neighborChunks)[diameter][diameter], int centerX, int centerZ)> chunkProcessor)
+{
+    int start = diameter / 4; // assuming diameter = (4k + 1) for some k
+    int end = diameter - start;
+
+    for (int centerZ = start; centerZ < end; ++centerZ)
+    {
+        for (int centerX = start; centerX < end; ++centerX)
+        {
+            const auto& chunkPtr = neighborChunks[centerZ][centerX];
+
+            if (chunkPtr == nullptr || chunkPtr->getState() != currentState)
+            {
+                continue;
+            }
+
+            bool isReady = chunkProcessor(chunkPtr, neighborChunks, centerX, centerZ);
+            if (isReady)
+            {
+                chunkPtr->setState(nextState);
+            }
+        }
+    }
+}
+
 bool Chunk::otherChunkGatherFeaturePlacements(Chunk* chunkPtr, Chunk* const (&neighborChunks)[9][9], int centerX, int centerZ)
 {
     chunkPtr->gatheredFeaturePlacements.clear();
@@ -315,25 +343,12 @@ void Chunk::gatherFeaturePlacements()
 {
     Chunk* neighborChunks[9][9] = {};
     floodFill(neighborChunks, ChunkState::HAS_HEIGHTFIELD_AND_FEATURE_PLACEMENTS);
-
-    for (int centerZ = 2; centerZ < 7; ++centerZ)
-    {
-        for (int centerX = 2; centerX < 7; ++centerX)
-        {
-            const auto& chunkPtr = neighborChunks[centerZ][centerX];
-
-            if (chunkPtr == nullptr || chunkPtr->getState() != ChunkState::HAS_HEIGHTFIELD_AND_FEATURE_PLACEMENTS)
-            {
-                continue;
-            }
-
-            bool isReady = otherChunkGatherFeaturePlacements(chunkPtr, neighborChunks, centerX, centerZ);
-            if (isReady)
-            {
-                chunkPtr->setState(ChunkState::READY_TO_FILL);
-            }
-        }
-    }
+    iterateNeighborChunks<9>(
+        neighborChunks, 
+        ChunkState::HAS_HEIGHTFIELD_AND_FEATURE_PLACEMENTS, 
+        ChunkState::READY_TO_FILL, 
+        &Chunk::otherChunkGatherFeaturePlacements
+    );
 }
 
 void Chunk::fill(
