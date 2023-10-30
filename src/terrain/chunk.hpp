@@ -67,7 +67,7 @@ private:
     template<std::size_t diameter>
     void floodFill(Chunk* (&neighborChunks)[diameter][diameter], ChunkState minState);
     template<std::size_t diameter>
-    void iterateNeighborChunks(Chunk* const (&neighborChunks)[diameter][diameter], ChunkState currentState, ChunkState nextState, ChunkProcessorFunc<diameter> chunkProcessorFunc);
+    static void iterateNeighborChunks(Chunk* const (&neighborChunks)[diameter][diameter], ChunkState currentState, ChunkState nextState, ChunkProcessorFunc<diameter> chunkProcessorFunc);
     template<std::size_t diameter>
     void floodFillAndIterateNeighbors(ChunkState currentState, ChunkState nextState, ChunkProcessorFunc<diameter> chunkProcessorFunc);
 
