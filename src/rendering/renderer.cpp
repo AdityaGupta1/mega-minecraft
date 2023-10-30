@@ -392,7 +392,7 @@ void Renderer::draw(float deltaTime, bool viewMatChanged, bool windowSizeChanged
         time += deltaTime;
     }
 
-    const float sunTime = time * 0.2f;
+    const float sunTime = time * 0.2f + 0.4f;
     float cosSunTime = cos(sunTime);
     float sinSunTime = sin(sunTime);
     const vec4 sunDir = sunDir3To4(normalize(sunRotateMat * vec3(cosSunTime, 0.55f, sinSunTime)));

@@ -240,7 +240,52 @@ void Chunk::generateHeightfield(
     generateOwnFeaturePlacements();
 }
 
-bool Chunk::otherChunkGatherFeaturePlacements(Chunk* chunkPtr, Chunk* (&neighborChunks)[9][9], int centerX, int centerZ)
+// Flood fill neighborChunks (connected chunks that exist and are at or past minState).
+// If a chunk's neighbor area is ready to go, it will be reached by flood fill (since this chunk is contained in that area).
+// By the contrapositive, if a chunk was not reached by flood fill, its neighbor area is not ready to go.
+template<std::size_t diameter>
+void Chunk::floodFill(Chunk* (&neighborChunks)[diameter][diameter], ChunkState minState)
+{
+    const int radius = diameter / 2;
+
+    std::queue<Chunk*> chunks;
+    std::unordered_set<Chunk*> visitedChunks;
+    chunks.push(this);
+
+    while (!chunks.empty())
+    {
+        auto& chunkPtr = chunks.front();
+        visitedChunks.insert(chunkPtr);
+
+        if (chunkPtr->getState() < minState)
+        {
+            continue;
+        }
+
+        ivec2 neighborChunksIdx = chunkPtr->worldChunkPos - this->worldChunkPos + ivec2(radius, radius);
+        neighborChunks[neighborChunksIdx.y][neighborChunksIdx.x] = chunkPtr;
+
+        for (const auto& neighborPtr : chunkPtr->neighbors)
+        {
+            if (neighborPtr == nullptr || visitedChunks.find(neighborPtr) != visitedChunks.end())
+            {
+                continue;
+            }
+
+            const ivec2 dist = abs(neighborPtr->worldChunkPos - this->worldChunkPos);
+            if (max(dist.x, dist.y) > radius)
+            {
+                continue;
+            }
+
+            chunks.push(neighborPtr);
+        }
+
+        chunks.pop();
+    }
+}
+
+bool Chunk::otherChunkGatherFeaturePlacements(Chunk* chunkPtr, Chunk* const (&neighborChunks)[9][9], int centerX, int centerZ)
 {
     chunkPtr->gatheredFeaturePlacements.clear();
 
@@ -269,44 +314,7 @@ bool Chunk::otherChunkGatherFeaturePlacements(Chunk* chunkPtr, Chunk* (&neighbor
 void Chunk::gatherFeaturePlacements()
 {
     Chunk* neighborChunks[9][9] = {};
-
-    // Flood fill neighborChunks (connected chunks that exist and have feature placements).
-    // If a chunk's 5x5 area is ready to go, it will be reached by flood fill (since this chunk is contained in that area).
-    // By the contrapositive, if a chunk was not reached by flood fill, its 5x5 area is not ready to go.
-    std::queue<Chunk*> chunks;
-    std::unordered_set<Chunk*> visitedChunks;
-    chunks.push(this);
-    while (!chunks.empty())
-    {
-        auto& chunkPtr = chunks.front();
-        visitedChunks.insert(chunkPtr);
-
-        if (chunkPtr->getState() < ChunkState::HAS_HEIGHTFIELD_AND_FEATURE_PLACEMENTS)
-        {
-            continue;
-        }
-
-        ivec2 neighborChunksIdx = chunkPtr->worldChunkPos - this->worldChunkPos + ivec2(4, 4);
-        neighborChunks[neighborChunksIdx.y][neighborChunksIdx.x] = chunkPtr;
-
-        for (const auto& neighborPtr : chunkPtr->neighbors)
-        {
-            if (neighborPtr == nullptr || visitedChunks.find(neighborPtr) != visitedChunks.end())
-            {
-                continue;
-            }
-
-            const ivec2 dist = abs(neighborPtr->worldChunkPos - this->worldChunkPos);
-            if (max(dist.x, dist.y) > 4)
-            {
-                continue;
-            }
-
-            chunks.push(neighborPtr);
-        }
-
-        chunks.pop();
-    }
+    floodFill(neighborChunks, ChunkState::HAS_HEIGHTFIELD_AND_FEATURE_PLACEMENTS);
 
     for (int centerZ = 2; centerZ < 7; ++centerZ)
     {
