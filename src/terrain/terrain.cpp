@@ -11,8 +11,6 @@
 #define CHUNK_FILL_RADIUS (CHUNK_VBOS_GEN_RADIUS + 2)
 #define CHUNK_GEN_HEIGHTFIELDS_RADIUS (CHUNK_FILL_RADIUS + 2)
 
-#define MULTITHREADING 0
-
 #define DEBUG_TIME_CHUNK_FILL 0
 
 // --------------------------------------------------
@@ -258,25 +256,12 @@ void Terrain::updateChunks()
 void Terrain::createChunkVbos(Chunk* chunkPtr)
 {
     chunkPtr->createVBOs();
-
-#if MULTITHREADING
-    mutex.lock();
-#endif
-
     chunkPtr->setNotReadyForQueue();
     chunksToBufferVbos.push(chunkPtr);
-
-#if MULTITHREADING
-    mutex.unlock();
-#endif
 }
 
 void Terrain::tick()
 {
-#if MULTITHREADING
-    mutex.lock();
-#endif
-
     while (!chunksToDestroyVbos.empty())
     {
         auto& chunkPtr = chunksToDestroyVbos.front();
@@ -379,25 +364,16 @@ void Terrain::tick()
         cudaDeviceSynchronize();
     }
 
-#if MULTITHREADING
-    while (!chunksToCreateVbos.empty())
-#else
     while (!chunksToCreateVbos.empty() && actionTimeLeft >= ACTION_TIME_CREATE_VBOS)
-#endif
     {
         needsUpdateChunks = true;
 
         auto& chunkPtr = chunksToCreateVbos.front();
 
-#if MULTITHREADING
-        std::thread thread(&Terrain::createChunkVbos, this, chunkPtr);
-        thread.detach();
-#else
         this->createChunkVbos(chunkPtr);
 
         chunksToCreateVbos.pop();
         actionTimeLeft -= ACTION_TIME_CREATE_VBOS;
-#endif
     }
 
     while (!chunksToBufferVbos.empty() && actionTimeLeft >= ACTION_TIME_BUFFER_VBOS)
@@ -431,10 +407,6 @@ void Terrain::tick()
             std::cout << "elapsed seconds: " << elapsedSeconds.count() << "s" << std::endl;
         }
     }
-#endif
-
-#if MULTITHREADING
-    mutex.unlock();
 #endif
 }
 
