@@ -7,26 +7,24 @@
 #include <chrono>
 #include <glm/gtx/string_cast.hpp>
 
-#define CHUNK_VBOS_GEN_RADIUS 12
+static constexpr int chunkVbosGenRadius = 12;
 // [+1] Gather heightfields of 3x3 chunks and place material stacks
 // [+1] Gather material stacks of 2x2 chunks (3x3 with closer half or quarter of neighbors) to do erosion
 // [+2] Gather eroded material stacks and feature placements of 5x5 chunks and fill features
 // [+2] Extra padding to minimize VBO recreation
-#define CHUNK_MAX_GEN_RADIUS (CHUNK_VBOS_GEN_RADIUS + 6)
-
-#define DEBUG_TIME_CHUNK_FILL 0
+static constexpr int chunkMaxGenRadius = chunkVbosGenRadius + 6;
 
 // TODO: get better estimates for these
-// ============================================================
-constexpr int totalActionTime = 100;
-// ============================================================
-constexpr int actionTimeGenerateHeightfield = 4;
-constexpr int actionTimeGenerateLayers = 6;
-constexpr int actionTimeGatherFeaturePlacements = 2;
-constexpr int actionTimeFill = 4;
-constexpr int actionTimeCreateVbos = (totalActionTime / 5);
-constexpr int actionTimeBufferVbos = (totalActionTime / 3);
-// ============================================================
+// ================================================================================
+static constexpr int totalActionTime = 100;
+// ================================================================================
+static constexpr int actionTimeGenerateHeightfield        = 4;
+static constexpr int actionTimeGenerateLayers             = 6;
+static constexpr int actionTimeGatherFeaturePlacements    = 2;
+static constexpr int actionTimeFill                       = 4;
+static constexpr int actionTimeCreateVbos                 = (totalActionTime / 5);
+static constexpr int actionTimeBufferVbos                 = (totalActionTime / 3);
+// ================================================================================
 
 Terrain::Terrain()
 {
@@ -222,7 +220,7 @@ void Terrain::updateChunk(int dx, int dz)
     }
 
     const ivec2 dist = abs(chunkPtr->worldChunkPos - this->currentChunkPos);
-    if (max(dist.x, dist.y) > CHUNK_VBOS_GEN_RADIUS)
+    if (max(dist.x, dist.y) > chunkVbosGenRadius)
     {
         return;
     }
@@ -244,9 +242,9 @@ void Terrain::updateChunk(int dx, int dz)
 // execution. Kernels and threads are spawned from Terrain::tick().
 void Terrain::updateChunks()
 {
-    for (int dz = -CHUNK_MAX_GEN_RADIUS; dz <= CHUNK_MAX_GEN_RADIUS; ++dz)
+    for (int dz = -chunkMaxGenRadius; dz <= chunkMaxGenRadius; ++dz)
     {
-        for (int dx = -CHUNK_MAX_GEN_RADIUS; dx <= CHUNK_MAX_GEN_RADIUS; ++dx)
+        for (int dx = -chunkMaxGenRadius; dx <= chunkMaxGenRadius; ++dx)
         {
             updateChunk(dx, dz);
         }
@@ -432,7 +430,7 @@ void Terrain::draw(const ShaderProgram& prog, const Player* player)
     for (const auto& chunkPtr : drawableChunks)
     {
         const ivec2 dist = abs(chunkPtr->worldChunkPos - this->currentChunkPos);
-        if (max(dist.x, dist.y) > CHUNK_VBOS_GEN_RADIUS)
+        if (max(dist.x, dist.y) > chunkVbosGenRadius)
         {
             chunksToDestroyVbos.push(chunkPtr);
             continue;
