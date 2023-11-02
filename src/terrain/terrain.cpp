@@ -46,13 +46,15 @@ std::chrono::system_clock::time_point start;
 
 static constexpr int numDevBlocks = totalActionTime / actionTimeFill;
 static constexpr int numDevHeightfields = totalActionTime / min(actionTimeGenerateHeightfield, actionTimeFill);
-static constexpr int numStreams = max(numDevBlocks, numDevHeightfields);
+static constexpr int numDevStacks = totalActionTime / min(actionTimeGenerateLayers, actionTimeFill);
+static constexpr int numStreams = max(numDevBlocks, max(numDevHeightfields, numDevStacks));
 
 static std::array<Block*, numDevBlocks> dev_blocks;
 static std::array<FeaturePlacement*, numDevBlocks> dev_featurePlacements;
 
 static std::array<float*, numDevHeightfields> dev_heightfields;
-static std::array<float*, numDevHeightfields> dev_biomeWeights;
+static std::array<float*, numDevStacks> dev_stacks;
+static std::array<float*, numDevHeightfields> dev_biomeWeights; // TODO: may need to set numDevBiomeWeights = max(numDevHeightfields, numDevStacks)
 static std::array<cudaStream_t, numStreams> streams;
 
 void Terrain::initCuda()
@@ -67,6 +69,11 @@ void Terrain::initCuda()
     {
         cudaMalloc((void**)&dev_heightfields[i], 256 * sizeof(float));
         cudaMalloc((void**)&dev_biomeWeights[i], 256 * (int)Biome::numBiomes * sizeof(float));
+    }
+
+    for (int i = 0; i < numDevStacks; ++i)
+    {
+        cudaMalloc((void**)&dev_stacks[i], 256 * (int)Material::numMaterials * sizeof(float));
     }
 
     CudaUtils::checkCUDAError("cudaMalloc failed");
@@ -91,6 +98,11 @@ void Terrain::freeCuda()
     {
         cudaFree(dev_heightfields[i]);
         cudaFree(dev_biomeWeights[i]);
+    }
+
+    for (int i = 0; i < numDevStacks; ++i)
+    {
+        cudaFree(dev_stacks[i]);
     }
 
     CudaUtils::checkCUDAError("cudaFree failed");

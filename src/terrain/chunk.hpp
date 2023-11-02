@@ -57,14 +57,14 @@ public:
     std::array<float, 256> heightfield;
     
     // iteration order = z, x, y
-    // ordered this way so one block of kernFill (one column) can load sequential memory to access terrain layers
+    // ordered this way so one thread block of kernFill (one column) can load sequential memory to access terrain layers
     // stored value is starting height of terrain layer
     std::array<float, 256 * (int)Material::numMaterials> stacks;
 
     // iteration order = z, x
     std::array<float[(int)Biome::numBiomes], 256> biomeWeights;
 
-    // iteration order = z, x, y (allows for easily copying horizontal slices of terrain)
+    // iteration order = z, x, y
     std::array<Block, 65536> blocks;
     // ===============================================================================
 
