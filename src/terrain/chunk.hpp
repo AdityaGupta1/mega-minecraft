@@ -18,7 +18,12 @@ struct Zone;
 enum class ChunkState : unsigned char
 {
     EMPTY,
-    HAS_HEIGHTFIELD_AND_FEATURE_PLACEMENTS,
+    HAS_HEIGHTFIELD,
+    NEEDS_LAYERS,
+    HAS_LAYERS,
+    NEEDS_EROSION,
+    //NEEDS_FEATURE_PLACEMENTS,
+    NEEDS_GATHER_FEATURE_PLACEMENTS,
     READY_TO_FILL, // this and 5x5 neighborhood all have feature placements
     IS_FILLED,
     DRAWABLE

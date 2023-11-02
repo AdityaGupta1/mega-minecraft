@@ -237,7 +237,7 @@ void Chunk::generateHeightfield(
 
     cudaStreamSynchronize(stream);
 
-    generateOwnFeaturePlacements();
+    generateOwnFeaturePlacements(); // TODO: maybe move to a separate step
 }
 
 // Flood fill neighborChunks (connected chunks that exist and are at or past minState).
@@ -350,7 +350,7 @@ bool Chunk::otherChunkGatherFeaturePlacements(Chunk* chunkPtr, Chunk* const (&ne
 void Chunk::gatherFeaturePlacements()
 {
     floodFillAndIterateNeighbors<9>(
-        ChunkState::HAS_HEIGHTFIELD_AND_FEATURE_PLACEMENTS,
+        ChunkState::NEEDS_GATHER_FEATURE_PLACEMENTS,
         ChunkState::READY_TO_FILL,
         &Chunk::otherChunkGatherFeaturePlacements
     );

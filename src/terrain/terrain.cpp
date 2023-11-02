@@ -202,7 +202,7 @@ void Terrain::updateChunk(int dx, int dz)
         chunkPtr->setNotReadyForQueue();
         chunksToGenerateHeightfield.push(chunkPtr);
         return;
-    case ChunkState::HAS_HEIGHTFIELD_AND_FEATURE_PLACEMENTS:
+    case ChunkState::NEEDS_GATHER_FEATURE_PLACEMENTS:
         chunkPtr->setNotReadyForQueue();
         chunksToGatherFeaturePlacements.push(chunkPtr);
         return;
@@ -309,7 +309,7 @@ void Terrain::tick()
         ++heightfieldIdx;
         ++streamIdx;
 
-        chunkPtr->setState(ChunkState::HAS_HEIGHTFIELD_AND_FEATURE_PLACEMENTS);
+        chunkPtr->setState(ChunkState::NEEDS_GATHER_FEATURE_PLACEMENTS);
 
         chunksToGenerateHeightfield.pop();
         actionTimeLeft -= ACTION_TIME_GENERATE_HEIGHTFIELD;
