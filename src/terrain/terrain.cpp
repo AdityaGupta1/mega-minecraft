@@ -18,14 +18,14 @@
 
 // TODO: get better estimates for these
 // ============================================================
-#define TOTAL_ACTION_TIME 100
+constexpr int totalActionTime = 100;
 // ============================================================
-#define ACTION_TIME_GENERATE_HEIGHTFIELD 4
-#define ACTION_TIME_GENERATE_LAYERS 6
-#define ACTION_TIME_GATHER_FEATURE_PLACEMENTS 2
-#define ACTION_TIME_FILL 4
-#define ACTION_TIME_CREATE_VBOS (TOTAL_ACTION_TIME / 5)
-#define ACTION_TIME_BUFFER_VBOS (TOTAL_ACTION_TIME / 3)
+constexpr int actionTimeGenerateHeightfield = 4;
+constexpr int actionTimeGenerateLayers = 6;
+constexpr int actionTimeGatherFeaturePlacements = 2;
+constexpr int actionTimeFill = 4;
+constexpr int actionTimeCreateVbos = (totalActionTime / 5);
+constexpr int actionTimeBufferVbos = (totalActionTime / 3);
 // ============================================================
 
 Terrain::Terrain()
@@ -44,8 +44,8 @@ bool finishedTiming = false;
 std::chrono::system_clock::time_point start;
 #endif
 
-static constexpr int numDevBlocks = TOTAL_ACTION_TIME / ACTION_TIME_FILL;
-static constexpr int numDevHeightfields = TOTAL_ACTION_TIME / min(ACTION_TIME_GENERATE_HEIGHTFIELD, ACTION_TIME_FILL);
+static constexpr int numDevBlocks = totalActionTime / actionTimeFill;
+static constexpr int numDevHeightfields = totalActionTime / min(actionTimeGenerateHeightfield, actionTimeFill);
 static constexpr int numStreams = max(numDevBlocks, numDevHeightfields);
 
 static std::array<Block*, numDevBlocks> dev_blocks;
@@ -285,13 +285,13 @@ void Terrain::tick()
         needsUpdateChunks = false;
     }
 
-    int actionTimeLeft = TOTAL_ACTION_TIME;
+    int actionTimeLeft = totalActionTime;
 
     int blocksIdx = 0;
     int heightfieldIdx = 0;
     int streamIdx = 0;
 
-    while (!chunksToGenerateHeightfield.empty() && actionTimeLeft >= ACTION_TIME_GENERATE_HEIGHTFIELD)
+    while (!chunksToGenerateHeightfield.empty() && actionTimeLeft >= actionTimeGenerateHeightfield)
     {
         needsUpdateChunks = true;
 
@@ -299,7 +299,7 @@ void Terrain::tick()
         chunksToGenerateHeightfield.pop();
 
         chunkPtr->generateHeightfield(
-            dev_heightfields[heightfieldIdx], 
+            dev_heightfields[heightfieldIdx],
             dev_biomeWeights[heightfieldIdx],
             streams[streamIdx]
         );
@@ -308,10 +308,10 @@ void Terrain::tick()
 
         chunkPtr->setState(ChunkState::NEEDS_LAYERS);
 
-        actionTimeLeft -= ACTION_TIME_GENERATE_HEIGHTFIELD;
+        actionTimeLeft -= actionTimeGenerateHeightfield;
     }
 
-    while (!chunksToGenerateLayers.empty() && actionTimeLeft >= ACTION_TIME_GENERATE_LAYERS)
+    while (!chunksToGenerateLayers.empty() && actionTimeLeft >= actionTimeGenerateLayers)
     {
         needsUpdateChunks = true;
 
@@ -322,10 +322,10 @@ void Terrain::tick()
 
         chunkPtr->setState(ChunkState::NEEDS_GATHER_FEATURE_PLACEMENTS);
 
-        actionTimeLeft -= ACTION_TIME_GENERATE_LAYERS;
+        actionTimeLeft -= actionTimeGenerateLayers;
     }
 
-    while (!chunksToGatherFeaturePlacements.empty() && actionTimeLeft >= ACTION_TIME_GATHER_FEATURE_PLACEMENTS)
+    while (!chunksToGatherFeaturePlacements.empty() && actionTimeLeft >= actionTimeGatherFeaturePlacements)
     {
         needsUpdateChunks = true;
 
@@ -334,10 +334,10 @@ void Terrain::tick()
 
         chunkPtr->gatherFeaturePlacements(); // this will set state to READY_TO_FILL if 5x5 neighborhood chunks all have feature placements
 
-        actionTimeLeft -= ACTION_TIME_GATHER_FEATURE_PLACEMENTS;
+        actionTimeLeft -= actionTimeGatherFeaturePlacements;
     }
 
-    while (!chunksToFill.empty() && actionTimeLeft >= ACTION_TIME_FILL)
+    while (!chunksToFill.empty() && actionTimeLeft >= actionTimeFill)
     {
         needsUpdateChunks = true;
 
@@ -345,9 +345,9 @@ void Terrain::tick()
         chunksToFill.pop();
 
         chunkPtr->fill(
-            dev_blocks[blocksIdx], 
-            dev_heightfields[heightfieldIdx], 
-            dev_biomeWeights[heightfieldIdx], 
+            dev_blocks[blocksIdx],
+            dev_heightfields[heightfieldIdx],
+            dev_biomeWeights[heightfieldIdx],
             dev_featurePlacements[blocksIdx],
             streams[streamIdx]
         );
@@ -366,7 +366,7 @@ void Terrain::tick()
             }
         }
 
-        actionTimeLeft -= ACTION_TIME_FILL;
+        actionTimeLeft -= actionTimeFill;
     }
 
     if (streamIdx > 0)
@@ -374,7 +374,7 @@ void Terrain::tick()
         cudaDeviceSynchronize();
     }
 
-    while (!chunksToCreateVbos.empty() && actionTimeLeft >= ACTION_TIME_CREATE_VBOS)
+    while (!chunksToCreateVbos.empty() && actionTimeLeft >= actionTimeCreateVbos)
     {
         needsUpdateChunks = true;
 
@@ -383,10 +383,10 @@ void Terrain::tick()
 
         this->createChunkVbos(chunkPtr);
 
-        actionTimeLeft -= ACTION_TIME_CREATE_VBOS;
+        actionTimeLeft -= actionTimeCreateVbos;
     }
 
-    while (!chunksToBufferVbos.empty() && actionTimeLeft >= ACTION_TIME_BUFFER_VBOS)
+    while (!chunksToBufferVbos.empty() && actionTimeLeft >= actionTimeBufferVbos)
     {
         auto chunkPtr = chunksToBufferVbos.front();
         chunksToBufferVbos.pop();
@@ -395,7 +395,7 @@ void Terrain::tick()
         drawableChunks.insert(chunkPtr);
         chunkPtr->setState(ChunkState::DRAWABLE);
 
-        actionTimeLeft -= ACTION_TIME_BUFFER_VBOS;
+        actionTimeLeft -= actionTimeBufferVbos;
     }
 
 #if DEBUG_TIME_CHUNK_FILL
@@ -425,7 +425,8 @@ static const std::array<ivec3, 8> chunkCornerOffsets = {
     ivec3(0, 256, 0), ivec3(16, 256, 0), ivec3(16, 256, 16), ivec3(0, 256, 16)
 };
 
-void Terrain::draw(const ShaderProgram& prog, const Player* player) {
+void Terrain::draw(const ShaderProgram& prog, const Player* player)
+{
     mat4 modelMat = mat4(1);
 
     for (const auto& chunkPtr : drawableChunks)
@@ -466,7 +467,7 @@ void Terrain::draw(const ShaderProgram& prog, const Player* player) {
     }
 }
 
-void Terrain::setCurrentChunkPos(ivec2 newCurrentChunk) 
+void Terrain::setCurrentChunkPos(ivec2 newCurrentChunk)
 {
     this->currentChunkPos = newCurrentChunk;
 }
