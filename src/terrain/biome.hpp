@@ -2,7 +2,7 @@
 
 #include "block.hpp"
 
-#define MAX_FEATURES_PER_CHUNK 128
+#define MAX_FEATURES_PER_CHUNK 256
 
 enum class Biome : unsigned char
 {

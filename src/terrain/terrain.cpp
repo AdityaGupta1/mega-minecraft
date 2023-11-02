@@ -7,6 +7,8 @@
 #include <chrono>
 #include <glm/gtx/string_cast.hpp>
 
+#define DEBUG_TIME_CHUNK_FILL 0
+
 static constexpr int chunkVbosGenRadius = 12;
 // [+1] Gather heightfields of 3x3 chunks and place material stacks
 // [+1] Gather material stacks of 2x2 chunks (3x3 with closer half or quarter of neighbors) to do erosion
