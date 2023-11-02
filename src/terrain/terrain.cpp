@@ -7,21 +7,26 @@
 #include <chrono>
 #include <glm/gtx/string_cast.hpp>
 
-#define CHUNK_VBOS_GEN_RADIUS 16
-#define CHUNK_FILL_RADIUS (CHUNK_VBOS_GEN_RADIUS + 2)
-#define CHUNK_GEN_HEIGHTFIELDS_RADIUS (CHUNK_FILL_RADIUS + 2)
+#define CHUNK_VBOS_GEN_RADIUS 12
+// [+1] Gather heightfields of 3x3 chunks and place material stacks
+// [+1] Gather material stacks of 2x2 chunks (3x3 with closer half or quarter of neighbors) to do erosion
+// [+2] Gather eroded material stacks and feature placements of 5x5 chunks and fill features
+// [+2] Extra padding to minimize VBO recreation
+#define CHUNK_MAX_GEN_RADIUS (CHUNK_VBOS_GEN_RADIUS + 6)
 
 #define DEBUG_TIME_CHUNK_FILL 0
 
-// --------------------------------------------------
-#define TOTAL_ACTION_TIME 60
-// --------------------------------------------------
-#define ACTION_TIME_GENERATE_HEIGHTFIELD 5
-#define ACTION_TIME_GATHER_FEATURE_PLACEMENTS 1
-#define ACTION_TIME_FILL 2
-#define ACTION_TIME_CREATE_VBOS 5
+// TODO: get better estimates for these
+// ============================================================
+#define TOTAL_ACTION_TIME 100
+// ============================================================
+#define ACTION_TIME_GENERATE_HEIGHTFIELD 4
+#define ACTION_TIME_GENERATE_LAYERS 6
+#define ACTION_TIME_GATHER_FEATURE_PLACEMENTS 2
+#define ACTION_TIME_FILL 4
+#define ACTION_TIME_CREATE_VBOS (TOTAL_ACTION_TIME / 5)
 #define ACTION_TIME_BUFFER_VBOS (TOTAL_ACTION_TIME / 3)
-// --------------------------------------------------
+// ============================================================
 
 Terrain::Terrain()
 {
@@ -202,26 +207,21 @@ void Terrain::updateChunk(int dx, int dz)
         chunkPtr->setNotReadyForQueue();
         chunksToGenerateHeightfield.push(chunkPtr);
         return;
+    case ChunkState::NEEDS_LAYERS:
+        chunkPtr->setNotReadyForQueue();
+        chunksToGenerateLayers.push(chunkPtr);
+        return;
     case ChunkState::NEEDS_GATHER_FEATURE_PLACEMENTS:
         chunkPtr->setNotReadyForQueue();
         chunksToGatherFeaturePlacements.push(chunkPtr);
         return;
-    }
-
-    const ivec2 dist = abs(chunkPtr->worldChunkPos - this->currentChunkPos);
-    if (max(dist.x, dist.y) > CHUNK_FILL_RADIUS)
-    {
-        return;
-    }
-
-    switch (chunkPtr->getState())
-    {
     case ChunkState::READY_TO_FILL:
         chunkPtr->setNotReadyForQueue();
         chunksToFill.push(chunkPtr);
         return;
     }
 
+    const ivec2 dist = abs(chunkPtr->worldChunkPos - this->currentChunkPos);
     if (max(dist.x, dist.y) > CHUNK_VBOS_GEN_RADIUS)
     {
         return;
@@ -244,9 +244,9 @@ void Terrain::updateChunk(int dx, int dz)
 // execution. Kernels and threads are spawned from Terrain::tick().
 void Terrain::updateChunks()
 {
-    for (int dz = -CHUNK_GEN_HEIGHTFIELDS_RADIUS; dz <= CHUNK_GEN_HEIGHTFIELDS_RADIUS; ++dz)
+    for (int dz = -CHUNK_MAX_GEN_RADIUS; dz <= CHUNK_MAX_GEN_RADIUS; ++dz)
     {
-        for (int dx = -CHUNK_GEN_HEIGHTFIELDS_RADIUS; dx <= CHUNK_GEN_HEIGHTFIELDS_RADIUS; ++dx)
+        for (int dx = -CHUNK_MAX_GEN_RADIUS; dx <= CHUNK_MAX_GEN_RADIUS; ++dx)
         {
             updateChunk(dx, dz);
         }
@@ -264,13 +264,13 @@ void Terrain::tick()
 {
     while (!chunksToDestroyVbos.empty())
     {
-        auto& chunkPtr = chunksToDestroyVbos.front();
+        auto chunkPtr = chunksToDestroyVbos.front();
+        chunksToDestroyVbos.pop();
 
         drawableChunks.erase(chunkPtr);
         chunkPtr->destroyVBOs();
         chunkPtr->setState(ChunkState::IS_FILLED);
 
-        chunksToDestroyVbos.pop();
     }
 
     if (currentChunkPos != lastChunkPos)
@@ -285,10 +285,6 @@ void Terrain::tick()
         needsUpdateChunks = false;
     }
 
-    // TODO: temporary (?) system to weight VBO creation more than chunk filling
-    // Will probably want to get better estimates for how much time these things take, especially as
-    // terrain generation becomes more complicated. This also means that all chunks get filled before
-    // any get VBOs created, which should help reduce the frequency of VBO recreation.
     int actionTimeLeft = TOTAL_ACTION_TIME;
 
     int blocksIdx = 0;
@@ -299,7 +295,8 @@ void Terrain::tick()
     {
         needsUpdateChunks = true;
 
-        auto& chunkPtr = chunksToGenerateHeightfield.front();
+        auto chunkPtr = chunksToGenerateHeightfield.front();
+        chunksToGenerateHeightfield.pop();
 
         chunkPtr->generateHeightfield(
             dev_heightfields[heightfieldIdx], 
@@ -309,21 +306,34 @@ void Terrain::tick()
         ++heightfieldIdx;
         ++streamIdx;
 
+        chunkPtr->setState(ChunkState::NEEDS_LAYERS);
+
+        actionTimeLeft -= ACTION_TIME_GENERATE_HEIGHTFIELD;
+    }
+
+    while (!chunksToGenerateLayers.empty() && actionTimeLeft >= ACTION_TIME_GENERATE_LAYERS)
+    {
+        needsUpdateChunks = true;
+
+        auto chunkPtr = chunksToGenerateLayers.front();
+        chunksToGenerateLayers.pop();
+
+        // TODO: actually generate layers
+
         chunkPtr->setState(ChunkState::NEEDS_GATHER_FEATURE_PLACEMENTS);
 
-        chunksToGenerateHeightfield.pop();
-        actionTimeLeft -= ACTION_TIME_GENERATE_HEIGHTFIELD;
+        actionTimeLeft -= ACTION_TIME_GENERATE_LAYERS;
     }
 
     while (!chunksToGatherFeaturePlacements.empty() && actionTimeLeft >= ACTION_TIME_GATHER_FEATURE_PLACEMENTS)
     {
         needsUpdateChunks = true;
 
-        auto& chunkPtr = chunksToGatherFeaturePlacements.front();
+        auto chunkPtr = chunksToGatherFeaturePlacements.front();
+        chunksToGatherFeaturePlacements.pop();
 
         chunkPtr->gatherFeaturePlacements(); // this will set state to READY_TO_FILL if 5x5 neighborhood chunks all have feature placements
 
-        chunksToGatherFeaturePlacements.pop();
         actionTimeLeft -= ACTION_TIME_GATHER_FEATURE_PLACEMENTS;
     }
 
@@ -331,7 +341,8 @@ void Terrain::tick()
     {
         needsUpdateChunks = true;
 
-        auto& chunkPtr = chunksToFill.front();
+        auto chunkPtr = chunksToFill.front();
+        chunksToFill.pop();
 
         chunkPtr->fill(
             dev_blocks[blocksIdx], 
@@ -355,7 +366,6 @@ void Terrain::tick()
             }
         }
 
-        chunksToFill.pop();
         actionTimeLeft -= ACTION_TIME_FILL;
     }
 
@@ -368,23 +378,23 @@ void Terrain::tick()
     {
         needsUpdateChunks = true;
 
-        auto& chunkPtr = chunksToCreateVbos.front();
+        auto chunkPtr = chunksToCreateVbos.front();
+        chunksToCreateVbos.pop();
 
         this->createChunkVbos(chunkPtr);
 
-        chunksToCreateVbos.pop();
         actionTimeLeft -= ACTION_TIME_CREATE_VBOS;
     }
 
     while (!chunksToBufferVbos.empty() && actionTimeLeft >= ACTION_TIME_BUFFER_VBOS)
     {
-        auto& chunkPtr = chunksToBufferVbos.front();
+        auto chunkPtr = chunksToBufferVbos.front();
+        chunksToBufferVbos.pop();
 
         chunkPtr->bufferVBOs();
         drawableChunks.insert(chunkPtr);
         chunkPtr->setState(ChunkState::DRAWABLE);
 
-        chunksToBufferVbos.pop();
         actionTimeLeft -= ACTION_TIME_BUFFER_VBOS;
     }
 

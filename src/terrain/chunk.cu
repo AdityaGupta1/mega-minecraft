@@ -125,8 +125,7 @@ __global__ void kernFill(
     const int idx = posToIndex(x, y, z);
 
     const int idx2d = posToIndex(x, z);
-    // TODO: use shared memory to load heightfield
-    // right now, each thread block covers exactly one column, so shared memory should have to load only one height value and one set of biome weights
+    // TODO: use shared memory to load heightfield and material stacks
     const float height = heightfield[idx2d];
     const float* columnBiomeWeights = biomeWeights + (int)Biome::numBiomes * idx2d;
 
@@ -254,7 +253,8 @@ void Chunk::floodFill(Chunk* (&neighborChunks)[diameter][diameter], ChunkState m
 
     while (!chunks.empty())
     {
-        auto& chunkPtr = chunks.front();
+        auto chunkPtr = chunks.front();
+        chunks.pop();
         visitedChunks.insert(chunkPtr);
 
         if (chunkPtr->getState() < minState)
@@ -280,8 +280,6 @@ void Chunk::floodFill(Chunk* (&neighborChunks)[diameter][diameter], ChunkState m
 
             chunks.push(neighborPtr);
         }
-
-        chunks.pop();
     }
 }
 
