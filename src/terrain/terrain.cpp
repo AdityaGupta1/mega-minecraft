@@ -9,7 +9,7 @@
 
 #define DEBUG_TIME_CHUNK_FILL 0
 
-static constexpr int chunkVbosGenRadius = 12;
+static constexpr int chunkVbosGenRadius = 16;
 // [+1] Gather heightfields of 3x3 chunks and place material stacks
 // [+1] Gather material stacks of 2x2 chunks (3x3 with closer half or quarter of neighbors) to do erosion
 // [+2] Gather eroded material stacks and feature placements of 5x5 chunks and fill features

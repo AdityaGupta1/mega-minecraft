@@ -9,11 +9,11 @@ __device__ float fbm(vec2 pos)
 {
     float fbm = 0.f;
     float amplitude = 1.f;
-    for (int i = 0; i < 4; ++i)
+    for (int i = 0; i < 5; ++i)
     {
         amplitude *= 0.5f;
-        pos *= 2.f;
         fbm += amplitude * glm::simplex(pos);
+        pos *= 2.f;
     }
     return fbm;
 }
@@ -38,13 +38,14 @@ __device__ float getHeight(Biome biome, vec2 pos)
     switch (biome)
     {
     case Biome::PLAINS:
-        return 80.f + 8.f * fbm(pos * 0.009f);
+        return 80.f + 8.f * fbm(pos * 0.016f);
     case Biome::DESERT:
-        return 70.f + 5.f * fbm(pos * 0.005f);
+        return 70.f + 5.f * fbm(pos * 0.010f);
     case Biome::PURPLE_MUSHROOMS:
-        return 72.f + 6.f * fbm(pos * 0.004f);
+        return 72.f + 6.f * fbm(pos * 0.008f);
     case Biome::METEORS:
-        return 75.f + 7.f * fbm(pos * 0.007f);
+        float simplex = pow(abs(fbm(pos * 0.003f)), 2.f) * 4.f;
+        return 75.f + 50.f * simplex;
     }
 }
 
