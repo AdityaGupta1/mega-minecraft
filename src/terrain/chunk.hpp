@@ -47,9 +47,21 @@ public:
 
     // TODO: use vector or something for heightfield and biomeWeights so they can be cleared after use (to save memory)
     // Will need to consider which things can't be cleared so simply (e.g. feature placements of thise chunk are used by other chunks too)
-    std::array<unsigned char, 256> heightfield; // iteration order = z, x
-    std::array<float[(int)Biome::numBiomes], 256> biomeWeights; // iteration order = z, x
-    std::array<Block, 65536> blocks; // iteration order = z, x, y (allows for easily copying horizontal slices of terrain)
+    // ===============================================================================
+    // iteration order = z, x
+    std::array<float, 256> heightfield;
+    
+    // iteration order = z, x, y
+    // ordered this way so one block of kernFill (one column) can load sequential memory to access terrain layers
+    // stored value is starting height of terrain layer
+    std::array<float, 256 * (int)Material::numMaterials> stacks;
+
+    // iteration order = z, x
+    std::array<float[(int)Biome::numBiomes], 256> biomeWeights;
+
+    // iteration order = z, x, y (allows for easily copying horizontal slices of terrain)
+    std::array<Block, 65536> blocks;
+    // ===============================================================================
 
     std::vector<GLuint> idx;
     std::vector<Vertex> verts;
@@ -61,7 +73,7 @@ public:
     bool isReadyForQueue();
     void setNotReadyForQueue();
 
-    void generateHeightfield(unsigned char* dev_heightfield, float* dev_biomeWeights, cudaStream_t stream);
+    void generateHeightfield(float* dev_heightfield, float* dev_biomeWeights, cudaStream_t stream);
 
 private:
     template<std::size_t diameter>
@@ -76,7 +88,7 @@ private:
 public:
     void gatherFeaturePlacements();
 
-    void fill(Block* dev_blocks, unsigned char* dev_heightfield, float* dev_biomeWeights, FeaturePlacement* dev_featurePlacements, cudaStream_t stream);
+    void fill(Block* dev_blocks, float* dev_heightfield, float* dev_biomeWeights, FeaturePlacement* dev_featurePlacements, cudaStream_t stream);
 
     void createVBOs();
     void bufferVBOs() override;

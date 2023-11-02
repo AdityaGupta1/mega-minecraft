@@ -46,7 +46,7 @@ static constexpr int numStreams = max(numDevBlocks, numDevHeightfields);
 static std::array<Block*, numDevBlocks> dev_blocks;
 static std::array<FeaturePlacement*, numDevBlocks> dev_featurePlacements;
 
-static std::array<unsigned char*, numDevHeightfields> dev_heightfields;
+static std::array<float*, numDevHeightfields> dev_heightfields;
 static std::array<float*, numDevHeightfields> dev_biomeWeights;
 static std::array<cudaStream_t, numStreams> streams;
 
@@ -60,7 +60,7 @@ void Terrain::initCuda()
 
     for (int i = 0; i < numDevHeightfields; ++i)
     {
-        cudaMalloc((void**)&dev_heightfields[i], 256 * sizeof(unsigned char));
+        cudaMalloc((void**)&dev_heightfields[i], 256 * sizeof(float));
         cudaMalloc((void**)&dev_biomeWeights[i], 256 * (int)Biome::numBiomes * sizeof(float));
     }
 

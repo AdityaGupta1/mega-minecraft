@@ -11,7 +11,6 @@ enum class Biome : unsigned char
     PURPLE_MUSHROOMS,
     METEORS,
 
-    // not an actual biome, just for counting
     numBiomes
 };
 
@@ -20,6 +19,26 @@ struct BiomeBlocks
     Block blockTop;
     Block blockMid;
     Block blockStone;
+};
+
+enum class Material : unsigned char
+{
+    // stratified
+    STONE,
+
+    // eroded
+    DIRT,
+
+    numMaterials
+};
+
+const int numStratifiedMaterials = 1;
+
+struct MaterialInfo
+{
+    float thickness;
+    float roughnessOrAngleOfRepose;
+    float maximumSlope;
 };
 
 enum class Feature : unsigned char

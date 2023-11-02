@@ -57,7 +57,7 @@ int posToIndex(const ivec2 pos)
 }
 
 __global__ void kernGenerateHeightfield(
-    unsigned char* heightfield,
+    float* heightfield,
     float* biomeWeights,
     ivec3 worldBlockPos)
 {
@@ -94,7 +94,7 @@ __global__ void kernGenerateHeightfield(
 
         columnBiomeWeights[i] = weight;
     }
-    heightfield[idx] = (int)height;
+    heightfield[idx] = height;
 }
 
 __host__ __device__ Biome getRandomBiome(const float* columnBiomeWeights, float rand)
@@ -111,7 +111,7 @@ __host__ __device__ Biome getRandomBiome(const float* columnBiomeWeights, float 
 
 __global__ void kernFill(
     Block* blocks, 
-    unsigned char* heightfield, 
+    float* heightfield, 
     float* biomeWeights, 
     FeaturePlacement* dev_featurePlacements, 
     int numFeaturePlacements,
@@ -127,7 +127,7 @@ __global__ void kernFill(
     const int idx2d = posToIndex(x, z);
     // TODO: use shared memory to load heightfield
     // right now, each thread block covers exactly one column, so shared memory should have to load only one height value and one set of biome weights
-    const unsigned char height = heightfield[idx2d];
+    const float height = heightfield[idx2d];
     const float* columnBiomeWeights = biomeWeights + (int)Biome::numBiomes * idx2d;
 
     const ivec3 worldBlockPos = chunkWorldBlockPos + ivec3(x, y, z);
@@ -141,11 +141,11 @@ __global__ void kernFill(
     {
         block = Block::AIR;
     }
-    else if (y == height)
+    else if (y > height - 1)
     {
         block = biomeBlocks.blockTop;
     }
-    else if (y >= height - 3)
+    else if (y > height - 4)
     {
         block = biomeBlocks.blockMid;
     }
@@ -217,7 +217,7 @@ void Chunk::generateOwnFeaturePlacements()
 }
 
 void Chunk::generateHeightfield(
-    unsigned char* dev_heightfield, 
+    float* dev_heightfield, 
     float* dev_biomeWeights, 
     cudaStream_t stream)
 {
@@ -231,7 +231,7 @@ void Chunk::generateHeightfield(
     );
     CudaUtils::checkCUDAError("kernGenerateHeightfield failed");
 
-    cudaMemcpyAsync(this->heightfield.data(), dev_heightfield, 256 * sizeof(unsigned char), cudaMemcpyDeviceToHost, stream);
+    cudaMemcpyAsync(this->heightfield.data(), dev_heightfield, 256 * sizeof(float), cudaMemcpyDeviceToHost, stream);
     cudaMemcpyAsync(this->biomeWeights.data(), dev_biomeWeights, 256 * (int)Biome::numBiomes * sizeof(float), cudaMemcpyDeviceToHost, stream);
     CudaUtils::checkCUDAError("cudaMemcpy to host failed");
 
@@ -358,7 +358,7 @@ void Chunk::gatherFeaturePlacements()
 
 void Chunk::fill(
     Block* dev_blocks, 
-    unsigned char* dev_heightfield, 
+    float* dev_heightfield, 
     float* dev_biomeWeights, 
     FeaturePlacement* dev_featurePlacements, 
     cudaStream_t stream)
@@ -376,7 +376,7 @@ void Chunk::fill(
     cudaMemcpyAsync(dev_featurePlacements, this->gatheredFeaturePlacements.data(), numFeaturePlacements * sizeof(FeaturePlacement), cudaMemcpyHostToDevice, stream);
     this->gatheredFeaturePlacements.clear();
 
-    cudaMemcpyAsync(dev_heightfield, this->heightfield.data(), 256 * sizeof(unsigned char), cudaMemcpyHostToDevice, stream);
+    cudaMemcpyAsync(dev_heightfield, this->heightfield.data(), 256 * sizeof(float), cudaMemcpyHostToDevice, stream);
     cudaMemcpyAsync(dev_biomeWeights, this->biomeWeights.data(), 256 * (int)Biome::numBiomes * sizeof(float), cudaMemcpyHostToDevice, stream);
     CudaUtils::checkCUDAError("cudaMemcpy to device failed");
 
