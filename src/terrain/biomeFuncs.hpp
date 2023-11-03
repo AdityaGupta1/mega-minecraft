@@ -71,6 +71,7 @@ void BiomeUtils::init()
 
     MaterialInfo* host_materialInfos = new MaterialInfo[(int)Material::numMaterials];
 
+    // block, thickness, noise amplitude, noise scale
     host_materialInfos[(int)Material::BLACKSTONE] = { Block::BLACKSTONE, 56.f, 32.f, 0.0030f };
     host_materialInfos[(int)Material::DEEPSLATE] = { Block::DEEPSLATE, 48.f, 24.f, 0.0045f };
     host_materialInfos[(int)Material::SLATE] = { Block::SLATE, 4.f, 24.f, 0.0062f };
@@ -81,7 +82,15 @@ void BiomeUtils::init()
     host_materialInfos[(int)Material::MARBLE] = { Block::MARBLE, 24.f, 56.f, 0.0050f };
     host_materialInfos[(int)Material::ANDESITE] = { Block::ANDESITE, 24.f, 48.f, 0.0030f };
 
-    host_materialInfos[(int)Material::DIRT] = { Block::DIRT };
+    // block, thickness, angle of repose (degrees), maximum slope
+    host_materialInfos[(int)Material::DIRT] = { Block::DIRT, 3.f, 35.f, 0.8f };
+
+    // convert angles of repose into their tangents
+    for (int layerIdx = numStratifiedMaterials; layerIdx < (int)Material::numMaterials; ++layerIdx)
+    {
+        auto& materialInfo = host_materialInfos[layerIdx];
+        materialInfo.noiseAmplitudeOrTanAngleOfRepose = tanf(glm::radians(materialInfo.noiseAmplitudeOrTanAngleOfRepose));
+    }
 
     cudaMemcpyToSymbol(dev_materialInfos, host_materialInfos, (int)Material::numMaterials * sizeof(MaterialInfo));
 

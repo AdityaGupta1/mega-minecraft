@@ -274,8 +274,8 @@ __global__ void kernGenerateLayers(
         if (layerIdx != numStratifiedMaterials - 1)
         {
             const auto& materialInfo = dev_materialInfos[layerIdx];
-            vec2 noisePos = worldPos * materialInfo.noiseScaleOrMaximumSlope + vec2(layerIdx * 5283.64f);
-            height += max(0.f, materialInfo.thickness + materialInfo.noiseAmplitudeOrAngleOfRepose * fbm(noisePos));
+            vec2 noisePos = worldPos * materialInfo.noiseScaleOrMaxSlope + vec2(layerIdx * 5283.64f);
+            height += max(0.f, materialInfo.thickness + materialInfo.noiseAmplitudeOrTanAngleOfRepose * fbm(noisePos));
         }
     }
 

@@ -47,8 +47,8 @@ struct MaterialInfo
 {
     Block block;
     float thickness;
-    float noiseAmplitudeOrAngleOfRepose;
-    float noiseScaleOrMaximumSlope;
+    float noiseAmplitudeOrTanAngleOfRepose;
+    float noiseScaleOrMaxSlope;
 };
 
 enum class Feature : unsigned char
