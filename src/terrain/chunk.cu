@@ -245,13 +245,20 @@ __global__ void kernGenerateLayers(
 
     const vec2 worldPos = vec2(chunkWorldBlockPos.x + x, chunkWorldBlockPos.z + z);
 
+    const float maxHeight = heightfield[idx];
+
     float* columnLayers = layers + (int)Material::numMaterials * idx;
 
     float height = 0;
-    for (int layerIdx = 0; layerIdx < (int)Material::numMaterials; ++layerIdx)
+    for (int layerIdx = 0; layerIdx < numStratifiedMaterials; ++layerIdx)
     {
         columnLayers[layerIdx] = height;
         height += 86.3f;
+    }
+
+    for (int layerIdx = numStratifiedMaterials; layerIdx < (int)Material::numMaterials; ++layerIdx)
+    {
+        columnLayers[layerIdx] = maxHeight; // TODO: replace this with actual calculations
     }
 }
 
@@ -421,7 +428,7 @@ __global__ void kernFill(
         }
 
         // TODO: if this is the top block, replace it with biome-specific option (e.g. dirt to grass or mycelium depending on biome)
-        block = dev_materialBlocks[thisLayerIdx];
+        block = dev_materialBlocks[thisLayerIdx].block;
     }
 
     if (y < featureHeightBounds[0] || y > featureHeightBounds[1])

@@ -24,13 +24,13 @@ struct BiomeBlocks
 enum class Material : unsigned char
 {
     // stratified
-    //DEEPSLATE,
+    BLACKSTONE,
+    DEEPSLATE,
     STONE,
-    //BLACKSTONE,
-    //TUFF,
-    //CALCITE,
-    //ANDESITE,
-    //MARBLE,
+    TUFF,
+    CALCITE,
+    ANDESITE,
+    MARBLE,
 
     // eroded
     DIRT,
@@ -42,9 +42,10 @@ const int numStratifiedMaterials = 1;
 
 struct MaterialInfo
 {
+    Block block;
     float thickness;
     float roughnessOrAngleOfRepose;
-    float maximumSlope;
+    float biasOrMaximumSlope;
 };
 
 enum class Feature : unsigned char

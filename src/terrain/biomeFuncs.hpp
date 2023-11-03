@@ -50,7 +50,7 @@ __device__ float getHeight(Biome biome, vec2 pos)
 }
 
 //__constant__ BiomeBlocks dev_biomeBlocks[(int)Biome::numBiomes]; // TODO: convert to only top block for use with hashing transitions (replace generic top block with biome-specific top block)
-__constant__ Block dev_materialBlocks[(int)Material::numMaterials];
+__constant__ MaterialInfo dev_materialBlocks[(int)Material::numMaterials];
 
 static std::array<std::vector<FeatureGen>, (int)Biome::numBiomes> biomeFeatureGens;
 static std::array<ivec2, (int)Feature::numFeatures> featureHeightBounds;
@@ -68,12 +68,19 @@ void BiomeUtils::init()
 
     //delete[] host_biomeBlocks;
 
-    Block* host_materialBlocks = new Block[(int)Material::numMaterials];
+    MaterialInfo* host_materialBlocks = new MaterialInfo[(int)Material::numMaterials];
 
-    host_materialBlocks[(int)Material::STONE] = Block::DEEPSLATE;
-    host_materialBlocks[(int)Material::DIRT] = Block::CALCITE;
+    host_materialBlocks[(int)Material::BLACKSTONE] = { Block::BLACKSTONE };
+    host_materialBlocks[(int)Material::DEEPSLATE] = { Block::DEEPSLATE };
+    host_materialBlocks[(int)Material::STONE] = { Block::STONE };
+    host_materialBlocks[(int)Material::TUFF] = { Block::TUFF };
+    host_materialBlocks[(int)Material::CALCITE] = { Block::CALCITE };
+    host_materialBlocks[(int)Material::ANDESITE] = { Block::ANDESITE };
+    host_materialBlocks[(int)Material::MARBLE] = { Block::MARBLE };
 
-    cudaMemcpyToSymbol(dev_materialBlocks, host_materialBlocks, (int)Material::numMaterials * sizeof(Block));
+    host_materialBlocks[(int)Material::DIRT] = { Block::DIRT };
+
+    cudaMemcpyToSymbol(dev_materialBlocks, host_materialBlocks, (int)Material::numMaterials * sizeof(MaterialInfo));
 
     delete[] host_materialBlocks;
 
