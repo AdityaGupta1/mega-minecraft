@@ -62,7 +62,7 @@ void Terrain::initCuda()
 {
     for (int i = 0; i < numDevBlocks; ++i)
     {
-        cudaMalloc((void**)&dev_blocks[i], 65536 * sizeof(Block));
+        cudaMalloc((void**)&dev_blocks[i], 98304 * sizeof(Block));
         cudaMalloc((void**)&dev_featurePlacements[i], MAX_FEATURES_PER_CHUNK * sizeof(FeaturePlacement));
     }
 

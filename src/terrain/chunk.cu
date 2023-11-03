@@ -53,7 +53,7 @@ int posTo2dIndex(const ivec2 pos)
 __host__ __device__
 int posTo3dBlockIndex(const int x, const int y, const int z)
 {
-    return y + 256 * posTo2dIndex(x, z);
+    return y + 384 * posTo2dIndex(x, z);
 }
 
 __host__ __device__
@@ -481,7 +481,7 @@ void Chunk::fill(
     cudaMemcpyAsync(dev_layers, this->layers.data(), 256 * (int)Material::numMaterials * sizeof(float), cudaMemcpyHostToDevice, stream);
     cudaMemcpyAsync(dev_biomeWeights, this->biomeWeights.data(), 256 * (int)Biome::numBiomes * sizeof(float), cudaMemcpyHostToDevice, stream);
 
-    const dim3 blockSize3d(1, 256, 1);
+    const dim3 blockSize3d(1, 384, 1);
     const dim3 blocksPerGrid3d(16, 1, 16);
     kernFill<<<blocksPerGrid3d, blockSize3d, 0, stream>>>(
         dev_blocks, 
@@ -494,7 +494,7 @@ void Chunk::fill(
         this->worldBlockPos
     );
     
-    cudaMemcpyAsync(this->blocks.data(), dev_blocks, 65536 * sizeof(Block), cudaMemcpyDeviceToHost, stream);
+    cudaMemcpyAsync(this->blocks.data(), dev_blocks, 98304 * sizeof(Block), cudaMemcpyDeviceToHost, stream);
 
     CudaUtils::checkCUDAError("Chunk::fill() failed");
 }

@@ -65,7 +65,7 @@ public:
     std::array<float[(int)Biome::numBiomes], 256> biomeWeights;
 
     // iteration order = z, x, y
-    std::array<Block, 65536> blocks;
+    std::array<Block, 98304> blocks;
     // ===============================================================================
 
     std::vector<GLuint> idx;
