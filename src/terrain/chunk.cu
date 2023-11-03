@@ -281,7 +281,7 @@ __global__ void kernGenerateLayers(
 
     for (int layerIdx = numStratifiedMaterials; layerIdx < (int)Material::numMaterials; ++layerIdx)
     {
-        columnLayers[layerIdx] = maxHeight; // TODO: replace this with actual calculations
+        columnLayers[layerIdx] = maxHeight - 1.f; // TODO: replace this with actual calculations
     }
 }
 
@@ -438,8 +438,18 @@ __global__ void kernFill(
     Block block = Block::AIR;
     if (y < height)
     {
+        int layerIdxStart;
+        if (y >= shared_layersAndHeight[numStratifiedMaterials])
+        {
+            layerIdxStart = numStratifiedMaterials;
+        }
+        else
+        {
+            layerIdxStart = 0;
+        }
+
         int thisLayerIdx = -1;
-        for (int layerIdx = 0; layerIdx < (int)Material::numMaterials + 1; ++layerIdx)
+        for (int layerIdx = layerIdxStart; layerIdx < (int)Material::numMaterials + 1; ++layerIdx)
         {
             if (y < shared_layersAndHeight[layerIdx])
             {
