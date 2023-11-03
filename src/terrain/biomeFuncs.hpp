@@ -70,7 +70,7 @@ void BiomeUtils::init()
 
     Block* host_materialBlocks = new Block[(int)Material::numMaterials];
 
-    host_materialBlocks[(int)Material::STONE] = Block::BLACKSTONE;
+    host_materialBlocks[(int)Material::STONE] = Block::TUFF;
     host_materialBlocks[(int)Material::DIRT] = Block::CALCITE;
 
     cudaMemcpyToSymbol(dev_materialBlocks, host_materialBlocks, (int)Material::numMaterials * sizeof(Block));

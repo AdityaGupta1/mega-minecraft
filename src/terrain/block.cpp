@@ -24,6 +24,7 @@ void BlockUtils::init()
     blockDatas[(int)Block::ANDESITE] = { BlockUvs(ivec2(14, 0)).setRandomRotation() };
     blockDatas[(int)Block::CALCITE] = { BlockUvs(ivec2(15, 0)) };
     blockDatas[(int)Block::BLACKSTONE] = { BlockUvs(ivec2(0, 1), ivec2(1, 1)) };
+    blockDatas[(int)Block::TUFF] = { BlockUvs(ivec2(2, 1)) };
 }
 
 BlockData BlockUtils::getBlockData(Block block)

@@ -20,6 +20,7 @@ enum class Block : unsigned char
     ANDESITE,
     CALCITE,
     BLACKSTONE,
+    TUFF,
 
     numBlocks
 };
