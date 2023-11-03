@@ -91,6 +91,8 @@ private:
     static bool otherChunkGatherFeaturePlacements(Chunk* chunkPtr, Chunk* const (&neighborChunks)[9][9], int centerX, int centerZ);
 
 public:
+    void generateLayers();
+
     void gatherFeaturePlacements();
 
     void fill(Block* dev_blocks, float* dev_heightfield, float* dev_biomeWeights, FeaturePlacement* dev_featurePlacements, cudaStream_t stream);

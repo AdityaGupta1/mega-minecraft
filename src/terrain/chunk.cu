@@ -11,6 +11,8 @@ Chunk::Chunk(ivec2 worldChunkPos)
     : worldChunkPos(worldChunkPos), worldBlockPos(worldChunkPos.x * 16, 0, worldChunkPos.y * 16)
 {}
 
+#pragma region state functions
+
 ChunkState Chunk::getState()
 {
     return this->state;
@@ -31,6 +33,10 @@ void Chunk::setNotReadyForQueue()
 {
     this->readyForQueue = false;
 }
+
+#pragma endregion
+
+#pragma region utility functions
 
 __host__ __device__
 int posToIndex(const int x, const int y, const int z)
@@ -55,6 +61,24 @@ int posToIndex(const ivec2 pos)
 {
     return posToIndex(pos.x, pos.y);
 }
+
+__host__ __device__ Biome getRandomBiome(const float* columnBiomeWeights, float rand)
+{
+    for (int i = 0; i < (int)Biome::numBiomes; ++i)
+    {
+        rand -= columnBiomeWeights[i];
+        if (rand <= 0.f)
+        {
+            return (Biome)i;
+        }
+    }
+
+    return Biome::PLAINS;
+}
+
+#pragma endregion
+
+#pragma region heightfield
 
 __global__ void kernGenerateHeightfield(
     float* heightfield,
@@ -97,126 +121,6 @@ __global__ void kernGenerateHeightfield(
     heightfield[idx] = height;
 }
 
-__host__ __device__ Biome getRandomBiome(const float* columnBiomeWeights, float rand)
-{
-    for (int i = 0; i < (int)Biome::numBiomes; ++i)
-    {
-        rand -= columnBiomeWeights[i];
-        if (rand <= 0.f)
-        {
-            return (Biome)i;
-        }
-    }
-
-    return Biome::PLAINS;
-}
-
-__global__ void kernFill(
-    Block* blocks, 
-    float* heightfield, 
-    float* biomeWeights, 
-    FeaturePlacement* dev_featurePlacements, 
-    int numFeaturePlacements,
-    ivec2 featureHeightBounds,
-    ivec3 chunkWorldBlockPos)
-{
-    const int x = (blockIdx.x * blockDim.x) + threadIdx.x;
-    const int y = (blockIdx.y * blockDim.y) + threadIdx.y;
-    const int z = (blockIdx.z * blockDim.z) + threadIdx.z;
-
-    const int idx = posToIndex(x, y, z);
-
-    const int idx2d = posToIndex(x, z);
-    // TODO: use shared memory to load heightfield and material stacks
-    const float height = heightfield[idx2d];
-    const float* columnBiomeWeights = biomeWeights + (int)Biome::numBiomes * idx2d;
-
-    const ivec3 worldBlockPos = chunkWorldBlockPos + ivec3(x, y, z);
-    auto rng = makeSeededRandomEngine(worldBlockPos.x, worldBlockPos.y, worldBlockPos.z);
-    thrust::uniform_real_distribution<float> u01(0, 1);
-
-    BiomeBlocks biomeBlocks = dev_biomeBlocks[(int)getRandomBiome(columnBiomeWeights, u01(rng))];
-
-    Block block = biomeBlocks.blockStone;
-    if (y > height)
-    {
-        block = Block::AIR;
-    }
-    else if (y > height - 1)
-    {
-        block = biomeBlocks.blockTop;
-    }
-    else if (y > height - 4)
-    {
-        block = biomeBlocks.blockMid;
-    }
-
-    if (y < featureHeightBounds[0] || y > featureHeightBounds[1])
-    {
-        blocks[idx] = block;
-        return;
-    }
-
-    Block featureBlock;
-    bool placedFeature = false;
-    for (int featureIdx = 0; featureIdx < numFeaturePlacements; ++featureIdx)
-    {
-        if (placeFeature(dev_featurePlacements[featureIdx], worldBlockPos, &featureBlock))
-        {
-            placedFeature = true;
-            break;
-        }
-    }
-
-    if (placedFeature)
-    {
-        block = featureBlock;
-    }
-
-    blocks[idx] = block;
-}
-
-void Chunk::generateOwnFeaturePlacements()
-{
-    for (int localZ = 0; localZ < 16; ++localZ)
-    {
-        for (int localX = 0; localX < 16; ++localX)
-        {
-            const int idx2d = posToIndex(localX, localZ);
-
-            const auto& columnBiomeWeights = biomeWeights[idx2d];
-
-            const ivec3 worldBlockPos = this->worldBlockPos + ivec3(localX, heightfield[idx2d], localZ);
-            auto rng = makeSeededRandomEngine(worldBlockPos.x, worldBlockPos.y, worldBlockPos.z, 7); // arbitrary w so this rng is different than heightfield rng
-            thrust::uniform_real_distribution<float> u01(0, 1);
-
-            Biome biome = getRandomBiome(columnBiomeWeights, u01(rng));
-            const auto& featureGens = BiomeUtils::getBiomeFeatureGens(biome);
-
-            Feature feature = Feature::NONE;
-            float rand = u01(rng);
-            for (int i = 0; i < featureGens.size(); ++i)
-            {
-                const auto& featureGen = featureGens[i];
-
-                rand -= featureGen.chancePerBlock;
-                if (rand <= 0.f)
-                {
-                    feature = featureGen.feature;
-                    break;
-                }
-            }
-
-            if (feature != Feature::NONE)
-            {
-                this->featurePlacements.push_back({feature, worldBlockPos});
-            }
-        }
-    }
-
-    // this probably won't include decorators (single block/column things) since those can be done on the CPU at the end of Chunk::fill()
-}
-
 void Chunk::generateHeightfield(
     float* dev_heightfield, 
     float* dev_biomeWeights, 
@@ -240,6 +144,10 @@ void Chunk::generateHeightfield(
 
     generateOwnFeaturePlacements(); // TODO: maybe move to a separate step
 }
+
+#pragma endregion
+
+#pragma region flood fill and iterate
 
 // Flood fill neighborChunks (connected chunks that exist and are at or past minState).
 // If a chunk's neighbor area is ready to go, it will be reached by flood fill (since this chunk is contained in that area).
@@ -321,6 +229,51 @@ void Chunk::floodFillAndIterateNeighbors(ChunkState currentState, ChunkState nex
     iterateNeighborChunks<diameter>(neighborChunks, currentState, nextState, chunkProcessorFunc);
 }
 
+#pragma endregion
+
+#pragma region feature placements
+
+void Chunk::generateOwnFeaturePlacements()
+{
+    for (int localZ = 0; localZ < 16; ++localZ)
+    {
+        for (int localX = 0; localX < 16; ++localX)
+        {
+            const int idx2d = posToIndex(localX, localZ);
+
+            const auto& columnBiomeWeights = biomeWeights[idx2d];
+
+            const ivec3 worldBlockPos = this->worldBlockPos + ivec3(localX, heightfield[idx2d], localZ);
+            auto rng = makeSeededRandomEngine(worldBlockPos.x, worldBlockPos.y, worldBlockPos.z, 7); // arbitrary w so this rng is different than heightfield rng
+            thrust::uniform_real_distribution<float> u01(0, 1);
+
+            Biome biome = getRandomBiome(columnBiomeWeights, u01(rng));
+            const auto& featureGens = BiomeUtils::getBiomeFeatureGens(biome);
+
+            Feature feature = Feature::NONE;
+            float rand = u01(rng);
+            for (int i = 0; i < featureGens.size(); ++i)
+            {
+                const auto& featureGen = featureGens[i];
+
+                rand -= featureGen.chancePerBlock;
+                if (rand <= 0.f)
+                {
+                    feature = featureGen.feature;
+                    break;
+                }
+            }
+
+            if (feature != Feature::NONE)
+            {
+                this->featurePlacements.push_back({ feature, worldBlockPos });
+            }
+        }
+    }
+
+    // this probably won't include decorators (single block/column things) since those can be done on the CPU at the end of Chunk::fill()
+}
+
 bool Chunk::otherChunkGatherFeaturePlacements(Chunk* chunkPtr, Chunk* const (&neighborChunks)[9][9], int centerX, int centerZ)
 {
     chunkPtr->gatheredFeaturePlacements.clear();
@@ -354,6 +307,75 @@ void Chunk::gatherFeaturePlacements()
         ChunkState::READY_TO_FILL,
         &Chunk::otherChunkGatherFeaturePlacements
     );
+}
+
+#pragma endregion
+
+#pragma region chunk fill
+
+__global__ void kernFill(
+    Block* blocks,
+    float* heightfield,
+    float* biomeWeights,
+    FeaturePlacement* dev_featurePlacements,
+    int numFeaturePlacements,
+    ivec2 featureHeightBounds,
+    ivec3 chunkWorldBlockPos)
+{
+    const int x = (blockIdx.x * blockDim.x) + threadIdx.x;
+    const int y = (blockIdx.y * blockDim.y) + threadIdx.y;
+    const int z = (blockIdx.z * blockDim.z) + threadIdx.z;
+
+    const int idx = posToIndex(x, y, z);
+
+    const int idx2d = posToIndex(x, z);
+    // TODO: use shared memory to load heightfield and material stacks
+    const float height = heightfield[idx2d];
+    const float* columnBiomeWeights = biomeWeights + (int)Biome::numBiomes * idx2d;
+
+    const ivec3 worldBlockPos = chunkWorldBlockPos + ivec3(x, y, z);
+    auto rng = makeSeededRandomEngine(worldBlockPos.x, worldBlockPos.y, worldBlockPos.z);
+    thrust::uniform_real_distribution<float> u01(0, 1);
+
+    BiomeBlocks biomeBlocks = dev_biomeBlocks[(int)getRandomBiome(columnBiomeWeights, u01(rng))];
+
+    Block block = biomeBlocks.blockStone;
+    if (y > height)
+    {
+        block = Block::AIR;
+    }
+    else if (y > height - 1)
+    {
+        block = biomeBlocks.blockTop;
+    }
+    else if (y > height - 4)
+    {
+        block = biomeBlocks.blockMid;
+    }
+
+    if (y < featureHeightBounds[0] || y > featureHeightBounds[1])
+    {
+        blocks[idx] = block;
+        return;
+    }
+
+    Block featureBlock;
+    bool placedFeature = false;
+    for (int featureIdx = 0; featureIdx < numFeaturePlacements; ++featureIdx)
+    {
+        if (placeFeature(dev_featurePlacements[featureIdx], worldBlockPos, &featureBlock))
+        {
+            placedFeature = true;
+            break;
+        }
+    }
+
+    if (placedFeature)
+    {
+        block = featureBlock;
+    }
+
+    blocks[idx] = block;
 }
 
 void Chunk::fill(
@@ -397,6 +419,10 @@ void Chunk::fill(
     cudaMemcpyAsync(this->blocks.data(), dev_blocks, 65536 * sizeof(Block), cudaMemcpyDeviceToHost, stream);
     CudaUtils::checkCUDAError("cudaMemcpy to host failed");
 }
+
+#pragma endregion
+
+#pragma region VBOs
 
 static const std::array<ivec3, 24> directionVertPositions = {
     ivec3(0, 0, 1), ivec3(1, 0, 1), ivec3(1, 1, 1), ivec3(0, 1, 1),
@@ -561,3 +587,5 @@ void Chunk::bufferVBOs()
     idx.clear();
     verts.clear();
 }
+
+#pragma endregion
