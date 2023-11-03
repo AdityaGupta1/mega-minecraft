@@ -18,7 +18,7 @@ static constexpr int chunkMaxGenRadius = chunkVbosGenRadius + 6;
 
 // TODO: get better estimates for these
 // ================================================================================
-static constexpr int totalActionTime = 1000;
+static constexpr int totalActionTime = 100;
 // ================================================================================
 static constexpr int actionTimeGenerateHeightfield        = 4;
 static constexpr int actionTimeGenerateLayers             = 6;

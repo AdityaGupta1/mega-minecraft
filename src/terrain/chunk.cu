@@ -84,7 +84,7 @@ __host__ __device__ Biome getRandomBiome(const float* columnBiomeWeights, float 
 
 __device__ float getBiomeNoise(vec2 pos, float noiseScale, vec2 offset, float smoothstepThreshold, float overallBiomeScale)
 {
-    glm::smoothstep(-smoothstepThreshold * overallBiomeScale, smoothstepThreshold * overallBiomeScale, glm::simplex(pos * noiseScale + offset));
+    return glm::smoothstep(-smoothstepThreshold * overallBiomeScale, smoothstepThreshold * overallBiomeScale, glm::simplex(pos * noiseScale + offset));
 }
 
 __global__ void kernGenerateHeightfield(

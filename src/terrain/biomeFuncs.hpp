@@ -38,17 +38,15 @@ __device__ float getHeight(Biome biome, vec2 pos)
     switch (biome)
     {
     case Biome::PLAINS:
-        return 144.f + 8.f * fbm(pos * 0.016f);
+        return 144.f + 8.f * fbm(pos * 0.0160f);
     case Biome::DESERT:
-        return 134.f + 5.f * fbm(pos * 0.010f);
+        return 134.f + 5.f * fbm(pos * 0.0100f);
     case Biome::PURPLE_MUSHROOMS:
-        return 136.f + 6.f * fbm(pos * 0.008f);
+        return 136.f + 6.f * fbm(pos * 0.0080f);
     case Biome::METEORS:
-        //float simplex = pow(abs(fbm(pos * 0.0027f)) + 0.05f, 2.f) * 4.f;
-        //return 139.f + 60.f * simplex;
-        float noise = pow(abs(fbm(pos * 0.0015f)) + 0.05f, 2.f);
+        float noise = pow(abs(fbm(pos * 0.0028f)) + 0.05f, 2.f);
         noise += ((fbm(pos * 0.0050f) - 0.5f) * 2.f) * 0.05f;
-        return 196.f + 180.f * (noise - 0.5f);
+        return 165.f + 120.f * (noise - 0.2f);
     }
 }
 
