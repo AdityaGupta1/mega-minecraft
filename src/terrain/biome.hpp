@@ -24,7 +24,13 @@ struct BiomeBlocks
 enum class Material : unsigned char
 {
     // stratified
+    //DEEPSLATE,
     STONE,
+    //BLACKSTONE,
+    //TUFF,
+    //CALCITE,
+    //ANDESITE,
+    //MARBLE,
 
     // eroded
     DIRT,
