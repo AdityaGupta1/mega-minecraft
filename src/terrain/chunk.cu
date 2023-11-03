@@ -275,7 +275,7 @@ bool Chunk::otherChunkGatherHeightfield(Chunk* chunkPtr, Chunk* const (&neighbor
 
                 for (int z = 0; z < 16; ++z)
                 {
-                    chunkPtr->gatheredHeightfield[posTo2dIndex<18>(xOut, z + 1)] = chunkPtr->heightfield[posTo2dIndex(xIn, z)];
+                    chunkPtr->gatheredHeightfield[posTo2dIndex<18>(xOut, z + 1)] = neighborPtr->heightfield[posTo2dIndex(xIn, z)];
                 }
             }
             else
@@ -286,7 +286,7 @@ bool Chunk::otherChunkGatherHeightfield(Chunk* chunkPtr, Chunk* const (&neighbor
 
                 for (int x = 0; x < 16; ++x)
                 {
-                    chunkPtr->gatheredHeightfield[posTo2dIndex<18>(x + 1, zOut)] = chunkPtr->heightfield[posTo2dIndex(x, zIn)];
+                    chunkPtr->gatheredHeightfield[posTo2dIndex<18>(x + 1, zOut)] = neighborPtr->heightfield[posTo2dIndex(x, zIn)];
                 }
             }
         }
@@ -296,7 +296,7 @@ bool Chunk::otherChunkGatherHeightfield(Chunk* chunkPtr, Chunk* const (&neighbor
             int xIn, xOut, zIn, zOut;
             copyEdge(offsetX, xIn, xOut);
             copyEdge(offsetZ, zIn, zOut);
-            chunkPtr->gatheredHeightfield[posTo2dIndex<18>(xOut, zOut)] = chunkPtr->heightfield[posTo2dIndex(xIn, zIn)];
+            chunkPtr->gatheredHeightfield[posTo2dIndex<18>(xOut, zOut)] = neighborPtr->heightfield[posTo2dIndex(xIn, zIn)];
         }
     }
 
@@ -349,7 +349,16 @@ __global__ void kernGenerateLayers(
 
     __syncthreads();
 
-    const float maxHeight = shared_heightfield[posTo2dIndex<18>(x + 1, z + 1)];
+    const ivec2 pos18 = ivec2(x + 1, z + 1);
+    const float maxHeight = shared_heightfield[posTo2dIndex<18>(pos18)];
+
+    float slope = 0;
+    #pragma unroll
+    for (int i = 0; i < 8; ++i)
+    {
+        float neighborHeight = shared_heightfield[posTo2dIndex<18>(pos18 + dev_dirVecs2d[i])];
+        slope = max(slope, abs(neighborHeight - maxHeight));
+    }
 
     float* columnLayers = layers + (int)Material::numMaterials * idx;
 
@@ -372,9 +381,23 @@ __global__ void kernGenerateLayers(
         }
     }
 
-    for (int layerIdx = numStratifiedMaterials; layerIdx < (int)Material::numMaterials; ++layerIdx)
+    height = maxHeight;
+    for (int layerIdx = (int)Material::numMaterials - 1; layerIdx >= numStratifiedMaterials; --layerIdx)
     {
-        columnLayers[layerIdx] = maxHeight - 1.f; // TODO: replace this with actual calculations
+        const auto& materialInfo = dev_materialInfos[layerIdx];
+
+        float layerHeight;
+        if (slope > materialInfo.noiseScaleOrMaxSlope)
+        {
+            layerHeight = 0;
+        }
+        else
+        {
+            layerHeight = materialInfo.thickness * ((materialInfo.noiseScaleOrMaxSlope - slope) / materialInfo.noiseScaleOrMaxSlope);
+        }
+
+        height -= layerHeight;
+        columnLayers[layerIdx] = height;
     }
 }
 
@@ -543,17 +566,28 @@ __global__ void kernFill(
         }
 
         int thisLayerIdx = -1;
+        bool isTopBlock;
         for (int layerIdx = layerIdxStart; layerIdx < (int)Material::numMaterials + 1; ++layerIdx)
         {
             if (y < shared_layersAndHeight[layerIdx])
             {
                 thisLayerIdx = layerIdx - 1;
+                isTopBlock = shared_layersAndHeight[layerIdx] - y < 1.f;
                 break;
             }
         }
 
-        // TODO: if this is the top block, replace it with biome-specific option (e.g. dirt to grass or mycelium depending on biome)
         block = dev_materialInfos[thisLayerIdx].block;
+        if (isTopBlock)
+        {
+            // TODO: use biome-specific options (e.g. dirt to grass or mycelium depending on biome)
+            // also need to support replacing other things (maybe just make top block a generic block that always gets replaced?
+
+            if (block == Block::DIRT)
+            {
+                block = Block::GRASS;
+            }
+        }
     }
 
     if (y < featureHeightBounds[0] || y > featureHeightBounds[1])

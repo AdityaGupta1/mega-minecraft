@@ -37,6 +37,7 @@ namespace DirectionEnums
         ivec2(0, -1),
         ivec2(-1, -1),
         ivec2(-1, 0),
+        ivec2(-1, 1),
     };
 
     const static std::array<ivec3, 6> dirVecs = {

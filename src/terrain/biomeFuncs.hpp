@@ -53,6 +53,8 @@ __device__ float getHeight(Biome biome, vec2 pos)
 //__constant__ BiomeBlocks dev_biomeBlocks[(int)Biome::numBiomes]; // TODO: convert to only top block for use with hashing transitions (replace generic top block with biome-specific top block)
 __constant__ MaterialInfo dev_materialInfos[(int)Material::numMaterials];
 
+__constant__ ivec2 dev_dirVecs2d[8];
+
 static std::array<std::vector<FeatureGen>, (int)Biome::numBiomes> biomeFeatureGens;
 static std::array<ivec2, (int)Feature::numFeatures> featureHeightBounds;
 
@@ -83,7 +85,7 @@ void BiomeUtils::init()
     host_materialInfos[(int)Material::ANDESITE] = { Block::ANDESITE, 24.f, 48.f, 0.0030f };
 
     // block, thickness, angle of repose (degrees), maximum slope
-    host_materialInfos[(int)Material::DIRT] = { Block::DIRT, 3.f, 35.f, 0.8f };
+    host_materialInfos[(int)Material::DIRT] = { Block::DIRT, 2.5f, 35.f, 1.4f };
 
     // convert angles of repose into their tangents
     for (int layerIdx = numStratifiedMaterials; layerIdx < (int)Material::numMaterials; ++layerIdx)
@@ -95,6 +97,8 @@ void BiomeUtils::init()
     cudaMemcpyToSymbol(dev_materialInfos, host_materialInfos, (int)Material::numMaterials * sizeof(MaterialInfo));
 
     delete[] host_materialInfos;
+
+    cudaMemcpyToSymbol(dev_dirVecs2d, DirectionEnums::dirVecs2d.data(), 8 * sizeof(ivec2));
 
     biomeFeatureGens[(int)Biome::PURPLE_MUSHROOMS] = { {Feature::PURPLE_MUSHROOM, 0.004f} };
 
