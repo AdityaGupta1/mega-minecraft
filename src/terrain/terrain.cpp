@@ -7,12 +7,12 @@
 #include <chrono>
 #include <glm/gtx/string_cast.hpp>
 
-#define DEBUG_TIME_CHUNK_FILL 0
+#define DEBUG_TIME_CHUNK_FILL 1
 
 static constexpr int chunkVbosGenRadius = 16;
-// [+1] Gather heightfields of 3x3 chunks and place material stacks
-// [+1] Gather material stacks of 2x2 chunks (3x3 with closer half or quarter of neighbors) to do erosion
-// [+2] Gather eroded material stacks and feature placements of 5x5 chunks and fill features
+// [+1] Gather heightfields of 3x3 chunks and place material layers
+// [+1] Gather material layers of 2x2 chunks (3x3 with closer half or quarter of neighbors) to do erosion
+// [+2] Gather eroded material layers and feature placements of 5x5 chunks and fill features
 // [+2] Extra padding to minimize VBO recreation
 static constexpr int chunkMaxGenRadius = chunkVbosGenRadius + 6;
 
@@ -45,16 +45,17 @@ std::chrono::system_clock::time_point start;
 #endif
 
 static constexpr int numDevBlocks = totalActionTime / actionTimeFill;
-static constexpr int numDevHeightfields = totalActionTime / min(actionTimeGenerateHeightfield, actionTimeFill);
-static constexpr int numDevStacks = totalActionTime / min(actionTimeGenerateLayers, actionTimeFill);
-static constexpr int numStreams = max(numDevBlocks, max(numDevHeightfields, numDevStacks));
+static constexpr int numDevHeightfields = totalActionTime / min(actionTimeGenerateHeightfield, min(actionTimeGenerateLayers, actionTimeFill));
+static constexpr int numDevLayers = totalActionTime / min(actionTimeGenerateLayers, actionTimeFill);
+static constexpr int numStreams = max(numDevBlocks, max(numDevHeightfields, numDevLayers));
 
 static std::array<Block*, numDevBlocks> dev_blocks;
 static std::array<FeaturePlacement*, numDevBlocks> dev_featurePlacements;
 
 static std::array<float*, numDevHeightfields> dev_heightfields;
-static std::array<float*, numDevStacks> dev_stacks;
-static std::array<float*, numDevHeightfields> dev_biomeWeights; // TODO: may need to set numDevBiomeWeights = max(numDevHeightfields, numDevStacks)
+static std::array<float*, numDevLayers> dev_layers;
+static std::array<float*, numDevHeightfields> dev_biomeWeights; // TODO: may need to set numDevBiomeWeights = max(numDevHeightfields, numDevLayers)
+                                                                // probably fine for now since biome weights are always used in tandem with heightfield
 static std::array<cudaStream_t, numStreams> streams;
 
 void Terrain::initCuda()
@@ -71,9 +72,9 @@ void Terrain::initCuda()
         cudaMalloc((void**)&dev_biomeWeights[i], 256 * (int)Biome::numBiomes * sizeof(float));
     }
 
-    for (int i = 0; i < numDevStacks; ++i)
+    for (int i = 0; i < numDevLayers; ++i)
     {
-        cudaMalloc((void**)&dev_stacks[i], 256 * (int)Material::numMaterials * sizeof(float));
+        cudaMalloc((void**)&dev_layers[i], 256 * (int)Material::numMaterials * sizeof(float));
     }
 
     CudaUtils::checkCUDAError("cudaMalloc failed");
@@ -100,9 +101,9 @@ void Terrain::freeCuda()
         cudaFree(dev_biomeWeights[i]);
     }
 
-    for (int i = 0; i < numDevStacks; ++i)
+    for (int i = 0; i < numDevLayers; ++i)
     {
-        cudaFree(dev_stacks[i]);
+        cudaFree(dev_layers[i]);
     }
 
     CudaUtils::checkCUDAError("cudaFree failed");
@@ -301,6 +302,7 @@ void Terrain::tick()
 
     int blocksIdx = 0;
     int heightfieldIdx = 0;
+    int layersIdx = 0;
     int streamIdx = 0;
 
     while (!chunksToGenerateHeightfield.empty() && actionTimeLeft >= actionTimeGenerateHeightfield)
@@ -330,7 +332,15 @@ void Terrain::tick()
         auto chunkPtr = chunksToGenerateLayers.front();
         chunksToGenerateLayers.pop();
 
-        // TODO: actually generate layers
+        chunkPtr->generateLayers(
+            dev_heightfields[heightfieldIdx],
+            dev_layers[layersIdx],
+            dev_biomeWeights[heightfieldIdx],
+            streams[streamIdx]
+        );
+        ++heightfieldIdx;
+        ++layersIdx;
+        ++streamIdx;
 
         chunkPtr->setState(ChunkState::NEEDS_GATHER_FEATURE_PLACEMENTS);
 
@@ -413,7 +423,7 @@ void Terrain::tick()
 #if DEBUG_TIME_CHUNK_FILL
     if (!finishedTiming)
     {
-        bool areQueuesEmpty = chunksToGenerateHeightfield.empty() && chunksToGatherFeaturePlacements.empty()
+        bool areQueuesEmpty = chunksToGenerateHeightfield.empty() && chunksToGenerateLayers.empty() && chunksToGatherFeaturePlacements.empty()
             && chunksToFill.empty() && chunksToCreateVbos.empty() && chunksToBufferVbos.empty();
 
         if (!startedTiming && !areQueuesEmpty)

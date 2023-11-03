@@ -56,10 +56,10 @@ public:
     // iteration order = z, x
     std::array<float, 256> heightfield;
     
-    // iteration order = z, x, y
+    // iteration order = z, x
     // ordered this way so one thread block of kernFill (one column) can load sequential memory to access terrain layers
     // stored value is starting height of terrain layer
-    std::array<float, 256 * (int)Material::numMaterials> stacks;
+    std::array<float[(int)Material::numMaterials], 256> layers;
 
     // iteration order = z, x
     std::array<float[(int)Biome::numBiomes], 256> biomeWeights;
@@ -91,7 +91,7 @@ private:
     static bool otherChunkGatherFeaturePlacements(Chunk* chunkPtr, Chunk* const (&neighborChunks)[9][9], int centerX, int centerZ);
 
 public:
-    void generateLayers();
+    void generateLayers(float* dev_heightfield, float* dev_layers, float* dev_biomeWeights, cudaStream_t stream);
 
     void gatherFeaturePlacements();
 

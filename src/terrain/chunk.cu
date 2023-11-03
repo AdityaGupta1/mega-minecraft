@@ -39,27 +39,39 @@ void Chunk::setNotReadyForQueue()
 #pragma region utility functions
 
 __host__ __device__
-int posToIndex(const int x, const int y, const int z)
+int posTo3dBlockIndex(const int x, const int y, const int z)
 {
-    return x + 16 * z + 256 * y;
+    return y + 256 * (x + 16 * z);
 }
 
 __host__ __device__
-int posToIndex(const ivec3 pos)
+int posTo3dBlockIndex(const ivec3 pos)
 {
-    return posToIndex(pos.x, pos.y, pos.z);
+    return posTo3dBlockIndex(pos.x, pos.y, pos.z);
 }
 
 __host__ __device__
-int posToIndex(const int x, const int z)
+int posTo3dLayerIndex(const int x, const int y, const int z)
+{
+    return y + (int)Material::numMaterials * (x + 16 * z);
+}
+
+__host__ __device__
+int posTo3dLayerIndex(const ivec3 pos)
+{
+    return posTo3dBlockIndex(pos.x, pos.y, pos.z);
+}
+
+__host__ __device__
+int posTo2dIndex(const int x, const int z)
 {
     return x + 16 * z;
 }
 
 __host__ __device__
-int posToIndex(const ivec2 pos)
+int posTo2dIndex(const ivec2 pos)
 {
-    return posToIndex(pos.x, pos.y);
+    return posTo2dIndex(pos.x, pos.y);
 }
 
 __host__ __device__ Biome getRandomBiome(const float* columnBiomeWeights, float rand)
@@ -83,14 +95,14 @@ __host__ __device__ Biome getRandomBiome(const float* columnBiomeWeights, float 
 __global__ void kernGenerateHeightfield(
     float* heightfield,
     float* biomeWeights,
-    ivec3 worldBlockPos)
+    ivec3 chunkWorldBlockPos)
 {
     const int x = (blockIdx.x * blockDim.x) + threadIdx.x;
     const int z = (blockIdx.y * blockDim.y) + threadIdx.y;
 
-    const int idx = posToIndex(x, z);
+    const int idx = posTo2dIndex(x, z);
 
-    const vec2 worldPos = vec2(worldBlockPos.x + x, worldBlockPos.z + z);
+    const vec2 worldPos = vec2(chunkWorldBlockPos.x + x, chunkWorldBlockPos.z + z);
 
     const vec2 noiseOffset = vec2(
         glm::simplex(worldPos * 0.015f + vec2(6839.19f, 1803.34f)),
@@ -128,19 +140,16 @@ void Chunk::generateHeightfield(
 {
     const dim3 blockSize2d(8, 8);
     const dim3 blocksPerGrid2d(2, 2);
-
     kernGenerateHeightfield<<<blocksPerGrid2d, blockSize2d, 0, stream>>>(
         dev_heightfield,
         dev_biomeWeights,
         this->worldBlockPos
     );
-    CudaUtils::checkCUDAError("kernGenerateHeightfield failed");
 
     cudaMemcpyAsync(this->heightfield.data(), dev_heightfield, 256 * sizeof(float), cudaMemcpyDeviceToHost, stream);
     cudaMemcpyAsync(this->biomeWeights.data(), dev_biomeWeights, 256 * (int)Biome::numBiomes * sizeof(float), cudaMemcpyDeviceToHost, stream);
-    CudaUtils::checkCUDAError("cudaMemcpy to host failed");
 
-    cudaStreamSynchronize(stream);
+    cudaStreamSynchronize(stream); // used here so cudaMemcpyAsync to this->heightfield finishes before generating own feature placements
 
     generateOwnFeaturePlacements(); // TODO: maybe move to a separate step
 }
@@ -231,6 +240,50 @@ void Chunk::floodFillAndIterateNeighbors(ChunkState currentState, ChunkState nex
 
 #pragma endregion
 
+#pragma region layers
+
+__global__ void kernGenerateLayers(
+    float* heightfield,
+    float* layers,
+    float* biomeWeights,
+    ivec3 chunkWorldBlockPos)
+{
+    const int x = (blockIdx.x * blockDim.x) + threadIdx.x;
+    const int z = (blockIdx.y * blockDim.y) + threadIdx.y;
+
+    const vec2 worldPos = vec2(chunkWorldBlockPos.x + x, chunkWorldBlockPos.z + z);
+
+    float height = 0;
+    for (int y = 0; y < (int)Material::numMaterials; ++y)
+    {
+        const int idx = posTo3dLayerIndex(x, y, z);
+
+        layers[idx] = height;
+        height += 86.3f;
+    }
+}
+
+void Chunk::generateLayers(float* dev_heightfield, float* dev_layers, float* dev_biomeWeights, cudaStream_t stream)
+{
+    cudaMemcpyAsync(dev_heightfield, this->heightfield.data(), 256 * sizeof(float), cudaMemcpyHostToDevice, stream);
+    cudaMemcpyAsync(dev_biomeWeights, this->biomeWeights.data(), 256 * (int)Biome::numBiomes * sizeof(float), cudaMemcpyHostToDevice, stream);
+
+    const dim3 blockSize2d(8, 8);
+    const dim3 blocksPerGrid2d(2, 2);
+    kernGenerateLayers<<<blocksPerGrid2d, blockSize2d, 0, stream>>>(
+        dev_heightfield,
+        dev_layers,
+        dev_biomeWeights,
+        this->worldBlockPos
+    );
+
+    cudaMemcpyAsync(this->layers.data(), dev_layers, 256 * (int)Material::numMaterials * sizeof(float), cudaMemcpyDeviceToHost, stream);
+
+    //printf("0: %f, 1: %f\n", this->layers[0][0], this->layers[0][1]);
+}
+
+#pragma endregion
+
 #pragma region feature placements
 
 void Chunk::generateOwnFeaturePlacements()
@@ -239,7 +292,7 @@ void Chunk::generateOwnFeaturePlacements()
     {
         for (int localX = 0; localX < 16; ++localX)
         {
-            const int idx2d = posToIndex(localX, localZ);
+            const int idx2d = posTo2dIndex(localX, localZ);
 
             const auto& columnBiomeWeights = biomeWeights[idx2d];
 
@@ -326,10 +379,10 @@ __global__ void kernFill(
     const int y = (blockIdx.y * blockDim.y) + threadIdx.y;
     const int z = (blockIdx.z * blockDim.z) + threadIdx.z;
 
-    const int idx = posToIndex(x, y, z);
+    const int idx = posTo3dBlockIndex(x, y, z);
 
-    const int idx2d = posToIndex(x, z);
-    // TODO: use shared memory to load heightfield and material stacks
+    const int idx2d = posTo2dIndex(x, z);
+    // TODO: use shared memory to load material layers, heightfield, and biome weights
     const float height = heightfield[idx2d];
     const float* columnBiomeWeights = biomeWeights + (int)Biome::numBiomes * idx2d;
 
@@ -400,11 +453,9 @@ void Chunk::fill(
 
     cudaMemcpyAsync(dev_heightfield, this->heightfield.data(), 256 * sizeof(float), cudaMemcpyHostToDevice, stream);
     cudaMemcpyAsync(dev_biomeWeights, this->biomeWeights.data(), 256 * (int)Biome::numBiomes * sizeof(float), cudaMemcpyHostToDevice, stream);
-    CudaUtils::checkCUDAError("cudaMemcpy to device failed");
 
     const dim3 blockSize3d(1, 256, 1);
     const dim3 blocksPerGrid3d(16, 1, 16);
-
     kernFill<<<blocksPerGrid3d, blockSize3d, 0, stream>>>(
         dev_blocks, 
         dev_heightfield,
@@ -414,10 +465,8 @@ void Chunk::fill(
         allFeaturesHeightBounds,
         this->worldBlockPos
     );
-    CudaUtils::checkCUDAError("kernFill failed");
     
     cudaMemcpyAsync(this->blocks.data(), dev_blocks, 65536 * sizeof(Block), cudaMemcpyDeviceToHost, stream);
-    CudaUtils::checkCUDAError("cudaMemcpy to host failed");
 }
 
 #pragma endregion
@@ -444,14 +493,14 @@ void Chunk::createVBOs()
 
     idxCount = 0;
 
-    for (int y = 0; y < 256; ++y)
+    for (int z = 0; z < 16; ++z)
     {
-        for (int z = 0; z < 16; ++z)
+        for (int x = 0; x < 16; ++x)
         {
-            for (int x = 0; x < 16; ++x)
+            for (int y = 0; y < 256; ++y)
             {
                 ivec3 thisPos = ivec3(x, y, z);
-                Block thisBlock = blocks[posToIndex(thisPos)];
+                Block thisBlock = blocks[posTo3dBlockIndex(thisPos)];
 
                 if (thisBlock == Block::AIR)
                 {
@@ -495,7 +544,7 @@ void Chunk::createVBOs()
                             continue;
                         }
 
-                        neighborBlock = neighborPosChunk->blocks[posToIndex(neighborPos)];
+                        neighborBlock = neighborPosChunk->blocks[posTo3dBlockIndex(neighborPos)];
 
                         if (neighborBlock != Block::AIR) // TODO: this will get more complicated with transparent and non-cube blocks
                         {
