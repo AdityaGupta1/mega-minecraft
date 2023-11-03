@@ -266,6 +266,11 @@ __global__ void kernGenerateLayers(
     {
         columnLayers[layerIdx] = height;
 
+        if (height > maxHeight)
+        {
+            continue;
+        }
+
         if (layerIdx != numStratifiedMaterials - 1)
         {
             const auto& materialInfo = dev_materialInfos[layerIdx];
