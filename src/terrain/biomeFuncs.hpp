@@ -75,6 +75,7 @@ void BiomeUtils::init()
 
     host_materialInfos[(int)Material::BLACKSTONE] = { Block::BLACKSTONE, 56.f, 32.f, 0.0030f };
     host_materialInfos[(int)Material::DEEPSLATE] = { Block::DEEPSLATE, 48.f, 24.f, 0.0045f };
+    host_materialInfos[(int)Material::SLATE] = { Block::SLATE, 4.f, 24.f, 0.0062f };
     host_materialInfos[(int)Material::STONE] = { Block::STONE, 36.f, 30.f, 0.0050f };
     host_materialInfos[(int)Material::TUFF] = { Block::TUFF, 32.f, 42.f, 0.0060f };
     host_materialInfos[(int)Material::CALCITE] = { Block::CALCITE, 20.f, 30.f, 0.0040f };

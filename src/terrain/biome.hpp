@@ -26,6 +26,7 @@ enum class Material : unsigned char
     // stratified
     BLACKSTONE,
     DEEPSLATE,
+    SLATE,
     STONE,
     TUFF,
     CALCITE,
