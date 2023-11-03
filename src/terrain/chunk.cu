@@ -251,57 +251,52 @@ bool Chunk::otherChunkGatherHeightfield(Chunk* chunkPtr, Chunk* const (&neighbor
 {
     chunkPtr->gatheredHeightfield.resize(18 * 18);
 
-    for (int offsetZ = -1; offsetZ <= 1; ++offsetZ)
+    for (const auto& neighborDir : DirectionEnums::dirVecs2d)
     {
-        for (int offsetX = -1; offsetX <= 1; ++offsetX)
+        int offsetX = neighborDir[0];
+        int offsetZ = neighborDir[1];
+
+        const auto& neighborPtr = neighborChunks[centerZ + offsetZ][centerX + offsetX];
+
+        if (neighborPtr == nullptr)
         {
-            if (offsetX == 0 && offsetZ == 0)
-            {
-                continue;
-            }
+            chunkPtr->gatheredHeightfield.clear();
+            return false;
+        }
 
-            const auto& neighborPtr = neighborChunks[centerZ + offsetZ][centerX + offsetX];
-
-            if (neighborPtr == nullptr)
+        if (offsetX == 0 || offsetZ == 0)
+        {
+            // edge
+            if (offsetZ == 0)
             {
-                chunkPtr->gatheredHeightfield.clear();
-                return false;
-            }
+                // +/- x
+                int xIn, xOut;
+                copyEdge(offsetX, xIn, xOut);
 
-            if (offsetX == 0 || offsetZ == 0)
-            {
-                // edge
-                if (offsetZ == 0)
+                for (int z = 0; z < 16; ++z)
                 {
-                    // +/- x
-                    int xIn, xOut;
-                    copyEdge(offsetX, xIn, xOut);
-
-                    for (int z = 0; z < 16; ++z)
-                    {
-                        chunkPtr->gatheredHeightfield[posTo2dIndex<18>(xOut, z + 1)] = chunkPtr->heightfield[posTo2dIndex(xIn, z)];
-                    }
-                }
-                else
-                {
-                    // +/- z
-                    int zIn, zOut;
-                    copyEdge(offsetZ, zIn, zOut);
-
-                    for (int x = 0; x < 16; ++x)
-                    {
-                        chunkPtr->gatheredHeightfield[posTo2dIndex<18>(x + 1, zOut)] = chunkPtr->heightfield[posTo2dIndex(x, zIn)];
-                    }
+                    chunkPtr->gatheredHeightfield[posTo2dIndex<18>(xOut, z + 1)] = chunkPtr->heightfield[posTo2dIndex(xIn, z)];
                 }
             }
             else
             {
-                // corner
-                int xIn, xOut, zIn, zOut;
-                copyEdge(offsetX, xIn, xOut);
+                // +/- z
+                int zIn, zOut;
                 copyEdge(offsetZ, zIn, zOut);
-                chunkPtr->gatheredHeightfield[posTo2dIndex<18>(xOut, zOut)] = chunkPtr->heightfield[posTo2dIndex(xIn, zIn)];
+
+                for (int x = 0; x < 16; ++x)
+                {
+                    chunkPtr->gatheredHeightfield[posTo2dIndex<18>(x + 1, zOut)] = chunkPtr->heightfield[posTo2dIndex(x, zIn)];
+                }
             }
+        }
+        else
+        {
+            // corner
+            int xIn, xOut, zIn, zOut;
+            copyEdge(offsetX, xIn, xOut);
+            copyEdge(offsetZ, zIn, zOut);
+            chunkPtr->gatheredHeightfield[posTo2dIndex<18>(xOut, zOut)] = chunkPtr->heightfield[posTo2dIndex(xIn, zIn)];
         }
     }
 

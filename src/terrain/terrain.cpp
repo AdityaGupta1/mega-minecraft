@@ -135,7 +135,7 @@ Zone* Terrain::createZone(ivec2 zonePos)
 
     for (int i = 0; i < 8; ++i)
     {
-        ivec2 neighborPos = zonePos + (16 * DirectionEnums::dirVecs2D[i]);
+        ivec2 neighborPos = zonePos + (16 * DirectionEnums::dirVecs2d[i]);
 
         auto neighborZoneIt = zones.find(neighborPos);
         if (neighborZoneIt == zones.end())

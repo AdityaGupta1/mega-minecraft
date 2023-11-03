@@ -15,7 +15,7 @@ enum class Direction
     DOWN // -y
 };
 
-enum class Direction2D
+enum class Direction2d
 {
     NORTH, // +z
     NORTHEAST,
@@ -29,7 +29,7 @@ enum class Direction2D
 
 namespace DirectionEnums
 {
-    const static std::array<ivec2, 8> dirVecs2D = {
+    const static std::array<ivec2, 8> dirVecs2d = {
         ivec2(0, 1),
         ivec2(1, 1),
         ivec2(1, 0),
