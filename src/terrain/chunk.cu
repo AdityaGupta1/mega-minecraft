@@ -420,7 +420,7 @@ __global__ void kernFill(
             }
         }
 
-        // TODO: replace top block with biome-specific option (e.g. dirt to grass or mycelium depending on biome)
+        // TODO: if this is the top block, replace it with biome-specific option (e.g. dirt to grass or mycelium depending on biome)
         block = dev_materialBlocks[thisLayerIdx];
     }
 
