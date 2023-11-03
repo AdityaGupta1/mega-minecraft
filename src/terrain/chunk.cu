@@ -370,6 +370,8 @@ __global__ void kernFill(
     ivec2 featureHeightBounds,
     ivec3 chunkWorldBlockPos)
 {
+    __shared__ float shared_layersAndHeight[(int)Material::numMaterials + 1];
+
     const int x = (blockIdx.x * blockDim.x) + threadIdx.x;
     const int y = (blockIdx.y * blockDim.y) + threadIdx.y;
     const int z = (blockIdx.z * blockDim.z) + threadIdx.z;
@@ -382,6 +384,17 @@ __global__ void kernFill(
     const float* columnLayers = layers + (int)Material::numMaterials * idx2d;
     const float* columnBiomeWeights = biomeWeights + (int)Biome::numBiomes * idx2d;
 
+    if (y < (int)Material::numMaterials)
+    {
+        shared_layersAndHeight[y] = columnLayers[y];
+    }
+    else if (y == (int)Material::numMaterials)
+    {
+        shared_layersAndHeight[y] = height;
+    }
+
+    __syncthreads();
+
     const ivec3 worldBlockPos = chunkWorldBlockPos + ivec3(x, y, z);
     auto rng = makeSeededRandomEngine(worldBlockPos.x, worldBlockPos.y, worldBlockPos.z);
     thrust::uniform_real_distribution<float> u01(0, 1);
@@ -390,19 +403,13 @@ __global__ void kernFill(
     if (y < height)
     {
         int thisLayerIdx = -1;
-        for (int layerIdx = 0; layerIdx < (int)Material::numMaterials; ++layerIdx)
+        for (int layerIdx = 0; layerIdx < (int)Material::numMaterials + 1; ++layerIdx)
         {
-            if (y < columnLayers[layerIdx])
+            if (y < shared_layersAndHeight[layerIdx])
             {
                 thisLayerIdx = layerIdx - 1;
                 break;
             }
-        }
-
-        // XXX: edge case that will be removed once using shared memory to load height right after layers
-        if (thisLayerIdx == -1)
-        {
-            thisLayerIdx = (int)Material::numMaterials - 1;
         }
 
         block = dev_materialBlocks[thisLayerIdx];
