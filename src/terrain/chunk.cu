@@ -371,6 +371,7 @@ __global__ void kernFill(
     ivec3 chunkWorldBlockPos)
 {
     __shared__ float shared_layersAndHeight[(int)Material::numMaterials + 1];
+    __shared__ float shared_biomeWeights[(int)Biome::numBiomes];
 
     const int x = (blockIdx.x * blockDim.x) + threadIdx.x;
     const int y = (blockIdx.y * blockDim.y) + threadIdx.y;
@@ -379,7 +380,6 @@ __global__ void kernFill(
     const int idx = posTo3dBlockIndex(x, y, z);
 
     const int idx2d = posTo2dIndex(x, z);
-    // TODO: use shared memory to load material layers, heightfield, and biome weights
     const float height = heightfield[idx2d];
     const float* columnLayers = layers + (int)Material::numMaterials * idx2d;
     const float* columnBiomeWeights = biomeWeights + (int)Biome::numBiomes * idx2d;
@@ -391,6 +391,14 @@ __global__ void kernFill(
     else if (y == (int)Material::numMaterials)
     {
         shared_layersAndHeight[y] = height;
+    }
+    else
+    {
+        const int biomeWeightIdx = y - (int)Material::numMaterials - 1;
+        if (biomeWeightIdx < (int)Biome::numBiomes)
+        {
+            shared_biomeWeights[biomeWeightIdx] = columnBiomeWeights[biomeWeightIdx];
+        }
     }
 
     __syncthreads();
