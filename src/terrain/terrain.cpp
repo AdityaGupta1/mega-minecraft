@@ -7,7 +7,7 @@
 #include <chrono>
 #include <glm/gtx/string_cast.hpp>
 
-#define DEBUG_TIME_CHUNK_FILL 1
+#define DEBUG_TIME_CHUNK_FILL 0
 
 static constexpr int chunkVbosGenRadius = 16;
 // [+1] Gather heightfields of 3x3 chunks and place material layers
@@ -369,12 +369,14 @@ void Terrain::tick()
         chunkPtr->fill(
             dev_blocks[blocksIdx],
             dev_heightfields[heightfieldIdx],
+            dev_layers[layersIdx],
             dev_biomeWeights[heightfieldIdx],
             dev_featurePlacements[blocksIdx],
             streams[streamIdx]
         );
         ++blocksIdx;
         ++heightfieldIdx;
+        ++layersIdx;
         ++streamIdx;
 
         chunkPtr->setState(ChunkState::IS_FILLED);

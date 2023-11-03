@@ -95,7 +95,7 @@ public:
 
     void gatherFeaturePlacements();
 
-    void fill(Block* dev_blocks, float* dev_heightfield, float* dev_biomeWeights, FeaturePlacement* dev_featurePlacements, cudaStream_t stream);
+    void fill(Block* dev_blocks, float* dev_heightfield, float* dev_layers, float* dev_biomeWeights, FeaturePlacement* dev_featurePlacements, cudaStream_t stream);
 
     void createVBOs();
     void bufferVBOs() override;

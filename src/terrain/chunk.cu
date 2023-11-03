@@ -152,6 +152,8 @@ void Chunk::generateHeightfield(
     cudaStreamSynchronize(stream); // used here so cudaMemcpyAsync to this->heightfield finishes before generating own feature placements
 
     generateOwnFeaturePlacements(); // TODO: maybe move to a separate step
+
+    CudaUtils::checkCUDAError("Chunk::generateHeightfield() failed");
 }
 
 #pragma endregion
@@ -279,7 +281,7 @@ void Chunk::generateLayers(float* dev_heightfield, float* dev_layers, float* dev
 
     cudaMemcpyAsync(this->layers.data(), dev_layers, 256 * (int)Material::numMaterials * sizeof(float), cudaMemcpyDeviceToHost, stream);
 
-    //printf("0: %f, 1: %f\n", this->layers[0][0], this->layers[0][1]);
+    CudaUtils::checkCUDAError("Chunk::generateLayers() failed");
 }
 
 #pragma endregion
@@ -369,6 +371,7 @@ void Chunk::gatherFeaturePlacements()
 __global__ void kernFill(
     Block* blocks,
     float* heightfield,
+    float* layers,
     float* biomeWeights,
     FeaturePlacement* dev_featurePlacements,
     int numFeaturePlacements,
@@ -433,7 +436,8 @@ __global__ void kernFill(
 
 void Chunk::fill(
     Block* dev_blocks, 
-    float* dev_heightfield, 
+    float* dev_heightfield,
+    float* dev_layers,
     float* dev_biomeWeights, 
     FeaturePlacement* dev_featurePlacements, 
     cudaStream_t stream)
@@ -452,6 +456,7 @@ void Chunk::fill(
     this->gatheredFeaturePlacements.clear();
 
     cudaMemcpyAsync(dev_heightfield, this->heightfield.data(), 256 * sizeof(float), cudaMemcpyHostToDevice, stream);
+    cudaMemcpyAsync(dev_layers, this->layers.data(), 256 * (int)Material::numMaterials * sizeof(float), cudaMemcpyHostToDevice, stream);
     cudaMemcpyAsync(dev_biomeWeights, this->biomeWeights.data(), 256 * (int)Biome::numBiomes * sizeof(float), cudaMemcpyHostToDevice, stream);
 
     const dim3 blockSize3d(1, 256, 1);
@@ -459,6 +464,7 @@ void Chunk::fill(
     kernFill<<<blocksPerGrid3d, blockSize3d, 0, stream>>>(
         dev_blocks, 
         dev_heightfield,
+        dev_layers,
         dev_biomeWeights,
         dev_featurePlacements,
         numFeaturePlacements,
@@ -467,6 +473,8 @@ void Chunk::fill(
     );
     
     cudaMemcpyAsync(this->blocks.data(), dev_blocks, 65536 * sizeof(Block), cudaMemcpyDeviceToHost, stream);
+
+    CudaUtils::checkCUDAError("Chunk::fill() failed");
 }
 
 #pragma endregion
