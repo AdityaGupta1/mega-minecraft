@@ -22,6 +22,7 @@ enum class Block : unsigned char
     BLACKSTONE,
     TUFF,
     DEEPSLATE,
+    GRANITE,
 
     numBlocks
 };

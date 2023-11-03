@@ -29,8 +29,9 @@ enum class Material : unsigned char
     STONE,
     TUFF,
     CALCITE,
-    ANDESITE,
+    GRANITE,
     MARBLE,
+    ANDESITE,
 
     // eroded
     DIRT,
@@ -44,8 +45,8 @@ struct MaterialInfo
 {
     Block block;
     float thickness;
-    float roughnessOrAngleOfRepose;
-    float biasOrMaximumSlope;
+    float noiseAmplitudeOrAngleOfRepose;
+    float noiseScaleOrMaximumSlope;
 };
 
 enum class Feature : unsigned char

@@ -82,6 +82,11 @@ __host__ __device__ Biome getRandomBiome(const float* columnBiomeWeights, float 
 
 #pragma region heightfield
 
+__device__ float getBiomeNoise(vec2 pos, float noiseScale, vec2 offset, float smoothstepThreshold, float overallBiomeScale)
+{
+    glm::smoothstep(-smoothstepThreshold * overallBiomeScale, smoothstepThreshold * overallBiomeScale, glm::simplex(pos * noiseScale + offset));
+}
+
 __global__ void kernGenerateHeightfield(
     float* heightfield,
     float* biomeWeights,
@@ -102,8 +107,8 @@ __global__ void kernGenerateHeightfield(
     const float overallBiomeScale = 0.4f;
     const vec2 biomeNoisePos = (worldPos + noiseOffset) * overallBiomeScale;
 
-    const float moisture = glm::smoothstep(-0.15f * overallBiomeScale, 0.15f * overallBiomeScale, glm::simplex(biomeNoisePos * 0.005f + vec2(1835.32f, 3019.39f)));
-    const float magic = glm::smoothstep(-0.2f * overallBiomeScale, 0.2f * overallBiomeScale, glm::simplex(biomeNoisePos * 0.003f + vec2(5612.35f, 9182.49f)));
+    const float moisture = getBiomeNoise(biomeNoisePos, 0.005f, vec2(1835.32f, 3019.39f), 0.15f, overallBiomeScale);
+    const float magic = getBiomeNoise(biomeNoisePos, 0.003f, vec2(5612.35f, 9182.49f), 0.20f, overallBiomeScale);
 
     float* columnBiomeWeights = biomeWeights + (int)Biome::numBiomes * idx;
 
@@ -256,10 +261,17 @@ __global__ void kernGenerateLayers(
     float* columnLayers = layers + (int)Material::numMaterials * idx;
 
     float height = 0;
+    #pragma unroll
     for (int layerIdx = 0; layerIdx < numStratifiedMaterials; ++layerIdx)
     {
         columnLayers[layerIdx] = height;
-        height += 62.5f;
+
+        if (layerIdx != numStratifiedMaterials - 1)
+        {
+            const auto& materialInfo = dev_materialInfos[layerIdx];
+            vec2 noisePos = worldPos * materialInfo.noiseScaleOrMaximumSlope + vec2(layerIdx * 5283.64f);
+            height += max(0.f, materialInfo.thickness + materialInfo.noiseAmplitudeOrAngleOfRepose * fbm(noisePos));
+        }
     }
 
     for (int layerIdx = numStratifiedMaterials; layerIdx < (int)Material::numMaterials; ++layerIdx)
@@ -432,7 +444,7 @@ __global__ void kernFill(
         }
 
         // TODO: if this is the top block, replace it with biome-specific option (e.g. dirt to grass or mycelium depending on biome)
-        block = dev_materialBlocks[thisLayerIdx].block;
+        block = dev_materialInfos[thisLayerIdx].block;
     }
 
     if (y < featureHeightBounds[0] || y > featureHeightBounds[1])

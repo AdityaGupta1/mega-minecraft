@@ -2,8 +2,8 @@
 
 #include defines.glsl
 
-#define APPLY_SHADOWS 0
-#define APPLY_VOLUMETRIC_FOG 0
+#define APPLY_SHADOWS 1
+#define APPLY_VOLUMETRIC_FOG 1
 
 const vec3 sunLight = vec3(1.0f, 1.0f, 1.0f);
 const vec3 moonLight = vec3(0.8070f, 0.9823f, 1.0f) * 0.15f;

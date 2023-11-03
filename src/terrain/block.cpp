@@ -26,6 +26,7 @@ void BlockUtils::init()
     blockDatas[(int)Block::BLACKSTONE] = { BlockUvs(ivec2(0, 1), ivec2(1, 1)) };
     blockDatas[(int)Block::TUFF] = { BlockUvs(ivec2(2, 1)) };
     blockDatas[(int)Block::DEEPSLATE] = { BlockUvs(ivec2(3, 1), ivec2(4, 1)).setRandomFlip(false, true, true) };
+    blockDatas[(int)Block::GRANITE] = { BlockUvs(ivec2(5, 1)) };
 }
 
 BlockData BlockUtils::getBlockData(Block block)

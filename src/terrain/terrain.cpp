@@ -9,7 +9,7 @@
 
 #define DEBUG_TIME_CHUNK_FILL 0
 
-static constexpr int chunkVbosGenRadius = 16;
+static constexpr int chunkVbosGenRadius = 24;
 // [+1] Gather heightfields of 3x3 chunks and place material layers
 // [+1] Gather material layers of 2x2 chunks (3x3 with closer half or quarter of neighbors) to do erosion
 // [+2] Gather eroded material layers and feature placements of 5x5 chunks and fill features
@@ -18,14 +18,14 @@ static constexpr int chunkMaxGenRadius = chunkVbosGenRadius + 6;
 
 // TODO: get better estimates for these
 // ================================================================================
-static constexpr int totalActionTime = 100;
+static constexpr int totalActionTime = 1000;
 // ================================================================================
 static constexpr int actionTimeGenerateHeightfield        = 4;
 static constexpr int actionTimeGenerateLayers             = 6;
 static constexpr int actionTimeGatherFeaturePlacements    = 2;
 static constexpr int actionTimeFill                       = 4;
-static constexpr int actionTimeCreateVbos                 = (totalActionTime / 5);
-static constexpr int actionTimeBufferVbos                 = (totalActionTime / 3);
+static constexpr int actionTimeCreateVbos                 = 20;
+static constexpr int actionTimeBufferVbos                 = totalActionTime / 5;
 // ================================================================================
 
 Terrain::Terrain()

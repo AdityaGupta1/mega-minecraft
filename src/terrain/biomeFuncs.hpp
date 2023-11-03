@@ -46,13 +46,14 @@ __device__ float getHeight(Biome biome, vec2 pos)
     case Biome::METEORS:
         //float simplex = pow(abs(fbm(pos * 0.0027f)) + 0.05f, 2.f) * 4.f;
         //return 139.f + 60.f * simplex;
-        float simplex = pow(abs(fbm(pos * 0.0015f)) + 0.05f, 2.f) * 4.f;
-        return 139.f + 200.f * (simplex - 0.5f);
+        float noise = pow(abs(fbm(pos * 0.0015f)) + 0.05f, 2.f);
+        noise += ((fbm(pos * 0.0050f) - 0.5f) * 2.f) * 0.05f;
+        return 196.f + 180.f * (noise - 0.5f);
     }
 }
 
 //__constant__ BiomeBlocks dev_biomeBlocks[(int)Biome::numBiomes]; // TODO: convert to only top block for use with hashing transitions (replace generic top block with biome-specific top block)
-__constant__ MaterialInfo dev_materialBlocks[(int)Material::numMaterials];
+__constant__ MaterialInfo dev_materialInfos[(int)Material::numMaterials];
 
 static std::array<std::vector<FeatureGen>, (int)Biome::numBiomes> biomeFeatureGens;
 static std::array<ivec2, (int)Feature::numFeatures> featureHeightBounds;
@@ -70,21 +71,22 @@ void BiomeUtils::init()
 
     //delete[] host_biomeBlocks;
 
-    MaterialInfo* host_materialBlocks = new MaterialInfo[(int)Material::numMaterials];
+    MaterialInfo* host_materialInfos = new MaterialInfo[(int)Material::numMaterials];
 
-    host_materialBlocks[(int)Material::BLACKSTONE] = { Block::BLACKSTONE };
-    host_materialBlocks[(int)Material::DEEPSLATE] = { Block::DEEPSLATE };
-    host_materialBlocks[(int)Material::STONE] = { Block::STONE };
-    host_materialBlocks[(int)Material::TUFF] = { Block::TUFF };
-    host_materialBlocks[(int)Material::CALCITE] = { Block::CALCITE };
-    host_materialBlocks[(int)Material::ANDESITE] = { Block::ANDESITE };
-    host_materialBlocks[(int)Material::MARBLE] = { Block::MARBLE };
+    host_materialInfos[(int)Material::BLACKSTONE] = { Block::BLACKSTONE, 56.f, 32.f, 0.0030f };
+    host_materialInfos[(int)Material::DEEPSLATE] = { Block::DEEPSLATE, 48.f, 24.f, 0.0045f };
+    host_materialInfos[(int)Material::STONE] = { Block::STONE, 36.f, 30.f, 0.0050f };
+    host_materialInfos[(int)Material::TUFF] = { Block::TUFF, 32.f, 42.f, 0.0060f };
+    host_materialInfos[(int)Material::CALCITE] = { Block::CALCITE, 20.f, 30.f, 0.0040f };
+    host_materialInfos[(int)Material::GRANITE] = { Block::GRANITE, 18.f, 36.f, 0.0034f };
+    host_materialInfos[(int)Material::MARBLE] = { Block::MARBLE, 24.f, 56.f, 0.0050f };
+    host_materialInfos[(int)Material::ANDESITE] = { Block::ANDESITE, 24.f, 48.f, 0.0030f };
 
-    host_materialBlocks[(int)Material::DIRT] = { Block::DIRT };
+    host_materialInfos[(int)Material::DIRT] = { Block::DIRT };
 
-    cudaMemcpyToSymbol(dev_materialBlocks, host_materialBlocks, (int)Material::numMaterials * sizeof(MaterialInfo));
+    cudaMemcpyToSymbol(dev_materialInfos, host_materialInfos, (int)Material::numMaterials * sizeof(MaterialInfo));
 
-    delete[] host_materialBlocks;
+    delete[] host_materialInfos;
 
     biomeFeatureGens[(int)Biome::PURPLE_MUSHROOMS] = { {Feature::PURPLE_MUSHROOM, 0.004f} };
 
