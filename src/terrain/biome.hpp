@@ -38,7 +38,7 @@ enum class Material : unsigned char
     numMaterials
 };
 
-const int numStratifiedMaterials = 1;
+const int numStratifiedMaterials = (int)Material::DIRT;
 
 struct MaterialInfo
 {
