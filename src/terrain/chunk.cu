@@ -378,30 +378,30 @@ __global__ void kernFill(
     const int z = (blockIdx.z * blockDim.z) + threadIdx.z;
 
     const int idx = posTo3dBlockIndex(x, y, z);
-
     const int idx2d = posTo2dIndex(x, z);
-    const float height = heightfield[idx2d];
-    const float* columnLayers = layers + (int)Material::numMaterials * idx2d;
-    const float* columnBiomeWeights = biomeWeights + (int)Biome::numBiomes * idx2d;
 
     if (y < (int)Material::numMaterials)
     {
+        const float* columnLayers = layers + (int)Material::numMaterials * idx2d;
         shared_layersAndHeight[y] = columnLayers[y];
     }
     else if (y == (int)Material::numMaterials)
     {
-        shared_layersAndHeight[y] = height;
+        shared_layersAndHeight[y] = heightfield[idx2d];
     }
     else
     {
         const int biomeWeightIdx = y - (int)Material::numMaterials - 1;
         if (biomeWeightIdx < (int)Biome::numBiomes)
         {
+            const float* columnBiomeWeights = biomeWeights + (int)Biome::numBiomes * idx2d;
             shared_biomeWeights[biomeWeightIdx] = columnBiomeWeights[biomeWeightIdx];
         }
     }
 
     __syncthreads();
+
+    const float height = heightfield[idx2d];
 
     const ivec3 worldBlockPos = chunkWorldBlockPos + ivec3(x, y, z);
     auto rng = makeSeededRandomEngine(worldBlockPos.x, worldBlockPos.y, worldBlockPos.z);
