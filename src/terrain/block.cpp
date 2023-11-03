@@ -21,6 +21,9 @@ void BlockUtils::init()
     blockDatas[(int)Block::MUSHROOM_UNDERSIDE] = { BlockUvs(ivec2(11, 0)).setRandomFlip() };
     blockDatas[(int)Block::MUSHROOM_CAP_PURPLE] = { BlockUvs(ivec2(12, 0)) };
     blockDatas[(int)Block::MARBLE] = { BlockUvs(ivec2(13, 0)).setRandomRotation() };
+    blockDatas[(int)Block::ANDESITE] = { BlockUvs(ivec2(14, 0)).setRandomRotation() };
+    blockDatas[(int)Block::CALCITE] = { BlockUvs(ivec2(15, 0)) };
+    blockDatas[(int)Block::BLACKSTONE] = { BlockUvs(ivec2(0, 1), ivec2(1, 1)) };
 }
 
 BlockData BlockUtils::getBlockData(Block block)

@@ -17,6 +17,9 @@ enum class Block : unsigned char
     MUSHROOM_UNDERSIDE,
     MUSHROOM_CAP_PURPLE,
     MARBLE,
+    ANDESITE,
+    CALCITE,
+    BLACKSTONE,
 
     numBlocks
 };
