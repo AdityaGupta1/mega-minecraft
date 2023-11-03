@@ -49,23 +49,33 @@ __device__ float getHeight(Biome biome, vec2 pos)
     }
 }
 
-__constant__ BiomeBlocks dev_biomeBlocks[(int)Biome::numBiomes];
-static std::array<std::vector<FeatureGen>, (int)Biome::numBiomes> biomeFeatureGens;
+//__constant__ BiomeBlocks dev_biomeBlocks[(int)Biome::numBiomes]; // TODO: convert to only top block for use with hashing transitions (replace generic top block with biome-specific top block)
+__constant__ Block dev_materialBlocks[(int)Material::numMaterials];
 
+static std::array<std::vector<FeatureGen>, (int)Biome::numBiomes> biomeFeatureGens;
 static std::array<ivec2, (int)Feature::numFeatures> featureHeightBounds;
 
 void BiomeUtils::init()
 {
-    BiomeBlocks* host_biomeBlocks = new BiomeBlocks[(int)Biome::numBiomes];
+    //BiomeBlocks* host_biomeBlocks = new BiomeBlocks[(int)Biome::numBiomes];
 
-    host_biomeBlocks[(int)Biome::PLAINS] = { Block::GRASS, Block::DIRT, Block::STONE };
-    host_biomeBlocks[(int)Biome::DESERT] = { Block::SAND, Block::SAND, Block::STONE };
-    host_biomeBlocks[(int)Biome::PURPLE_MUSHROOMS] = { Block::MYCELIUM, Block::DIRT, Block::STONE };
-    host_biomeBlocks[(int)Biome::METEORS] = { Block::STONE, Block::STONE, Block::STONE };
+    //host_biomeBlocks[(int)Biome::PLAINS] = { Block::GRASS, Block::DIRT, Block::STONE };
+    //host_biomeBlocks[(int)Biome::DESERT] = { Block::SAND, Block::SAND, Block::STONE };
+    //host_biomeBlocks[(int)Biome::PURPLE_MUSHROOMS] = { Block::MYCELIUM, Block::DIRT, Block::STONE };
+    //host_biomeBlocks[(int)Biome::METEORS] = { Block::STONE, Block::STONE, Block::STONE };
 
-    cudaMemcpyToSymbol(dev_biomeBlocks, host_biomeBlocks, (int)Biome::numBiomes * sizeof(BiomeBlocks));
+    //cudaMemcpyToSymbol(dev_biomeBlocks, host_biomeBlocks, (int)Biome::numBiomes * sizeof(BiomeBlocks));
 
-    delete[] host_biomeBlocks;
+    //delete[] host_biomeBlocks;
+
+    Block* host_materialBlocks = new Block[(int)Material::numMaterials];
+
+    host_materialBlocks[(int)Material::STONE] = Block::STONE;
+    host_materialBlocks[(int)Material::DIRT] = Block::DIRT;
+
+    cudaMemcpyToSymbol(dev_materialBlocks, host_materialBlocks, (int)Material::numMaterials * sizeof(Block));
+
+    delete[] host_materialBlocks;
 
     biomeFeatureGens[(int)Biome::PURPLE_MUSHROOMS] = { {Feature::PURPLE_MUSHROOM, 0.004f} };
 

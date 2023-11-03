@@ -58,7 +58,7 @@ public:
     
     // iteration order = z, x
     // ordered this way so one thread block of kernFill (one column) can load sequential memory to access terrain layers
-    // stored value is starting height of terrain layer
+    // stored value is starting height of terrain layer (inclusive, so next layer's starting height is exclusive)
     std::array<float[(int)Material::numMaterials], 256> layers;
 
     // iteration order = z, x

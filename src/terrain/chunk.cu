@@ -379,26 +379,33 @@ __global__ void kernFill(
     const int idx2d = posTo2dIndex(x, z);
     // TODO: use shared memory to load material layers, heightfield, and biome weights
     const float height = heightfield[idx2d];
+    const float* columnLayers = layers + (int)Material::numMaterials * idx2d;
     const float* columnBiomeWeights = biomeWeights + (int)Biome::numBiomes * idx2d;
 
     const ivec3 worldBlockPos = chunkWorldBlockPos + ivec3(x, y, z);
     auto rng = makeSeededRandomEngine(worldBlockPos.x, worldBlockPos.y, worldBlockPos.z);
     thrust::uniform_real_distribution<float> u01(0, 1);
 
-    BiomeBlocks biomeBlocks = dev_biomeBlocks[(int)getRandomBiome(columnBiomeWeights, u01(rng))];
+    Block block = Block::AIR;
+    if (y < height)
+    {
+        int thisLayerIdx = -1;
+        for (int layerIdx = 0; layerIdx < (int)Material::numMaterials; ++layerIdx)
+        {
+            if (y < columnLayers[layerIdx])
+            {
+                thisLayerIdx = layerIdx - 1;
+                break;
+            }
+        }
 
-    Block block = biomeBlocks.blockStone;
-    if (y > height)
-    {
-        block = Block::AIR;
-    }
-    else if (y > height - 1)
-    {
-        block = biomeBlocks.blockTop;
-    }
-    else if (y > height - 4)
-    {
-        block = biomeBlocks.blockMid;
+        // XXX: edge case that will be removed once using shared memory to load height right after layers
+        if (thisLayerIdx == -1)
+        {
+            thisLayerIdx = (int)Material::numMaterials - 1;
+        }
+
+        block = dev_materialBlocks[thisLayerIdx];
     }
 
     if (y < featureHeightBounds[0] || y > featureHeightBounds[1])
