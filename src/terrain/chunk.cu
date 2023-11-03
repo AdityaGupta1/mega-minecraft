@@ -107,6 +107,8 @@ __host__ __device__ Biome getRandomBiome(const float* columnBiomeWeights, float 
             return (Biome)i;
         }
     }
+
+    return Biome::PLAINS;
 }
 
 __global__ void kernFill(
