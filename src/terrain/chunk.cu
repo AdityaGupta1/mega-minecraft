@@ -39,30 +39,6 @@ void Chunk::setNotReadyForQueue()
 #pragma region utility functions
 
 __host__ __device__
-int posTo3dBlockIndex(const int x, const int y, const int z)
-{
-    return y + 256 * (x + 16 * z);
-}
-
-__host__ __device__
-int posTo3dBlockIndex(const ivec3 pos)
-{
-    return posTo3dBlockIndex(pos.x, pos.y, pos.z);
-}
-
-__host__ __device__
-int posTo3dLayerIndex(const int x, const int y, const int z)
-{
-    return y + (int)Material::numMaterials * (x + 16 * z);
-}
-
-__host__ __device__
-int posTo3dLayerIndex(const ivec3 pos)
-{
-    return posTo3dBlockIndex(pos.x, pos.y, pos.z);
-}
-
-__host__ __device__
 int posTo2dIndex(const int x, const int z)
 {
     return x + 16 * z;
@@ -72,6 +48,18 @@ __host__ __device__
 int posTo2dIndex(const ivec2 pos)
 {
     return posTo2dIndex(pos.x, pos.y);
+}
+
+__host__ __device__
+int posTo3dBlockIndex(const int x, const int y, const int z)
+{
+    return y + 256 * posTo2dIndex(x, z);
+}
+
+__host__ __device__
+int posTo3dBlockIndex(const ivec3 pos)
+{
+    return posTo3dBlockIndex(pos.x, pos.y, pos.z);
 }
 
 __host__ __device__ Biome getRandomBiome(const float* columnBiomeWeights, float rand)
@@ -253,14 +241,16 @@ __global__ void kernGenerateLayers(
     const int x = (blockIdx.x * blockDim.x) + threadIdx.x;
     const int z = (blockIdx.y * blockDim.y) + threadIdx.y;
 
+    const int idx = posTo2dIndex(x, z);
+
     const vec2 worldPos = vec2(chunkWorldBlockPos.x + x, chunkWorldBlockPos.z + z);
 
-    float height = 0;
-    for (int y = 0; y < (int)Material::numMaterials; ++y)
-    {
-        const int idx = posTo3dLayerIndex(x, y, z);
+    float* columnLayers = layers + (int)Material::numMaterials * idx;
 
-        layers[idx] = height;
+    float height = 0;
+    for (int layerIdx = 0; layerIdx < (int)Material::numMaterials; ++layerIdx)
+    {
+        columnLayers[layerIdx] = height;
         height += 86.3f;
     }
 }
@@ -282,6 +272,8 @@ void Chunk::generateLayers(float* dev_heightfield, float* dev_layers, float* dev
     cudaMemcpyAsync(this->layers.data(), dev_layers, 256 * (int)Material::numMaterials * sizeof(float), cudaMemcpyDeviceToHost, stream);
 
     CudaUtils::checkCUDAError("Chunk::generateLayers() failed");
+
+    //printf("0: %f, 1: %f\n", this->layers[0][0], this->layers[0][1]);
 }
 
 #pragma endregion
