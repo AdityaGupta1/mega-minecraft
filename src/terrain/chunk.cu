@@ -40,16 +40,18 @@ void Chunk::setNotReadyForQueue()
 
 #pragma region utility functions
 
+template<int size = 16>
 __host__ __device__
 int posTo2dIndex(const int x, const int z)
 {
-    return x + 16 * z;
+    return x + size * z;
 }
 
+template<int size = 16>
 __host__ __device__
 int posTo2dIndex(const ivec2 pos)
 {
-    return posTo2dIndex(pos.x, pos.y);
+    return posTo2dIndex<size>(pos.x, pos.y);
 }
 
 __host__ __device__
@@ -239,6 +241,12 @@ void Chunk::generateHeightfield(
     CudaUtils::checkCUDAError("Chunk::generateHeightfield() failed");
 }
 
+void copyEdge(int offset, int& in, int& out)
+{
+    in = (offset == -1) ? 15 : 0;
+    out = (offset == -1) ? 0 : 17;
+}
+
 bool Chunk::otherChunkGatherHeightfield(Chunk* chunkPtr, Chunk* const (&neighborChunks)[5][5], int centerX, int centerZ)
 {
     chunkPtr->gatheredHeightfield.resize(18 * 18);
@@ -247,7 +255,7 @@ bool Chunk::otherChunkGatherHeightfield(Chunk* chunkPtr, Chunk* const (&neighbor
     {
         for (int offsetX = -1; offsetX <= 1; ++offsetX)
         {
-            if (offsetX == 0 && offsetX == 0)
+            if (offsetX == 0 && offsetZ == 0)
             {
                 continue;
             }
@@ -260,11 +268,51 @@ bool Chunk::otherChunkGatherHeightfield(Chunk* chunkPtr, Chunk* const (&neighbor
                 return false;
             }
 
-            // TODO: copy row/col or corner of neighboring chunk
+            if (offsetX == 0 || offsetZ == 0)
+            {
+                // edge
+                if (offsetZ == 0)
+                {
+                    // +/- x
+                    int xIn, xOut;
+                    copyEdge(offsetX, xIn, xOut);
+
+                    for (int z = 0; z < 16; ++z)
+                    {
+                        chunkPtr->gatheredHeightfield[posTo2dIndex<18>(xOut, z + 1)] = chunkPtr->heightfield[posTo2dIndex(xIn, z)];
+                    }
+                }
+                else
+                {
+                    // +/- z
+                    int zIn, zOut;
+                    copyEdge(offsetZ, zIn, zOut);
+
+                    for (int x = 0; x < 16; ++x)
+                    {
+                        chunkPtr->gatheredHeightfield[posTo2dIndex<18>(x + 1, zOut)] = chunkPtr->heightfield[posTo2dIndex(x, zIn)];
+                    }
+                }
+            }
+            else
+            {
+                // corner
+                int xIn, xOut, zIn, zOut;
+                copyEdge(offsetX, xIn, xOut);
+                copyEdge(offsetZ, zIn, zOut);
+                chunkPtr->gatheredHeightfield[posTo2dIndex<18>(xOut, zOut)] = chunkPtr->heightfield[posTo2dIndex(xIn, zIn)];
+            }
         }
     }
 
-    // TODO: copy chunkPtr->heightfield into chunkPtr->gatheredHeightfield
+    // copy chunk's own heightfield into gathered heightfield
+    for (int z = 0; z < 16; ++z)
+    {
+        for (int x = 0; x < 16; ++x)
+        {
+            chunkPtr->gatheredHeightfield[posTo2dIndex<18>(x + 1, z + 1)] = chunkPtr->heightfield[posTo2dIndex(x, z)];
+        }
+    }
 
     return true;
 }
@@ -295,7 +343,8 @@ __global__ void kernGenerateLayers(
 
     const vec2 worldPos = vec2(chunkWorldBlockPos.x + x, chunkWorldBlockPos.z + z);
 
-    const float maxHeight = heightfield[idx];
+    //const float maxHeight = heightfield[idx];
+    const float maxHeight = heightfield[posTo2dIndex<18>(x + 1, z + 1)];
 
     float* columnLayers = layers + (int)Material::numMaterials * idx;
 
@@ -326,7 +375,8 @@ __global__ void kernGenerateLayers(
 
 void Chunk::generateLayers(float* dev_heightfield, float* dev_layers, float* dev_biomeWeights, cudaStream_t stream)
 {
-    cudaMemcpyAsync(dev_heightfield, this->heightfield.data(), 256 * sizeof(float), cudaMemcpyHostToDevice, stream);
+    cudaMemcpyAsync(dev_heightfield, this->gatheredHeightfield.data(), 18 * 18 * sizeof(float), cudaMemcpyHostToDevice, stream);
+    this->gatheredHeightfield.clear();
     cudaMemcpyAsync(dev_biomeWeights, this->biomeWeights.data(), 256 * (int)Biome::numBiomes * sizeof(float), cudaMemcpyHostToDevice, stream);
 
     const dim3 blockSize2d(16, 16);
