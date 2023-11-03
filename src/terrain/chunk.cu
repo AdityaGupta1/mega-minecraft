@@ -290,8 +290,8 @@ void Chunk::generateLayers(float* dev_heightfield, float* dev_layers, float* dev
     cudaMemcpyAsync(dev_heightfield, this->heightfield.data(), 256 * sizeof(float), cudaMemcpyHostToDevice, stream);
     cudaMemcpyAsync(dev_biomeWeights, this->biomeWeights.data(), 256 * (int)Biome::numBiomes * sizeof(float), cudaMemcpyHostToDevice, stream);
 
-    const dim3 blockSize2d(8, 8);
-    const dim3 blocksPerGrid2d(2, 2);
+    const dim3 blockSize2d(16, 16);
+    const dim3 blocksPerGrid2d(1, 1);
     kernGenerateLayers<<<blocksPerGrid2d, blockSize2d, 0, stream>>>(
         dev_heightfield,
         dev_layers,
