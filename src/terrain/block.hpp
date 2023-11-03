@@ -16,7 +16,9 @@ enum class Block : unsigned char
     MUSHROOM_STEM,
     MUSHROOM_UNDERSIDE,
     MUSHROOM_CAP_PURPLE,
-    MARBLE
+    MARBLE,
+
+    numBlocks
 };
 
 struct SideUv

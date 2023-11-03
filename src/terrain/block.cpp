@@ -5,7 +5,7 @@
 
 using namespace glm;
 
-std::array<BlockData, 256> blockDatas;
+std::array<BlockData, (int)Block::numBlocks> blockDatas;
 
 void BlockUtils::init()
 {
