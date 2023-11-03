@@ -336,6 +336,8 @@ __global__ void kernGenerateLayers(
     float* biomeWeights,
     ivec3 chunkWorldBlockPos)
 {
+    __shared__ float shared_heightfield[18 * 18];
+
     const int x = (blockIdx.x * blockDim.x) + threadIdx.x;
     const int z = (blockIdx.y * blockDim.y) + threadIdx.y;
 
@@ -343,8 +345,16 @@ __global__ void kernGenerateLayers(
 
     const vec2 worldPos = vec2(chunkWorldBlockPos.x + x, chunkWorldBlockPos.z + z);
 
-    //const float maxHeight = heightfield[idx];
-    const float maxHeight = heightfield[posTo2dIndex<18>(x + 1, z + 1)];
+    shared_heightfield[idx] = heightfield[idx];
+    const int idx2 = idx + 256;
+    if (idx2 < 18 * 18)
+    {
+        shared_heightfield[idx2] = heightfield[idx2];
+    }
+
+    __syncthreads();
+
+    const float maxHeight = shared_heightfield[posTo2dIndex<18>(x + 1, z + 1)];
 
     float* columnLayers = layers + (int)Material::numMaterials * idx;
 
