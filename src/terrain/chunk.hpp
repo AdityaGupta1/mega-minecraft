@@ -55,6 +55,7 @@ public:
     // ===============================================================================
     // iteration order = z, x
     std::array<float, 256> heightfield;
+    std::vector<float> gatheredHeightfield;
     
     // iteration order = z, x
     // ordered this way so one thread block of kernFill (one column) can load sequential memory to access terrain layers
@@ -88,9 +89,13 @@ private:
     template<std::size_t diameter>
     void floodFillAndIterateNeighbors(ChunkState currentState, ChunkState nextState, ChunkProcessorFunc<diameter> chunkProcessorFunc);
 
+    static bool otherChunkGatherHeightfield(Chunk* chunkPtr, Chunk* const (&neighborChunks)[5][5], int centerX, int centerZ);
+
     static bool otherChunkGatherFeaturePlacements(Chunk* chunkPtr, Chunk* const (&neighborChunks)[9][9], int centerX, int centerZ);
 
 public:
+    void gatherHeightfield();
+
     void generateLayers(float* dev_heightfield, float* dev_layers, float* dev_biomeWeights, cudaStream_t stream);
 
     void gatherFeaturePlacements();

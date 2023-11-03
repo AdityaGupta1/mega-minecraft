@@ -80,83 +80,6 @@ __host__ __device__ Biome getRandomBiome(const float* columnBiomeWeights, float 
 
 #pragma endregion
 
-#pragma region heightfield
-
-__device__ float getBiomeNoise(vec2 pos, float noiseScale, vec2 offset, float smoothstepThreshold, float overallBiomeScale)
-{
-    return glm::smoothstep(-smoothstepThreshold * overallBiomeScale, smoothstepThreshold * overallBiomeScale, glm::simplex(pos * noiseScale + offset));
-}
-
-__global__ void kernGenerateHeightfield(
-    float* heightfield,
-    float* biomeWeights,
-    ivec3 chunkWorldBlockPos)
-{
-    const int x = (blockIdx.x * blockDim.x) + threadIdx.x;
-    const int z = (blockIdx.y * blockDim.y) + threadIdx.y;
-
-    const int idx = posTo2dIndex(x, z);
-
-    const vec2 worldPos = vec2(chunkWorldBlockPos.x + x, chunkWorldBlockPos.z + z);
-
-    const vec2 noiseOffset = vec2(
-        glm::simplex(worldPos * 0.015f + vec2(6839.19f, 1803.34f)),
-        glm::simplex(worldPos * 0.015f + vec2(8230.53f, 2042.84f))
-    ) * 14.f;
-    
-    const float overallBiomeScale = 0.4f;
-    const vec2 biomeNoisePos = (worldPos + noiseOffset) * overallBiomeScale;
-
-    const float moisture = getBiomeNoise(biomeNoisePos, 0.005f, vec2(1835.32f, 3019.39f), 0.15f, overallBiomeScale);
-    const float magic = getBiomeNoise(biomeNoisePos, 0.003f, vec2(5612.35f, 9182.49f), 0.20f, overallBiomeScale);
-
-    float* columnBiomeWeights = biomeWeights + (int)Biome::numBiomes * idx;
-
-    float height = 0.f;
-    for (int i = 0; i < (int)Biome::numBiomes; ++i) 
-    {
-        Biome biome = (Biome)i;
-
-#ifdef BIOME_OVERRIDE
-        float weight = (biome == BIOME_OVERRIDE) ? 1.f : 0.f;
-#else
-        float weight = getBiomeWeight(biome, moisture, magic);
-#endif
-        if (weight > 0.f)
-        {
-            height += weight * getHeight((Biome)i, worldPos);
-        }
-
-        columnBiomeWeights[i] = weight;
-    }
-    heightfield[idx] = height;
-}
-
-void Chunk::generateHeightfield(
-    float* dev_heightfield, 
-    float* dev_biomeWeights, 
-    cudaStream_t stream)
-{
-    const dim3 blockSize2d(8, 8);
-    const dim3 blocksPerGrid2d(2, 2);
-    kernGenerateHeightfield<<<blocksPerGrid2d, blockSize2d, 0, stream>>>(
-        dev_heightfield,
-        dev_biomeWeights,
-        this->worldBlockPos
-    );
-
-    cudaMemcpyAsync(this->heightfield.data(), dev_heightfield, 256 * sizeof(float), cudaMemcpyDeviceToHost, stream);
-    cudaMemcpyAsync(this->biomeWeights.data(), dev_biomeWeights, 256 * (int)Biome::numBiomes * sizeof(float), cudaMemcpyDeviceToHost, stream);
-
-    cudaStreamSynchronize(stream); // used here so cudaMemcpyAsync to this->heightfield finishes before generating own feature placements
-
-    generateOwnFeaturePlacements(); // TODO: maybe move to a separate step
-
-    CudaUtils::checkCUDAError("Chunk::generateHeightfield() failed");
-}
-
-#pragma endregion
-
 #pragma region flood fill and iterate
 
 // Flood fill neighborChunks (connected chunks that exist and are at or past minState).
@@ -237,6 +160,122 @@ void Chunk::floodFillAndIterateNeighbors(ChunkState currentState, ChunkState nex
     Chunk* neighborChunks[diameter][diameter] = {};
     floodFill<diameter>(neighborChunks, currentState);
     iterateNeighborChunks<diameter>(neighborChunks, currentState, nextState, chunkProcessorFunc);
+}
+
+#pragma endregion
+
+#pragma region heightfield
+
+__device__ float getBiomeNoise(vec2 pos, float noiseScale, vec2 offset, float smoothstepThreshold, float overallBiomeScale)
+{
+    return glm::smoothstep(-smoothstepThreshold * overallBiomeScale, smoothstepThreshold * overallBiomeScale, glm::simplex(pos * noiseScale + offset));
+}
+
+__global__ void kernGenerateHeightfield(
+    float* heightfield,
+    float* biomeWeights,
+    ivec3 chunkWorldBlockPos)
+{
+    const int x = (blockIdx.x * blockDim.x) + threadIdx.x;
+    const int z = (blockIdx.y * blockDim.y) + threadIdx.y;
+
+    const int idx = posTo2dIndex(x, z);
+
+    const vec2 worldPos = vec2(chunkWorldBlockPos.x + x, chunkWorldBlockPos.z + z);
+
+    const vec2 noiseOffset = vec2(
+        glm::simplex(worldPos * 0.015f + vec2(6839.19f, 1803.34f)),
+        glm::simplex(worldPos * 0.015f + vec2(8230.53f, 2042.84f))
+    ) * 14.f;
+    
+    const float overallBiomeScale = 0.4f;
+    const vec2 biomeNoisePos = (worldPos + noiseOffset) * overallBiomeScale;
+
+    const float moisture = getBiomeNoise(biomeNoisePos, 0.005f, vec2(1835.32f, 3019.39f), 0.15f, overallBiomeScale);
+    const float magic = getBiomeNoise(biomeNoisePos, 0.003f, vec2(5612.35f, 9182.49f), 0.20f, overallBiomeScale);
+
+    float* columnBiomeWeights = biomeWeights + (int)Biome::numBiomes * idx;
+
+    float height = 0.f;
+    for (int i = 0; i < (int)Biome::numBiomes; ++i) 
+    {
+        Biome biome = (Biome)i;
+
+#ifdef BIOME_OVERRIDE
+        float weight = (biome == BIOME_OVERRIDE) ? 1.f : 0.f;
+#else
+        float weight = getBiomeWeight(biome, moisture, magic);
+#endif
+        if (weight > 0.f)
+        {
+            height += weight * getHeight((Biome)i, worldPos);
+        }
+
+        columnBiomeWeights[i] = weight;
+    }
+    heightfield[idx] = height;
+}
+
+void Chunk::generateHeightfield(
+    float* dev_heightfield, 
+    float* dev_biomeWeights, 
+    cudaStream_t stream)
+{
+    const dim3 blockSize2d(8, 8);
+    const dim3 blocksPerGrid2d(2, 2);
+    kernGenerateHeightfield<<<blocksPerGrid2d, blockSize2d, 0, stream>>>(
+        dev_heightfield,
+        dev_biomeWeights,
+        this->worldBlockPos
+    );
+
+    cudaMemcpyAsync(this->heightfield.data(), dev_heightfield, 256 * sizeof(float), cudaMemcpyDeviceToHost, stream);
+    cudaMemcpyAsync(this->biomeWeights.data(), dev_biomeWeights, 256 * (int)Biome::numBiomes * sizeof(float), cudaMemcpyDeviceToHost, stream);
+
+    cudaStreamSynchronize(stream); // used here so cudaMemcpyAsync to this->heightfield finishes before generating own feature placements
+
+    generateOwnFeaturePlacements(); // TODO: maybe move to a separate step
+
+    CudaUtils::checkCUDAError("Chunk::generateHeightfield() failed");
+}
+
+bool Chunk::otherChunkGatherHeightfield(Chunk* chunkPtr, Chunk* const (&neighborChunks)[5][5], int centerX, int centerZ)
+{
+    chunkPtr->gatheredHeightfield.resize(18 * 18);
+
+    for (int offsetZ = -1; offsetZ <= 1; ++offsetZ)
+    {
+        for (int offsetX = -1; offsetX <= 1; ++offsetX)
+        {
+            if (offsetX == 0 && offsetX == 0)
+            {
+                continue;
+            }
+
+            const auto& neighborPtr = neighborChunks[centerZ + offsetZ][centerX + offsetX];
+
+            if (neighborPtr == nullptr)
+            {
+                chunkPtr->gatheredHeightfield.clear();
+                return false;
+            }
+
+            // TODO: copy row/col or corner of neighboring chunk
+        }
+    }
+
+    // TODO: copy chunkPtr->heightfield into chunkPtr->gatheredHeightfield
+
+    return true;
+}
+
+void Chunk::gatherHeightfield()
+{
+    floodFillAndIterateNeighbors<5>(
+        ChunkState::HAS_HEIGHTFIELD,
+        ChunkState::NEEDS_LAYERS,
+        &Chunk::otherChunkGatherHeightfield
+    );
 }
 
 #pragma endregion

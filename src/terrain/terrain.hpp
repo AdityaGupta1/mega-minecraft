@@ -34,6 +34,7 @@ private:
     std::unordered_map<ivec2, std::unique_ptr<Zone>, Utils::PosHash> zones;
 
     std::queue<Chunk*> chunksToGenerateHeightfield;
+    std::queue<Chunk*> chunksToGatherHeightfield;
     std::queue<Chunk*> chunksToGenerateLayers;
     std::queue<Chunk*> chunksToGatherFeaturePlacements;
     std::queue<Chunk*> chunksToFill;

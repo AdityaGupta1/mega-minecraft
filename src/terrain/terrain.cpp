@@ -21,6 +21,7 @@ static constexpr int chunkMaxGenRadius = chunkVbosGenRadius + 6;
 static constexpr int totalActionTime = 100;
 // ================================================================================
 static constexpr int actionTimeGenerateHeightfield        = 4;
+static constexpr int actionTimeGatherHeightfield          = 2;
 static constexpr int actionTimeGenerateLayers             = 6;
 static constexpr int actionTimeGatherFeaturePlacements    = 2;
 static constexpr int actionTimeFill                       = 4;
@@ -68,7 +69,7 @@ void Terrain::initCuda()
 
     for (int i = 0; i < numDevHeightfields; ++i)
     {
-        cudaMalloc((void**)&dev_heightfields[i], 256 * sizeof(float));
+        cudaMalloc((void**)&dev_heightfields[i], 18 * 18 * sizeof(float));
         cudaMalloc((void**)&dev_biomeWeights[i], 256 * (int)Biome::numBiomes * sizeof(float));
     }
 
@@ -220,6 +221,10 @@ void Terrain::updateChunk(int dx, int dz)
         chunkPtr->setNotReadyForQueue();
         chunksToGenerateHeightfield.push(chunkPtr);
         return;
+    case ChunkState::HAS_HEIGHTFIELD:
+        chunkPtr->setNotReadyForQueue();
+        chunksToGatherHeightfield.push(chunkPtr);
+        return;
     case ChunkState::NEEDS_LAYERS:
         chunkPtr->setNotReadyForQueue();
         chunksToGenerateLayers.push(chunkPtr);
@@ -320,9 +325,21 @@ void Terrain::tick()
         ++heightfieldIdx;
         ++streamIdx;
 
-        chunkPtr->setState(ChunkState::NEEDS_LAYERS);
+        chunkPtr->setState(ChunkState::HAS_HEIGHTFIELD);
 
         actionTimeLeft -= actionTimeGenerateHeightfield;
+    }
+
+    while (!chunksToGatherHeightfield.empty() && actionTimeLeft >= actionTimeGatherHeightfield)
+    {
+        needsUpdateChunks = true;
+
+        auto chunkPtr = chunksToGatherHeightfield.front();
+        chunksToGatherHeightfield.pop();
+
+        chunkPtr->gatherHeightfield(); // can set state to NEEDS_LAYERS
+
+        actionTimeLeft -= actionTimeGatherHeightfield;
     }
 
     while (!chunksToGenerateLayers.empty() && actionTimeLeft >= actionTimeGenerateLayers)
@@ -354,7 +371,7 @@ void Terrain::tick()
         auto chunkPtr = chunksToGatherFeaturePlacements.front();
         chunksToGatherFeaturePlacements.pop();
 
-        chunkPtr->gatherFeaturePlacements(); // this will set state to READY_TO_FILL if 5x5 neighborhood chunks all have feature placements
+        chunkPtr->gatherFeaturePlacements(); // can set state to READY_TO_FILL
 
         actionTimeLeft -= actionTimeGatherFeaturePlacements;
     }
