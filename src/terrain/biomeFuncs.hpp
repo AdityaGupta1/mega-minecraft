@@ -44,8 +44,10 @@ __device__ float getHeight(Biome biome, vec2 pos)
     case Biome::PURPLE_MUSHROOMS:
         return 136.f + 6.f * fbm(pos * 0.008f);
     case Biome::METEORS:
-        float simplex = pow(abs(fbm(pos * 0.0027f)) + 0.05f, 2.f) * 4.f;
-        return 139.f + 60.f * simplex;
+        //float simplex = pow(abs(fbm(pos * 0.0027f)) + 0.05f, 2.f) * 4.f;
+        //return 139.f + 60.f * simplex;
+        float simplex = pow(abs(fbm(pos * 0.0015f)) + 0.05f, 2.f) * 4.f;
+        return 139.f + 200.f * (simplex - 0.5f);
     }
 }
 

@@ -2,6 +2,9 @@
 
 #include defines.glsl
 
+#define APPLY_SHADOWS 0
+#define APPLY_VOLUMETRIC_FOG 0
+
 const vec3 sunLight = vec3(1.0f, 1.0f, 1.0f);
 const vec3 moonLight = vec3(0.8070f, 0.9823f, 1.0f) * 0.15f;
 const vec3 ambientLight = vec3(0.8, 0.98, 1.0) * 0.16f;
@@ -72,12 +75,17 @@ void main() {
         lambert = vec3(0);
     }
 
+#if APPLY_SHADOWS
     float sunVisibility = calculateShadow();
+    lambert *= sunVisibility;
+#endif
+
     vec3 finalColor = (
         ambientLight * (0.2 + 0.4 * (1 - sunFactor) + 0.2 * (1 - moonFactor))
-        + (lambert * sunVisibility)
+        + lambert
     ) * diffuseCol.rgb;
 
+#if APPLY_VOLUMETRIC_FOG
     vec4 scatteringInformation = texture(tex_volume, vec3(fs_volumePos));
     vec3 inScattering = scatteringInformation.rgb;
     float transmittance = scatteringInformation.a;
@@ -86,6 +94,7 @@ void main() {
 
     float fogFactor = 0.5f * clamp(1 - dot(normalize(u_sunDir.xyz), vec3(0, 1, 0)), 0, 1);
     finalColor = mix(finalColor, colorWithFog, fogFactor);
+#endif
 
     out_color = vec4(finalColor, 1.f);
 }

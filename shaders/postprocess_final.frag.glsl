@@ -1,6 +1,8 @@
 #version 330
 
-#define INVERSE_GAMMA     0.4545454545454545454545454545454545454545f
+#include defines.glsl
+
+#define APPLY_BLOOM 0
 
 uniform sampler2D tex_bufColor;
 uniform sampler2D tex_bufBloomColor;
@@ -24,7 +26,10 @@ vec3 hdrToLdr(vec3 col) {
 
 void main() {
     vec3 finalColor = texture(tex_bufColor, fs_uv).rgb;
+
+#if APPLY_BLOOM
     finalColor += texture(tex_bufBloomColor, fs_uv).rgb;
+#endif
 
     out_color = hdrToLdr(finalColor);
 }

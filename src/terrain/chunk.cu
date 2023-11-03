@@ -7,6 +7,8 @@
 #include "featurePlacement.hpp"
 #include "util/rng.hpp"
 
+#define BIOME_OVERRIDE Biome::METEORS
+
 Chunk::Chunk(ivec2 worldChunkPos)
     : worldChunkPos(worldChunkPos), worldBlockPos(worldChunkPos.x * 16, 0, worldChunkPos.y * 16)
 {}
@@ -110,7 +112,11 @@ __global__ void kernGenerateHeightfield(
     {
         Biome biome = (Biome)i;
 
+#ifdef BIOME_OVERRIDE
+        float weight = (biome == BIOME_OVERRIDE) ? 1.f : 0.f;
+#else
         float weight = getBiomeWeight(biome, moisture, magic);
+#endif
         if (weight > 0.f)
         {
             height += weight * getHeight((Biome)i, worldPos);
@@ -253,7 +259,7 @@ __global__ void kernGenerateLayers(
     for (int layerIdx = 0; layerIdx < numStratifiedMaterials; ++layerIdx)
     {
         columnLayers[layerIdx] = height;
-        height += 86.3f;
+        height += 62.5f;
     }
 
     for (int layerIdx = numStratifiedMaterials; layerIdx < (int)Material::numMaterials; ++layerIdx)
@@ -279,8 +285,6 @@ void Chunk::generateLayers(float* dev_heightfield, float* dev_layers, float* dev
     cudaMemcpyAsync(this->layers.data(), dev_layers, 256 * (int)Material::numMaterials * sizeof(float), cudaMemcpyDeviceToHost, stream);
 
     CudaUtils::checkCUDAError("Chunk::generateLayers() failed");
-
-    //printf("0: %f, 1: %f\n", this->layers[0][0], this->layers[0][1]);
 }
 
 #pragma endregion
@@ -464,7 +468,7 @@ void Chunk::fill(
     FeaturePlacement* dev_featurePlacements, 
     cudaStream_t stream)
 {
-    ivec2 allFeaturesHeightBounds = ivec2(256, -1);
+    ivec2 allFeaturesHeightBounds = ivec2(384, -1);
     for (const auto& featurePlacement : this->gatheredFeaturePlacements)
     {
         const auto& featureHeightBounds = BiomeUtils::getFeatureHeightBounds(featurePlacement.feature);
@@ -527,7 +531,7 @@ void Chunk::createVBOs()
     {
         for (int x = 0; x < 16; ++x)
         {
-            for (int y = 0; y < 256; ++y)
+            for (int y = 0; y < 384; ++y)
             {
                 ivec3 thisPos = ivec3(x, y, z);
                 Block thisBlock = blocks[posTo3dBlockIndex(thisPos)];
@@ -546,7 +550,7 @@ void Chunk::createVBOs()
                     Chunk* neighborPosChunk = this;
                     Block neighborBlock;
 
-                    if (neighborPos.y >= 0 && neighborPos.y < 256)
+                    if (neighborPos.y >= 0 && neighborPos.y < 384)
                     {
                         if (neighborPos.x < 0)
                         {
