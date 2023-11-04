@@ -16,7 +16,7 @@
 // [+5] gather chunks to do zone erosion (for a corner chunk, 3 more in zone and 2 for padding; may not be super accurate but whatever)
 //     [+2] gather feature placements of 5x5 chunks for filling chunk (this is independent of erosion so it can be contained in the +5 for erosion)
 // ================================================================================================================================================================
-// in practice, give it way more so the user doesn't see any lag at borders of render distance
+// in practice, giving it way more so the user doesn't see any lag at borders of render distance
 // ================================================================================================================================================================
 static constexpr int chunkVbosGenRadius = 12;
 static constexpr int chunkMaxGenRadius = chunkVbosGenRadius + 2 + (2 * ZONE_SIZE);
