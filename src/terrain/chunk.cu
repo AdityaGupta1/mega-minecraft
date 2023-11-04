@@ -261,7 +261,7 @@ void calculateEdgeIndices(int offset, int& in, int& out)
 
 void Chunk::otherChunkGatherHeightfield(Chunk* chunkPtr, Chunk* const (&neighborChunks)[5][5], int centerX, int centerZ)
 {
-    chunkPtr->gatheredHeightfield.resize(18 * 18);
+    chunkPtr->gatheredHeightfield.reserve(18 * 18);
 
     for (const auto& neighborDir : DirectionEnums::dirVecs2d)
     {
@@ -429,8 +429,46 @@ void Chunk::generateLayers(float* dev_heightfield, float* dev_layers, float* dev
 
 #pragma region erosion
 
-void Chunk::erodeZone(Zone* zonePtr)
+void copyLayers(Zone* zonePtr, std::array<float[(int)Material::numMaterials], ZONE_SIZE* ZONE_SIZE * 4 * 256>& gatheredLayers, bool toGatheredLayers)
 {
+    for (int chunkZ = 0; chunkZ < ZONE_SIZE * 2; ++chunkZ)
+    {
+        for (int chunkX = 0; chunkX < ZONE_SIZE * 2; ++chunkX)
+        {
+            Chunk* chunkPtr = zonePtr->gatheredChunks[posTo2dIndex<ZONE_SIZE * 2>(chunkX, chunkZ)];
+            const ivec2 chunkBlockPos = ivec2(chunkX, chunkZ) * 16;
+            for (int blockZ = 0; blockZ < 16; ++blockZ)
+            {
+                for (int blockX = 0; blockX < 16; ++blockX)
+                {
+                    auto& srcLayers = chunkPtr->layers[posTo2dIndex(blockX, blockZ)];
+                    auto& dstLayers = gatheredLayers[posTo2dIndex<ZONE_SIZE * 2 * 16>(chunkBlockPos + ivec2(blockX, blockZ))];
+                    if (!toGatheredLayers)
+                    {
+                        std::swap(srcLayers, dstLayers);
+                    }
+                    std::memcpy(dstLayers, srcLayers, (int)Material::numMaterials * sizeof(float));
+                }
+            }
+        }
+    }
+}
+
+void Chunk::erodeZone(Zone* zonePtr, float* dev_gatheredLayers, cudaStream_t stream)
+{
+    std::array<float[(int)Material::numMaterials], ZONE_SIZE * ZONE_SIZE * 4 * 256> gatheredLayers;
+    copyLayers(zonePtr, gatheredLayers, true);
+    zonePtr->gatheredChunks.clear();
+
+    int gatheredLayersSizeBytes = gatheredLayers.size() * (int)Material::numMaterials * sizeof(float);
+    cudaMemcpyAsync(dev_gatheredLayers, gatheredLayers.data(), gatheredLayersSizeBytes, cudaMemcpyHostToDevice, stream);
+
+    // TODO: kernel execution
+
+    cudaMemcpyAsync(gatheredLayers.data(), dev_gatheredLayers, gatheredLayersSizeBytes, cudaMemcpyDeviceToHost, stream);
+
+    copyLayers(zonePtr, gatheredLayers, false);
+
     for (const auto& chunkPtr : zonePtr->chunks)
     {
         chunkPtr->setState(ChunkState::NEEDS_GATHER_FEATURE_PLACEMENTS);

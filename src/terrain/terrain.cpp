@@ -20,10 +20,10 @@ static constexpr int chunkMaxGenRadius = chunkVbosGenRadius + 6;
 // ================================================================================
 static constexpr int totalActionTime = 500;
 // ================================================================================
-static constexpr int actionTimeErodeZone                  = totalActionTime;
 static constexpr int actionTimeGenerateHeightfield        = 4;
 static constexpr int actionTimeGatherHeightfield          = 2;
 static constexpr int actionTimeGenerateLayers             = 6;
+static constexpr int actionTimeErodeZone                  = totalActionTime;
 static constexpr int actionTimeGatherFeaturePlacements    = 2;
 static constexpr int actionTimeFill                       = 4;
 static constexpr int actionTimeCreateAndBufferVbos        = totalActionTime / 4;
@@ -48,15 +48,20 @@ std::chrono::system_clock::time_point start;
 static constexpr int numDevBlocks = totalActionTime / actionTimeFill;
 static constexpr int numDevHeightfields = totalActionTime / min(actionTimeGenerateHeightfield, min(actionTimeGenerateLayers, actionTimeFill));
 static constexpr int numDevLayers = totalActionTime / min(actionTimeGenerateLayers, actionTimeFill);
-static constexpr int numStreams = max(numDevBlocks, max(numDevHeightfields, numDevLayers));
+static constexpr int numDevGatheredLayers = totalActionTime / actionTimeErodeZone;
+static constexpr int numStreams = max(max(numDevBlocks, numDevHeightfields), max(numDevLayers, numDevGatheredLayers));
 
 static std::array<Block*, numDevBlocks> dev_blocks;
 static std::array<FeaturePlacement*, numDevBlocks> dev_featurePlacements;
 
 static std::array<float*, numDevHeightfields> dev_heightfields;
-static std::array<float*, numDevLayers> dev_layers;
 static std::array<float*, numDevHeightfields> dev_biomeWeights; // TODO: may need to set numDevBiomeWeights = max(numDevHeightfields, numDevLayers)
                                                                 // probably fine for now since biome weights are always used in tandem with heightfield
+
+static std::array<float*, numDevLayers> dev_layers;
+
+static std::array<float*, numDevGatheredLayers> dev_gatheredLayers;
+
 static std::array<cudaStream_t, numStreams> streams;
 
 void Terrain::initCuda()
@@ -76,6 +81,11 @@ void Terrain::initCuda()
     for (int i = 0; i < numDevLayers; ++i)
     {
         cudaMalloc((void**)&dev_layers[i], 256 * (int)Material::numMaterials * sizeof(float));
+    }
+
+    for (int i = 0; i < numDevGatheredLayers; ++i)
+    {
+        cudaMalloc((void**)&dev_gatheredLayers[i], ZONE_SIZE * ZONE_SIZE * 4 * 256 * (int)Material::numMaterials * sizeof(float));
     }
 
     CudaUtils::checkCUDAError("cudaMalloc failed");
@@ -105,6 +115,11 @@ void Terrain::freeCuda()
     for (int i = 0; i < numDevLayers; ++i)
     {
         cudaFree(dev_layers[i]);
+    }
+
+    for (int i = 0; i < numDevGatheredLayers; ++i)
+    {
+        cudaFree(dev_gatheredLayers[i]);
     }
 
     CudaUtils::checkCUDAError("cudaFree failed");
@@ -393,7 +408,7 @@ void Terrain::updateZones()
 {
     for (const auto& zonePtr : zonesToTryErosion)
     {
-        zonePtr->gatheredChunks.resize(ZONE_SIZE * ZONE_SIZE * 4);
+        zonePtr->gatheredChunks.reserve(ZONE_SIZE * ZONE_SIZE * 4);
         if (isZoneReadyForErosion(zonePtr))
         {
             zonesToErode.push(zonePtr);
@@ -456,6 +471,7 @@ void Terrain::tick()
     int blocksIdx = 0;
     int heightfieldIdx = 0;
     int layersIdx = 0;
+    int gatheredLayersIdx = 0;
     int streamIdx = 0;
 
     while (!chunksToCreateAndBufferVbos.empty() && actionTimeLeft >= actionTimeCreateAndBufferVbos)
@@ -472,18 +488,6 @@ void Terrain::tick()
         chunkPtr->setNotReadyForQueue();
 
         actionTimeLeft -= actionTimeCreateAndBufferVbos;
-    }
-
-    while (!zonesToErode.empty() && actionTimeLeft >= actionTimeErodeZone)
-    {
-        needsUpdateChunks = true;
-
-        auto zonePtr = zonesToErode.front();
-        zonesToErode.pop();
-
-        Chunk::erodeZone(zonePtr);
-
-        actionTimeLeft -= actionTimeErodeZone;
     }
 
     while (!chunksToFill.empty() && actionTimeLeft >= actionTimeFill)
@@ -528,6 +532,24 @@ void Terrain::tick()
         chunkPtr->gatherFeaturePlacements(); // can set state to READY_TO_FILL
 
         actionTimeLeft -= actionTimeGatherFeaturePlacements;
+    }
+
+    while (!zonesToErode.empty() && actionTimeLeft >= actionTimeErodeZone)
+    {
+        needsUpdateChunks = true;
+
+        auto zonePtr = zonesToErode.front();
+        zonesToErode.pop();
+
+        Chunk::erodeZone(
+            zonePtr,
+            dev_gatheredLayers[gatheredLayersIdx],
+            streams[streamIdx]
+        );
+        ++gatheredLayersIdx;
+        ++streamIdx;
+
+        actionTimeLeft -= actionTimeErodeZone;
     }
 
     while (!chunksToGenerateLayers.empty() && actionTimeLeft >= actionTimeGenerateLayers)
