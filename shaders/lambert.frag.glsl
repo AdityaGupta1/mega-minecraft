@@ -93,8 +93,14 @@ void main() {
 
 #if CHUNK_COLOR
     ivec2 chunkPos = ivec2(floor(fs_pos.xz / 16.f));
-    vec3 multiplyCol = ((chunkPos[0] + chunkPos[1]) % 2 == 0) ? vec3(0.0, 0.5, 0.5) : vec3(1.0, 0.65, 0.0);
-    finalColor = mix(finalColor, finalColor * multiplyCol, 0.2);
+    vec3 chunkMultiplyCol = ((chunkPos[0] + chunkPos[1]) % 2 == 0) ? vec3(0.0, 0.5, 0.5) : vec3(1.0, 0.65, 0.0);
+    finalColor = mix(finalColor, finalColor * chunkMultiplyCol, 0.2);
+#endif
+
+#if ZONE_COLOR
+    ivec2 zonePos = ivec2(floor(fs_pos.xz / (16.f * ZONE_SIZE)));
+    vec3 zoneMultiplyCol = ((zonePos[0] + zonePos[1]) % 2 == 0) ? vec3(1, 0, 0) : vec3(0, 1, 0);
+    finalColor = mix(finalColor, finalColor * zoneMultiplyCol, 0.15);
 #endif
 
     out_color = vec4(finalColor, 1.f);
