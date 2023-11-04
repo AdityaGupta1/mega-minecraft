@@ -4,6 +4,7 @@
 #include "cuda/cudaUtils.hpp"
 #include <thread>
 #include <iostream>
+#include <iomanip>
 #include <chrono>
 #include <glm/gtx/string_cast.hpp>
 
@@ -121,9 +122,16 @@ ivec2 zonePosFromChunkPos(ivec2 chunkPos)
     return ivec2(glm::floor(vec2(chunkPos) / (float)ZONE_SIZE)) * ZONE_SIZE;
 }
 
+template<int size = ZONE_SIZE>
+int localChunkPosToIdx(int x, int z)
+{
+    return x + size * z;
+}
+
+template<int size = ZONE_SIZE>
 int localChunkPosToIdx(ivec2 localChunkPos)
 {
-    return localChunkPos.x + ZONE_SIZE * localChunkPos.y;
+    return localChunkPosToIdx<size>(localChunkPos.x, localChunkPos.y);
 }
 
 Zone* Terrain::createZone(ivec2 zoneWorldChunkPos)
@@ -283,23 +291,100 @@ void Terrain::addZonesToTryErosionSet(Chunk* chunkPtr)
     for (int i = 0; i < 3; ++i)
     {
         Zone* neighborZonePtr = zonePtr->neighbors[(startDirIdx + i) % 8];
-        if (neighborZonePtr != nullptr)
+        if (neighborZonePtr != nullptr && !neighborZonePtr->hasBeenQueuedForErosion)
         {
             zonesToTryErosion.insert(neighborZonePtr);
         }
     }
 }
 
+ivec2 getNeighborZoneCornerCoordBounds(int offset)
+{
+    switch (offset)
+    {
+    case -1:
+        return ivec2(ZONE_SIZE / 2, ZONE_SIZE);
+    case 0:
+        return ivec2(0, ZONE_SIZE);
+    case 1:
+        return ivec2(0, ZONE_SIZE / 2);
+    }
+}
+
+bool isChunkReadyForErosion(Chunk* chunkPtr, Zone* zonePtr)
+{
+    if (chunkPtr == nullptr || chunkPtr->getState() < ChunkState::HAS_LAYERS)
+    {
+        return false;
+    }
+
+    ivec2 gatheredChunkPos = chunkPtr->worldChunkPos - zonePtr->worldChunkPos + ivec2(ZONE_SIZE / 2);
+    zonePtr->gatheredChunks[localChunkPosToIdx<ZONE_SIZE * 2>(gatheredChunkPos)] = chunkPtr;
+    return true;
+}
+
 bool isZoneReadyForErosion(Zone* zonePtr)
 {
-    // EROSION TODO: actually check if neighborhood is ready rather than checking only this zone's chunks
     for (const auto& chunkPtr : zonePtr->chunks)
     {
-        if (chunkPtr == nullptr || chunkPtr->getState() < ChunkState::HAS_LAYERS)
+        if (!isChunkReadyForErosion(chunkPtr.get(), zonePtr))
         {
             return false;
         }
     }
+
+    for (int i = 0; i < 8; ++i)
+    {
+        const Zone* neighborZonePtr = zonePtr->neighbors[i];
+
+        if (neighborZonePtr == nullptr)
+        {
+            continue;
+        }
+
+        const ivec2 neighborDir = DirectionEnums::dirVecs2d[i];
+        ivec2 xBounds = getNeighborZoneCornerCoordBounds(neighborDir.x);
+        ivec2 zBounds = getNeighborZoneCornerCoordBounds(neighborDir.y);
+
+        for (int z = zBounds[0]; z < zBounds[1]; ++z)
+        {
+            for (int x = xBounds[0]; x < xBounds[1]; ++x)
+            {
+                const auto& chunkPtr = neighborZonePtr->chunks[localChunkPosToIdx(x, z)];
+                if (!isChunkReadyForErosion(chunkPtr.get(), zonePtr))
+                {
+                    return false;
+                }
+            }
+        }
+    }
+
+    /*int sideLength = ZONE_SIZE * 2;
+    for (int y = 0; y < sideLength; ++y)
+    {
+        for (int x = 0; x < sideLength; ++x)
+        {
+            int index = y * sideLength + x;
+            Chunk* chunk = zonePtr->gatheredChunks[index];
+            if (chunk)
+            {
+                std::cout << "("
+                    << std::setw(5) << std::setfill(' ') << chunk->worldChunkPos.x << ", "
+                    << std::setw(5) << std::setfill(' ') << chunk->worldChunkPos.y << ") ";
+            }
+            else
+            {
+                std::cout << "("
+                    << std::setw(5) << std::setfill(' ') << "null" << ", "
+                    << std::setw(5) << std::setfill(' ') << "null" << ") ";
+            }
+        }
+        std::cout << std::endl;
+    }
+
+    std::cout << std::endl;
+    std::cout << std::endl;
+    std::cout << std::endl;*/
 
     return true;
 }
@@ -308,9 +393,15 @@ void Terrain::updateZones()
 {
     for (const auto& zonePtr : zonesToTryErosion)
     {
+        zonePtr->gatheredChunks.resize(ZONE_SIZE * ZONE_SIZE * 4);
         if (isZoneReadyForErosion(zonePtr))
         {
             zonesToErode.push(zonePtr);
+            zonePtr->hasBeenQueuedForErosion = true;
+        }
+        else
+        {
+            zonePtr->gatheredChunks.clear();
         }
     }
 

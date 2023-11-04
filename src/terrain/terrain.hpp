@@ -12,7 +12,7 @@
 #include <mutex>
 #include "player/player.hpp"
 
-#define ZONE_SIZE 4 // changing this will have disastrous consequences
+#define ZONE_SIZE 4 // changing this may have disastrous consequences
 
 using namespace glm;
 
@@ -28,7 +28,8 @@ struct Zone
     std::array<std::unique_ptr<Chunk>, ZONE_SIZE * ZONE_SIZE> chunks{ nullptr };
     std::array<Zone*, 8> neighbors{ nullptr }; // starts with north and goes clockwise
 
-    bool hasBeenEroded{ false };
+    std::vector<Chunk*> gatheredChunks;
+    bool hasBeenQueuedForErosion{ false };
 };
 
 class Terrain {

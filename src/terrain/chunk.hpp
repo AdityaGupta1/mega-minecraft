@@ -75,7 +75,7 @@ public:
 
     Chunk(ivec2 worldChunkPos);
 
-    ChunkState getState();
+    ChunkState getState() const;
     void setState(ChunkState newState);
     bool isReadyForQueue();
     void setNotReadyForQueue();

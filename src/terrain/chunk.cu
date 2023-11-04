@@ -15,7 +15,7 @@ Chunk::Chunk(ivec2 worldChunkPos)
 
 #pragma region state functions
 
-ChunkState Chunk::getState()
+ChunkState Chunk::getState() const
 {
     return this->state;
 }
@@ -253,7 +253,7 @@ void Chunk::generateHeightfield(
     CudaUtils::checkCUDAError("Chunk::generateHeightfield() failed");
 }
 
-void copyEdge(int offset, int& in, int& out)
+void calculateEdgeIndices(int offset, int& in, int& out)
 {
     in = (offset == -1) ? 15 : 0;
     out = (offset == -1) ? 0 : 17;
@@ -277,7 +277,7 @@ void Chunk::otherChunkGatherHeightfield(Chunk* chunkPtr, Chunk* const (&neighbor
             {
                 // +/- x
                 int xIn, xOut;
-                copyEdge(offsetX, xIn, xOut);
+                calculateEdgeIndices(offsetX, xIn, xOut);
 
                 for (int z = 0; z < 16; ++z)
                 {
@@ -288,7 +288,7 @@ void Chunk::otherChunkGatherHeightfield(Chunk* chunkPtr, Chunk* const (&neighbor
             {
                 // +/- z
                 int zIn, zOut;
-                copyEdge(offsetZ, zIn, zOut);
+                calculateEdgeIndices(offsetZ, zIn, zOut);
 
                 for (int x = 0; x < 16; ++x)
                 {
@@ -300,8 +300,8 @@ void Chunk::otherChunkGatherHeightfield(Chunk* chunkPtr, Chunk* const (&neighbor
         {
             // corner
             int xIn, xOut, zIn, zOut;
-            copyEdge(offsetX, xIn, xOut);
-            copyEdge(offsetZ, zIn, zOut);
+            calculateEdgeIndices(offsetX, xIn, xOut);
+            calculateEdgeIndices(offsetZ, zIn, zOut);
             chunkPtr->gatheredHeightfield[posTo2dIndex<18>(xOut, zOut)] = neighborPtr->heightfield[posTo2dIndex(xIn, zIn)];
         }
     }
