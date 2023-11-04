@@ -13,8 +13,7 @@ static constexpr int chunkVbosGenRadius = 12;
 // [+1] Gather heightfields of 3x3 chunks and place material layers
 // [+5] Gather chunks to do zone erosion (for a corner chunk, 3 more in zone and 2 for padding; may not be super accurate but whatever)
 // [+2] Gather eroded material layers and feature placements of 5x5 chunks and fill features
-// [+2] Extra padding to minimize VBO recreation
-static constexpr int chunkMaxGenRadius = chunkVbosGenRadius + 10;
+static constexpr int chunkMaxGenRadius = chunkVbosGenRadius + 8;
 
 // TODO: get better estimates for these
 // ================================================================================
@@ -582,6 +581,7 @@ void Terrain::debugPrintCurrentChunkState()
     const auto& zonePtr = zones[zonePos];
     const auto& chunkPtr = zonePtr->chunks[localChunkPosToIdx(currentChunkPos - zonePtr->worldChunkPos)];
     bool isInDrawableChunks = drawableChunks.find(chunkPtr.get()) != drawableChunks.end();
+
     printf("chunk (%d, %d) state: %d\n", currentChunkPos.x, currentChunkPos.y, (int)chunkPtr->getState());
     printf("is in drawable chunks: %s\n", isInDrawableChunks ? "yes" : "no");
     printf("idx count: %d\n", chunkPtr->getIdxCount());
