@@ -119,12 +119,12 @@ void Terrain::freeCuda()
 
 ivec2 zonePosFromChunkPos(ivec2 chunkPos)
 {
-    return ivec2(glm::floor(vec2(chunkPos) / 16.f)) * 16;
+    return ivec2(glm::floor(vec2(chunkPos) / (float)ZONE_SIZE)) * ZONE_SIZE;
 }
 
 int localChunkPosToIdx(ivec2 localChunkPos)
 {
-    return localChunkPos.x + 16 * localChunkPos.y;
+    return localChunkPos.x + ZONE_SIZE * localChunkPos.y;
 }
 
 Zone* Terrain::createZone(ivec2 zonePos)
@@ -135,7 +135,7 @@ Zone* Terrain::createZone(ivec2 zonePos)
 
     for (int i = 0; i < 8; ++i)
     {
-        ivec2 neighborPos = zonePos + (16 * DirectionEnums::dirVecs2d[i]);
+        ivec2 neighborPos = zonePos + (ZONE_SIZE * DirectionEnums::dirVecs2d[i]);
 
         auto neighborZoneIt = zones.find(neighborPos);
         if (neighborZoneIt == zones.end())
@@ -183,8 +183,8 @@ void Terrain::updateChunk(int dx, int dz)
                 + ivec2(neighborChunkDir.x, neighborChunkDir.z);
 
             Zone* neighborZonePtr = zonePtr;
-            if (neighborChunkLocalChunkPos.x < 0 || neighborChunkLocalChunkPos.x >= 16
-                || neighborChunkLocalChunkPos.y < 0 || neighborChunkLocalChunkPos.y >= 16)
+            if (neighborChunkLocalChunkPos.x < 0 || neighborChunkLocalChunkPos.x >= ZONE_SIZE
+                || neighborChunkLocalChunkPos.y < 0 || neighborChunkLocalChunkPos.y >= ZONE_SIZE)
             {
                 neighborZonePtr = zonePtr->neighbors[i * 2];
 
@@ -194,7 +194,7 @@ void Terrain::updateChunk(int dx, int dz)
                 }
             }
 
-            const int neighborChunkIdx = localChunkPosToIdx((neighborChunkLocalChunkPos + ivec2(16)) % 16);
+            const int neighborChunkIdx = localChunkPosToIdx((neighborChunkLocalChunkPos + ivec2(ZONE_SIZE)) % ZONE_SIZE);
             const auto& neighborChunkUptr = neighborZonePtr->chunks[neighborChunkIdx];
             if (neighborChunkUptr == nullptr)
             {

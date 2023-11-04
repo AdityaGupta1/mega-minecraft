@@ -12,6 +12,8 @@
 #include <mutex>
 #include "player/player.hpp"
 
+#define ZONE_SIZE 4
+
 using namespace glm;
 
 class Chunk;
@@ -22,8 +24,8 @@ struct Zone
         : worldChunkPos(worldChunkPos)
     {}
 
-    ivec2 worldChunkPos; // in terms of number of chunks, so (0, 0) then (0, 16) then (0, 32) and so on
-    std::array<std::unique_ptr<Chunk>, 256> chunks{ nullptr };
+    ivec2 worldChunkPos; // in terms of number of chunks, so (0, 0) then (0, 1 * ZONE_SIZE) then (0, 2 * ZONE_SIZE) and so on
+    std::array<std::unique_ptr<Chunk>, ZONE_SIZE * ZONE_SIZE> chunks{ nullptr };
     std::array<Zone*, 8> neighbors{ nullptr }; // starts with north and goes clockwise
 };
 
