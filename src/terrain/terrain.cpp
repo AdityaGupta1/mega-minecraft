@@ -10,11 +10,16 @@
 
 #define DEBUG_TIME_CHUNK_FILL 0
 
+// ================================================================================================================================================================
+// theoretical padding needed:
+// [+1] gather heightfields of 3x3 chunks and place material layers
+// [+5] gather chunks to do zone erosion (for a corner chunk, 3 more in zone and 2 for padding; may not be super accurate but whatever)
+//     [+2] gather feature placements of 5x5 chunks for filling chunk (this is independent of erosion so it can be contained in the +5 for erosion)
+// ================================================================================================================================================================
+// in practice, give it way more so the user doesn't see any lag at borders of render distance
+// ================================================================================================================================================================
 static constexpr int chunkVbosGenRadius = 12;
-// [+1] Gather heightfields of 3x3 chunks and place material layers
-// [+5] Gather chunks to do zone erosion (for a corner chunk, 3 more in zone and 2 for padding; may not be super accurate but whatever)
-//     [+2] Gather feature placements of 5x5 chunks for filling chunk (this is independent of erosion so it can be contained in the +5 for erosion)
-static constexpr int chunkMaxGenRadius = chunkVbosGenRadius + 6;
+static constexpr int chunkMaxGenRadius = chunkVbosGenRadius + 2 + (2 * ZONE_SIZE);
 
 // TODO: get better estimates for these
 // ================================================================================

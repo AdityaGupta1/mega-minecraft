@@ -462,22 +462,13 @@ void copyLayers(Zone* zonePtr, std::array<float[(int)Material::numMaterials], ZO
             {
                 for (int blockX = 0; blockX < 16; ++blockX)
                 {
-                    auto& srcLayers = chunkPtr->layers[posTo2dIndex(blockX, blockZ)];
-                    auto& dstLayers = gatheredLayers[posTo2dIndex<ZONE_SIZE * 2 * 16>(chunkBlockPos + ivec2(blockX, blockZ))];
+                    auto srcLayers = chunkPtr->layers[posTo2dIndex(blockX, blockZ)];
+                    auto dstLayers = gatheredLayers[posTo2dIndex<ZONE_SIZE * 2 * 16>(chunkBlockPos + ivec2(blockX, blockZ))];
                     if (!toGatheredLayers)
                     {
                         std::swap(srcLayers, dstLayers);
                     }
                     std::memcpy(dstLayers, srcLayers, (int)Material::numMaterials * sizeof(float));
-
-                    //if (!toGatheredLayers)
-                    //{
-                    //    for (int i = 0; i < (int)Material::numMaterials; ++i)
-                    //    {
-                    //        dstLayers[i] = 0.f;
-                    //    }
-                    //    dstLayers[(int)Material::numMaterials - 1] = 50.f;
-                    //}
                 }
             }
         }
@@ -496,6 +487,9 @@ void Chunk::erodeZone(Zone* zonePtr, float* dev_gatheredLayers, cudaStream_t str
     // TODO: kernel execution
 
     cudaMemcpyAsync(gatheredLayers.data(), dev_gatheredLayers, gatheredLayersSizeBytes, cudaMemcpyDeviceToHost, stream);
+
+    cudaStreamSynchronize(stream); // all data needs to be copied back to gatheredLayers before calling copyLayers()
+                                   // explicit synchronization here may not be necessary (seems to work without it) but it gives peace of mind
 
     copyLayers(zonePtr, gatheredLayers, false);
 
