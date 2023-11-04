@@ -35,12 +35,13 @@ enum class Material : unsigned char
     ANDESITE,
 
     // eroded
+    GRAVEL,
     DIRT,
 
     numMaterials
 };
 
-const int numStratifiedMaterials = (int)Material::DIRT;
+const int numStratifiedMaterials = (int)Material::GRAVEL;
 const int numErodedMaterials = (int)Material::numMaterials - numStratifiedMaterials;
 
 struct MaterialInfo

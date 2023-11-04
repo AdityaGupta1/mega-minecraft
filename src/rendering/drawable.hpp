@@ -23,10 +23,8 @@ public:
     void generateIdx();
     void generateVerts();
     void generateFullscreenTriInfo();
-    void generateUvs();
 
     bool bindIdx();
     bool bindVerts();
     bool bindFullscreenTriInfo();
-    bool bindUvs();
 };

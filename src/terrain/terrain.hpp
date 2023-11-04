@@ -12,6 +12,8 @@
 #include <mutex>
 #include "player/player.hpp"
 
+#define ZONE_SIZE 4 // changing this may have disastrous consequences
+
 using namespace glm;
 
 class Chunk;
@@ -22,9 +24,12 @@ struct Zone
         : worldChunkPos(worldChunkPos)
     {}
 
-    ivec2 worldChunkPos; // in terms of number of chunks, so (0, 0) then (0, 16) then (0, 32) and so on
-    std::array<std::unique_ptr<Chunk>, 256> chunks{ nullptr };
+    ivec2 worldChunkPos; // in terms of number of chunks, so (0, 0) then (0, 1 * ZONE_SIZE) then (0, 2 * ZONE_SIZE) and so on
+    std::array<std::unique_ptr<Chunk>, ZONE_SIZE * ZONE_SIZE> chunks{ nullptr };
     std::array<Zone*, 8> neighbors{ nullptr }; // starts with north and goes clockwise
+
+    std::vector<Chunk*> gatheredChunks;
+    bool hasBeenQueuedForErosion{ false };
 };
 
 class Terrain {
@@ -37,9 +42,10 @@ private:
     std::queue<Chunk*> chunksToGatherHeightfield;
     std::queue<Chunk*> chunksToGenerateLayers;
     std::queue<Chunk*> chunksToGatherFeaturePlacements;
+    std::unordered_set<Zone*> zonesToTryErosion;
+    std::queue<Zone*> zonesToErode;
     std::queue<Chunk*> chunksToFill;
-    std::queue<Chunk*> chunksToCreateVbos;
-    std::queue<Chunk*> chunksToBufferVbos;
+    std::queue<Chunk*> chunksToCreateAndBufferVbos;
     
     std::unordered_set<Chunk*> drawableChunks;
     std::queue<Chunk*> chunksToDestroyVbos;
@@ -51,12 +57,13 @@ private:
     void initCuda();
     void freeCuda();
 
-    Zone* createZone(ivec2 zonePos);
+    Zone* createZone(ivec2 zoneWorldChunkPos);
 
     void updateChunk(int dx, int dz);
     void updateChunks();
 
-    void createChunkVbos(Chunk* chunkPtr);
+    void addZonesToTryErosionSet(Chunk* chunkPtr);
+    void updateZones();
 
 public:
     Terrain();
@@ -67,4 +74,6 @@ public:
     void draw(const ShaderProgram& prog, const Player* player);
 
     void setCurrentChunkPos(ivec2 newCurrentChunkPos);
+
+    void debugPrintCurrentChunkState();
 };

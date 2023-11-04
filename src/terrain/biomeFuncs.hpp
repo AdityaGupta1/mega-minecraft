@@ -53,6 +53,8 @@ __device__ float getHeight(Biome biome, vec2 pos)
 //__constant__ BiomeBlocks dev_biomeBlocks[(int)Biome::numBiomes]; // TODO: convert to only top block for use with hashing transitions (replace generic top block with biome-specific top block)
 __constant__ MaterialInfo dev_materialInfos[(int)Material::numMaterials];
 
+__constant__ ivec2 dev_dirVecs2d[8];
+
 static std::array<std::vector<FeatureGen>, (int)Biome::numBiomes> biomeFeatureGens;
 static std::array<ivec2, (int)Feature::numFeatures> featureHeightBounds;
 
@@ -73,17 +75,18 @@ void BiomeUtils::init()
 
     // block, thickness, noise amplitude, noise scale
     host_materialInfos[(int)Material::BLACKSTONE] = { Block::BLACKSTONE, 56.f, 32.f, 0.0030f };
-    host_materialInfos[(int)Material::DEEPSLATE] = { Block::DEEPSLATE, 48.f, 24.f, 0.0045f };
-    host_materialInfos[(int)Material::SLATE] = { Block::SLATE, 4.f, 24.f, 0.0062f };
-    host_materialInfos[(int)Material::STONE] = { Block::STONE, 36.f, 30.f, 0.0050f };
-    host_materialInfos[(int)Material::TUFF] = { Block::TUFF, 32.f, 42.f, 0.0060f };
+    host_materialInfos[(int)Material::DEEPSLATE] = { Block::DEEPSLATE, 52.f, 20.f, 0.0045f };
+    host_materialInfos[(int)Material::SLATE] = { Block::SLATE, 6.f, 24.f, 0.0062f };
+    host_materialInfos[(int)Material::STONE] = { Block::STONE, 32.f, 30.f, 0.0050f };
+    host_materialInfos[(int)Material::TUFF] = { Block::TUFF, 24.f, 42.f, 0.0060f };
     host_materialInfos[(int)Material::CALCITE] = { Block::CALCITE, 20.f, 30.f, 0.0040f };
     host_materialInfos[(int)Material::GRANITE] = { Block::GRANITE, 18.f, 36.f, 0.0034f };
-    host_materialInfos[(int)Material::MARBLE] = { Block::MARBLE, 24.f, 56.f, 0.0050f };
+    host_materialInfos[(int)Material::MARBLE] = { Block::MARBLE, 28.f, 56.f, 0.0050f };
     host_materialInfos[(int)Material::ANDESITE] = { Block::ANDESITE, 24.f, 48.f, 0.0030f };
 
     // block, thickness, angle of repose (degrees), maximum slope
-    host_materialInfos[(int)Material::DIRT] = { Block::DIRT, 3.f, 35.f, 0.8f };
+    host_materialInfos[(int)Material::GRAVEL] = { Block::GRAVEL, 2.0f, 35.f, 1.8f };
+    host_materialInfos[(int)Material::DIRT] = { Block::DIRT, 2.5f, 27.f, 1.4f };
 
     // convert angles of repose into their tangents
     for (int layerIdx = numStratifiedMaterials; layerIdx < (int)Material::numMaterials; ++layerIdx)
@@ -95,6 +98,8 @@ void BiomeUtils::init()
     cudaMemcpyToSymbol(dev_materialInfos, host_materialInfos, (int)Material::numMaterials * sizeof(MaterialInfo));
 
     delete[] host_materialInfos;
+
+    cudaMemcpyToSymbol(dev_dirVecs2d, DirectionEnums::dirVecs2d.data(), 8 * sizeof(ivec2));
 
     biomeFeatureGens[(int)Biome::PURPLE_MUSHROOMS] = { {Feature::PURPLE_MUSHROOM, 0.004f} };
 

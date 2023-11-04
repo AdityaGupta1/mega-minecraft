@@ -30,13 +30,14 @@ enum class Direction2d
 namespace DirectionEnums
 {
     const static std::array<ivec2, 8> dirVecs2d = {
-        ivec2(0, 1),
-        ivec2(1, 1),
-        ivec2(1, 0),
-        ivec2(1, -1),
-        ivec2(0, -1),
-        ivec2(-1, -1),
-        ivec2(-1, 0),
+        ivec2(0, 1),   // 0
+        ivec2(1, 1),   // 1
+        ivec2(1, 0),   // 2
+        ivec2(1, -1),  // 3
+        ivec2(0, -1),  // 4
+        ivec2(-1, -1), // 5
+        ivec2(-1, 0),  // 6
+        ivec2(-1, 1),  // 7
     };
 
     const static std::array<ivec3, 6> dirVecs = {

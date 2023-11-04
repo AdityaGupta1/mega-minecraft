@@ -1,10 +1,5 @@
 #version 330
 
-#include defines.glsl
-
-#define APPLY_SHADOWS 1
-#define APPLY_VOLUMETRIC_FOG 1
-
 const vec3 sunLight = vec3(1.0f, 1.0f, 1.0f);
 const vec3 moonLight = vec3(0.8070f, 0.9823f, 1.0f) * 0.15f;
 const vec3 ambientLight = vec3(0.8, 0.98, 1.0) * 0.16f;
@@ -94,6 +89,18 @@ void main() {
 
     float fogFactor = 0.5f * clamp(1 - dot(normalize(u_sunDir.xyz), vec3(0, 1, 0)), 0, 1);
     finalColor = mix(finalColor, colorWithFog, fogFactor);
+#endif
+
+#if CHUNK_COLOR
+    ivec2 chunkPos = ivec2(floor(fs_pos.xz / 16.f));
+    vec3 chunkMultiplyCol = ((chunkPos[0] + chunkPos[1]) % 2 == 0) ? vec3(0.0, 0.5, 0.5) : vec3(1.0, 0.65, 0.0);
+    finalColor = mix(finalColor, finalColor * chunkMultiplyCol, 0.2);
+#endif
+
+#if ZONE_COLOR
+    ivec2 zonePos = ivec2(floor(fs_pos.xz / (16.f * ZONE_SIZE)));
+    vec3 zoneMultiplyCol = ((zonePos[0] + zonePos[1]) % 2 == 0) ? vec3(1, 0, 0) : vec3(0, 1, 0);
+    finalColor = mix(finalColor, finalColor * zoneMultiplyCol, 0.15);
 #endif
 
     out_color = vec4(finalColor, 1.f);

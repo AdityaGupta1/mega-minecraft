@@ -225,6 +225,12 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
             renderer->toggleTimePaused();
         }
         break;
+    case GLFW_KEY_O:
+        if (action == GLFW_RELEASE)
+        {
+            terrain->debugPrintCurrentChunkState();
+        }
+        break;
     }
 }
 

@@ -25,13 +25,14 @@ enum class ChunkState : unsigned char
     //NEEDS_FEATURE_PLACEMENTS,
     NEEDS_GATHER_FEATURE_PLACEMENTS,
     READY_TO_FILL, // this and 5x5 neighborhood all have feature placements
-    IS_FILLED,
+    FILLED,
+    NEEDS_VBOS,
     DRAWABLE
 };
 
 class Chunk : public Drawable {
     template<std::size_t diameter>
-    using ChunkProcessorFunc = std::function<bool(Chunk* chunkPtr, Chunk* const (&neighborChunks)[diameter][diameter], int centerX, int centerZ)>;
+    using ChunkProcessorFunc = std::function<void(Chunk* chunkPtr, Chunk* const (&neighborChunks)[diameter][diameter], int centerX, int centerZ)>;
 
 private:
     ChunkState state{ ChunkState::EMPTY };
@@ -43,7 +44,7 @@ private:
     void generateOwnFeaturePlacements();
 
 public:
-    const ivec2 worldChunkPos; // world-space pos in terms of chunks (e.g. (3, -4) chunk pos = (48, -64) block pos)
+    const ivec2 worldChunkPos; // world space pos in terms of chunks (e.g. (3, -4) chunk pos = (48, -64) block pos)
     const ivec3 worldBlockPos;
 
     Zone* zonePtr;
@@ -74,7 +75,7 @@ public:
 
     Chunk(ivec2 worldChunkPos);
 
-    ChunkState getState();
+    ChunkState getState() const;
     void setState(ChunkState newState);
     bool isReadyForQueue();
     void setNotReadyForQueue();
@@ -89,14 +90,16 @@ private:
     template<std::size_t diameter>
     void floodFillAndIterateNeighbors(ChunkState currentState, ChunkState nextState, ChunkProcessorFunc<diameter> chunkProcessorFunc);
 
-    static bool otherChunkGatherHeightfield(Chunk* chunkPtr, Chunk* const (&neighborChunks)[5][5], int centerX, int centerZ);
+    static void otherChunkGatherHeightfield(Chunk* chunkPtr, Chunk* const (&neighborChunks)[5][5], int centerX, int centerZ);
 
-    static bool otherChunkGatherFeaturePlacements(Chunk* chunkPtr, Chunk* const (&neighborChunks)[9][9], int centerX, int centerZ);
+    static void otherChunkGatherFeaturePlacements(Chunk* chunkPtr, Chunk* const (&neighborChunks)[9][9], int centerX, int centerZ);
 
 public:
     void gatherHeightfield();
 
     void generateLayers(float* dev_heightfield, float* dev_layers, float* dev_biomeWeights, cudaStream_t stream);
+
+    static void erodeZone(Zone* zonePtr, float* dev_gatheredLayers, cudaStream_t stream);
 
     void gatherFeaturePlacements();
 

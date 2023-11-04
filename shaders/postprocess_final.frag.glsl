@@ -1,7 +1,5 @@
 #version 330
 
-#include defines.glsl
-
 #define APPLY_BLOOM 0
 
 uniform sampler2D tex_bufColor;

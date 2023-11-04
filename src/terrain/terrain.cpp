@@ -4,6 +4,7 @@
 #include "cuda/cudaUtils.hpp"
 #include <thread>
 #include <iostream>
+#include <iomanip>
 #include <chrono>
 #include <glm/gtx/string_cast.hpp>
 
@@ -11,22 +12,21 @@
 
 static constexpr int chunkVbosGenRadius = 12;
 // [+1] Gather heightfields of 3x3 chunks and place material layers
-// [+1] Gather material layers of 2x2 chunks (3x3 with closer half or quarter of neighbors) to do erosion
-// [+2] Gather eroded material layers and feature placements of 5x5 chunks and fill features
-// [+2] Extra padding to minimize VBO recreation
+// [+5] Gather chunks to do zone erosion (for a corner chunk, 3 more in zone and 2 for padding; may not be super accurate but whatever)
+//     [+2] Gather feature placements of 5x5 chunks for filling chunk (this is independent of erosion so it can be contained in the +5 for erosion)
 static constexpr int chunkMaxGenRadius = chunkVbosGenRadius + 6;
 
 // TODO: get better estimates for these
 // ================================================================================
-static constexpr int totalActionTime = 100;
+static constexpr int totalActionTime = 500;
 // ================================================================================
 static constexpr int actionTimeGenerateHeightfield        = 4;
 static constexpr int actionTimeGatherHeightfield          = 2;
 static constexpr int actionTimeGenerateLayers             = 6;
+static constexpr int actionTimeErodeZone                  = totalActionTime;
 static constexpr int actionTimeGatherFeaturePlacements    = 2;
 static constexpr int actionTimeFill                       = 4;
-static constexpr int actionTimeCreateVbos                 = 20;
-static constexpr int actionTimeBufferVbos                 = totalActionTime / 5;
+static constexpr int actionTimeCreateAndBufferVbos        = totalActionTime / 4;
 // ================================================================================
 
 Terrain::Terrain()
@@ -48,15 +48,20 @@ std::chrono::system_clock::time_point start;
 static constexpr int numDevBlocks = totalActionTime / actionTimeFill;
 static constexpr int numDevHeightfields = totalActionTime / min(actionTimeGenerateHeightfield, min(actionTimeGenerateLayers, actionTimeFill));
 static constexpr int numDevLayers = totalActionTime / min(actionTimeGenerateLayers, actionTimeFill);
-static constexpr int numStreams = max(numDevBlocks, max(numDevHeightfields, numDevLayers));
+static constexpr int numDevGatheredLayers = totalActionTime / actionTimeErodeZone;
+static constexpr int numStreams = max(max(numDevBlocks, numDevHeightfields), max(numDevLayers, numDevGatheredLayers));
 
 static std::array<Block*, numDevBlocks> dev_blocks;
 static std::array<FeaturePlacement*, numDevBlocks> dev_featurePlacements;
 
 static std::array<float*, numDevHeightfields> dev_heightfields;
-static std::array<float*, numDevLayers> dev_layers;
 static std::array<float*, numDevHeightfields> dev_biomeWeights; // TODO: may need to set numDevBiomeWeights = max(numDevHeightfields, numDevLayers)
                                                                 // probably fine for now since biome weights are always used in tandem with heightfield
+
+static std::array<float*, numDevLayers> dev_layers;
+
+static std::array<float*, numDevGatheredLayers> dev_gatheredLayers;
+
 static std::array<cudaStream_t, numStreams> streams;
 
 void Terrain::initCuda()
@@ -76,6 +81,11 @@ void Terrain::initCuda()
     for (int i = 0; i < numDevLayers; ++i)
     {
         cudaMalloc((void**)&dev_layers[i], 256 * (int)Material::numMaterials * sizeof(float));
+    }
+
+    for (int i = 0; i < numDevGatheredLayers; ++i)
+    {
+        cudaMalloc((void**)&dev_gatheredLayers[i], ZONE_SIZE * ZONE_SIZE * 4 * 256 * (int)Material::numMaterials * sizeof(float));
     }
 
     CudaUtils::checkCUDAError("cudaMalloc failed");
@@ -107,6 +117,11 @@ void Terrain::freeCuda()
         cudaFree(dev_layers[i]);
     }
 
+    for (int i = 0; i < numDevGatheredLayers; ++i)
+    {
+        cudaFree(dev_gatheredLayers[i]);
+    }
+
     CudaUtils::checkCUDAError("cudaFree failed");
 
     for (int i = 0; i < numStreams; ++i)
@@ -119,23 +134,30 @@ void Terrain::freeCuda()
 
 ivec2 zonePosFromChunkPos(ivec2 chunkPos)
 {
-    return ivec2(glm::floor(vec2(chunkPos) / 16.f)) * 16;
+    return ivec2(glm::floor(vec2(chunkPos) / (float)ZONE_SIZE)) * ZONE_SIZE;
 }
 
+template<int size = ZONE_SIZE>
+int localChunkPosToIdx(int x, int z)
+{
+    return x + size * z;
+}
+
+template<int size = ZONE_SIZE>
 int localChunkPosToIdx(ivec2 localChunkPos)
 {
-    return localChunkPos.x + 16 * localChunkPos.y;
+    return localChunkPosToIdx<size>(localChunkPos.x, localChunkPos.y);
 }
 
-Zone* Terrain::createZone(ivec2 zonePos)
+Zone* Terrain::createZone(ivec2 zoneWorldChunkPos)
 {
-    auto newZoneUptr = std::make_unique<Zone>(zonePos);
+    auto newZoneUptr = std::make_unique<Zone>(zoneWorldChunkPos);
     Zone* newZonePtr = newZoneUptr.get();
-    zones[zonePos] = std::move(newZoneUptr);
+    zones[zoneWorldChunkPos] = std::move(newZoneUptr);
 
     for (int i = 0; i < 8; ++i)
     {
-        ivec2 neighborPos = zonePos + (16 * DirectionEnums::dirVecs2d[i]);
+        ivec2 neighborPos = zoneWorldChunkPos + (ZONE_SIZE * DirectionEnums::dirVecs2d[i]);
 
         auto neighborZoneIt = zones.find(neighborPos);
         if (neighborZoneIt == zones.end())
@@ -183,8 +205,8 @@ void Terrain::updateChunk(int dx, int dz)
                 + ivec2(neighborChunkDir.x, neighborChunkDir.z);
 
             Zone* neighborZonePtr = zonePtr;
-            if (neighborChunkLocalChunkPos.x < 0 || neighborChunkLocalChunkPos.x >= 16
-                || neighborChunkLocalChunkPos.y < 0 || neighborChunkLocalChunkPos.y >= 16)
+            if (neighborChunkLocalChunkPos.x < 0 || neighborChunkLocalChunkPos.x >= ZONE_SIZE
+                || neighborChunkLocalChunkPos.y < 0 || neighborChunkLocalChunkPos.y >= ZONE_SIZE)
             {
                 neighborZonePtr = zonePtr->neighbors[i * 2];
 
@@ -194,7 +216,7 @@ void Terrain::updateChunk(int dx, int dz)
                 }
             }
 
-            const int neighborChunkIdx = localChunkPosToIdx((neighborChunkLocalChunkPos + ivec2(16)) % 16);
+            const int neighborChunkIdx = localChunkPosToIdx((neighborChunkLocalChunkPos + ivec2(ZONE_SIZE)) % ZONE_SIZE);
             const auto& neighborChunkUptr = neighborZonePtr->chunks[neighborChunkIdx];
             if (neighborChunkUptr == nullptr)
             {
@@ -247,19 +269,13 @@ void Terrain::updateChunk(int dx, int dz)
 
     switch (chunkPtr->getState())
     {
-    case ChunkState::IS_FILLED:
+    case ChunkState::NEEDS_VBOS:
         chunkPtr->setNotReadyForQueue();
-        chunksToCreateVbos.push(chunkPtr);
+        chunksToCreateAndBufferVbos.push(chunkPtr);
         return;
     }
 }
 
-// This function looks at the area covered by CHUNK_GEN_HEIGHTFIELDS_RADIUS. For each chunk, it first
-// creates the chunk if it doesn't exist, also creating the associated zone if necsesary. Then, it looks at
-// the chunk's state and adds it to the correct queue iff chunk.readyForQueue == true. This also includes
-// setting readyForQueue to false so the chunk will be skipped until it's ready for the next state. The states 
-// themselves, as well as readyForQueue, will be updated after the associated call or CPU thread finishes 
-// execution. Kernels and threads are spawned from Terrain::tick().
 void Terrain::updateChunks()
 {
     for (int dz = -chunkMaxGenRadius; dz <= chunkMaxGenRadius; ++dz)
@@ -271,11 +287,158 @@ void Terrain::updateChunks()
     }
 }
 
-void Terrain::createChunkVbos(Chunk* chunkPtr)
+void Terrain::addZonesToTryErosionSet(Chunk* chunkPtr)
 {
-    chunkPtr->createVBOs();
-    chunkPtr->setNotReadyForQueue();
-    chunksToBufferVbos.push(chunkPtr);
+    Zone* zonePtr = chunkPtr->zonePtr;
+    zonesToTryErosion.insert(zonePtr);
+
+    ivec2 localChunkPos = chunkPtr->worldChunkPos - zonePtr->worldChunkPos;
+    int startDirIdx;
+    if (localChunkPos.x < 2)
+    {
+        startDirIdx = localChunkPos.y < 2 ? 4 : 6;
+    }
+    else
+    {
+        startDirIdx = localChunkPos.y < 2 ? 0 : 2;
+    }
+
+    for (int i = 0; i < 3; ++i)
+    {
+        Zone* neighborZonePtr = zonePtr->neighbors[(startDirIdx + i) % 8];
+        if (neighborZonePtr != nullptr && !neighborZonePtr->hasBeenQueuedForErosion)
+        {
+            zonesToTryErosion.insert(neighborZonePtr);
+        }
+    }
+}
+
+ivec2 getNeighborZoneCornerCoordBounds(int offset)
+{
+    switch (offset)
+    {
+    case -1:
+        return ivec2(ZONE_SIZE / 2, ZONE_SIZE);
+    case 0:
+        return ivec2(0, ZONE_SIZE);
+    case 1:
+        return ivec2(0, ZONE_SIZE / 2);
+    }
+}
+
+bool isChunkReadyForErosion(Chunk* chunkPtr, Zone* zonePtr)
+{
+    if (chunkPtr == nullptr || chunkPtr->getState() < ChunkState::HAS_LAYERS)
+    {
+        return false;
+    }
+
+    ivec2 gatheredChunkPos = chunkPtr->worldChunkPos - zonePtr->worldChunkPos + ivec2(ZONE_SIZE / 2);
+    zonePtr->gatheredChunks[localChunkPosToIdx<ZONE_SIZE * 2>(gatheredChunkPos)] = chunkPtr;
+    return true;
+}
+
+bool isZoneReadyForErosion(Zone* zonePtr)
+{
+    for (const auto& chunkPtr : zonePtr->chunks)
+    {
+        if (!isChunkReadyForErosion(chunkPtr.get(), zonePtr))
+        {
+            return false;
+        }
+    }
+
+    for (int i = 0; i < 8; ++i)
+    {
+        const Zone* neighborZonePtr = zonePtr->neighbors[i];
+
+        if (neighborZonePtr == nullptr)
+        {
+            continue;
+        }
+
+        const ivec2 neighborDir = DirectionEnums::dirVecs2d[i];
+        ivec2 xBounds = getNeighborZoneCornerCoordBounds(neighborDir.x);
+        ivec2 zBounds = getNeighborZoneCornerCoordBounds(neighborDir.y);
+
+        for (int z = zBounds[0]; z < zBounds[1]; ++z)
+        {
+            for (int x = xBounds[0]; x < xBounds[1]; ++x)
+            {
+                const auto& chunkPtr = neighborZonePtr->chunks[localChunkPosToIdx(x, z)];
+                if (!isChunkReadyForErosion(chunkPtr.get(), zonePtr))
+                {
+                    return false;
+                }
+            }
+        }
+    }
+
+    /*int sideLength = ZONE_SIZE * 2;
+    for (int y = 0; y < sideLength; ++y)
+    {
+        for (int x = 0; x < sideLength; ++x)
+        {
+            int index = y * sideLength + x;
+            Chunk* chunk = zonePtr->gatheredChunks[index];
+            if (chunk)
+            {
+                std::cout << "("
+                    << std::setw(5) << std::setfill(' ') << chunk->worldChunkPos.x << ", "
+                    << std::setw(5) << std::setfill(' ') << chunk->worldChunkPos.y << ") ";
+            }
+            else
+            {
+                std::cout << "("
+                    << std::setw(5) << std::setfill(' ') << "null" << ", "
+                    << std::setw(5) << std::setfill(' ') << "null" << ") ";
+            }
+        }
+        std::cout << std::endl;
+    }
+
+    std::cout << std::endl;
+    std::cout << std::endl;
+    std::cout << std::endl;*/
+
+    return true;
+}
+
+void Terrain::updateZones()
+{
+    for (const auto& zonePtr : zonesToTryErosion)
+    {
+        zonePtr->gatheredChunks.reserve(ZONE_SIZE * ZONE_SIZE * 4);
+        if (isZoneReadyForErosion(zonePtr))
+        {
+            zonesToErode.push(zonePtr);
+            zonePtr->hasBeenQueuedForErosion = true;
+        }
+        else
+        {
+            zonePtr->gatheredChunks.clear();
+        }
+    }
+
+    zonesToTryErosion.clear();
+}
+
+void checkChunkAndNeighborsForNeedsVbos(Chunk* chunkPtr)
+{
+    if (chunkPtr == nullptr || chunkPtr->getState() < ChunkState::FILLED)
+    {
+        return;
+    }
+
+    for (const auto& neighborChunkPtr : chunkPtr->neighbors)
+    {
+        if (neighborChunkPtr == nullptr || neighborChunkPtr->getState() < ChunkState::FILLED)
+        {
+            return;
+        }
+    }
+
+    chunkPtr->setState(ChunkState::NEEDS_VBOS);
 }
 
 void Terrain::tick()
@@ -287,8 +450,7 @@ void Terrain::tick()
 
         drawableChunks.erase(chunkPtr);
         chunkPtr->destroyVBOs();
-        chunkPtr->setState(ChunkState::IS_FILLED);
-
+        chunkPtr->setState(ChunkState::NEEDS_VBOS);
     }
 
     if (currentChunkPos != lastChunkPos)
@@ -300,6 +462,7 @@ void Terrain::tick()
     if (needsUpdateChunks)
     {
         updateChunks();
+        updateZones();
         needsUpdateChunks = false;
     }
 
@@ -308,72 +471,23 @@ void Terrain::tick()
     int blocksIdx = 0;
     int heightfieldIdx = 0;
     int layersIdx = 0;
+    int gatheredLayersIdx = 0;
     int streamIdx = 0;
 
-    while (!chunksToGenerateHeightfield.empty() && actionTimeLeft >= actionTimeGenerateHeightfield)
+    while (!chunksToCreateAndBufferVbos.empty() && actionTimeLeft >= actionTimeCreateAndBufferVbos)
     {
         needsUpdateChunks = true;
 
-        auto chunkPtr = chunksToGenerateHeightfield.front();
-        chunksToGenerateHeightfield.pop();
+        auto chunkPtr = chunksToCreateAndBufferVbos.front();
+        chunksToCreateAndBufferVbos.pop();
 
-        chunkPtr->generateHeightfield(
-            dev_heightfields[heightfieldIdx],
-            dev_biomeWeights[heightfieldIdx],
-            streams[streamIdx]
-        );
-        ++heightfieldIdx;
-        ++streamIdx;
+        chunkPtr->createVBOs();
+        chunkPtr->bufferVBOs();
+        drawableChunks.insert(chunkPtr);
+        chunkPtr->setState(ChunkState::DRAWABLE);
+        chunkPtr->setNotReadyForQueue();
 
-        chunkPtr->setState(ChunkState::HAS_HEIGHTFIELD);
-
-        actionTimeLeft -= actionTimeGenerateHeightfield;
-    }
-
-    while (!chunksToGatherHeightfield.empty() && actionTimeLeft >= actionTimeGatherHeightfield)
-    {
-        needsUpdateChunks = true;
-
-        auto chunkPtr = chunksToGatherHeightfield.front();
-        chunksToGatherHeightfield.pop();
-
-        chunkPtr->gatherHeightfield(); // can set state to NEEDS_LAYERS
-
-        actionTimeLeft -= actionTimeGatherHeightfield;
-    }
-
-    while (!chunksToGenerateLayers.empty() && actionTimeLeft >= actionTimeGenerateLayers)
-    {
-        needsUpdateChunks = true;
-
-        auto chunkPtr = chunksToGenerateLayers.front();
-        chunksToGenerateLayers.pop();
-
-        chunkPtr->generateLayers(
-            dev_heightfields[heightfieldIdx],
-            dev_layers[layersIdx],
-            dev_biomeWeights[heightfieldIdx],
-            streams[streamIdx]
-        );
-        ++heightfieldIdx;
-        ++layersIdx;
-        ++streamIdx;
-
-        chunkPtr->setState(ChunkState::NEEDS_GATHER_FEATURE_PLACEMENTS);
-
-        actionTimeLeft -= actionTimeGenerateLayers;
-    }
-
-    while (!chunksToGatherFeaturePlacements.empty() && actionTimeLeft >= actionTimeGatherFeaturePlacements)
-    {
-        needsUpdateChunks = true;
-
-        auto chunkPtr = chunksToGatherFeaturePlacements.front();
-        chunksToGatherFeaturePlacements.pop();
-
-        chunkPtr->gatherFeaturePlacements(); // can set state to READY_TO_FILL
-
-        actionTimeLeft -= actionTimeGatherFeaturePlacements;
+        actionTimeLeft -= actionTimeCreateAndBufferVbos;
     }
 
     while (!chunksToFill.empty() && actionTimeLeft >= actionTimeFill)
@@ -396,47 +510,107 @@ void Terrain::tick()
         ++layersIdx;
         ++streamIdx;
 
-        chunkPtr->setState(ChunkState::IS_FILLED);
+        chunkPtr->setState(ChunkState::FILLED);
+        chunkPtr->setNotReadyForQueue();
 
-        for (int i = 0; i < 4; ++i)
+        checkChunkAndNeighborsForNeedsVbos(chunkPtr);
+        for (const auto& neighborChunkPtr : chunkPtr->neighbors)
         {
-            Chunk* neighborChunkPtr = chunkPtr->neighbors[i];
-            if (neighborChunkPtr != nullptr && neighborChunkPtr->getState() == ChunkState::DRAWABLE)
-            {
-                chunksToDestroyVbos.push(neighborChunkPtr);
-            }
+            checkChunkAndNeighborsForNeedsVbos(neighborChunkPtr);
         }
 
         actionTimeLeft -= actionTimeFill;
     }
 
-    if (streamIdx > 0)
-    {
-        cudaDeviceSynchronize();
-    }
-
-    while (!chunksToCreateVbos.empty() && actionTimeLeft >= actionTimeCreateVbos)
+    while (!chunksToGatherFeaturePlacements.empty() && actionTimeLeft >= actionTimeGatherFeaturePlacements)
     {
         needsUpdateChunks = true;
 
-        auto chunkPtr = chunksToCreateVbos.front();
-        chunksToCreateVbos.pop();
+        auto chunkPtr = chunksToGatherFeaturePlacements.front();
+        chunksToGatherFeaturePlacements.pop();
 
-        this->createChunkVbos(chunkPtr);
+        chunkPtr->gatherFeaturePlacements(); // can set state to READY_TO_FILL
 
-        actionTimeLeft -= actionTimeCreateVbos;
+        actionTimeLeft -= actionTimeGatherFeaturePlacements;
     }
 
-    while (!chunksToBufferVbos.empty() && actionTimeLeft >= actionTimeBufferVbos)
+    while (!zonesToErode.empty() && actionTimeLeft >= actionTimeErodeZone)
     {
-        auto chunkPtr = chunksToBufferVbos.front();
-        chunksToBufferVbos.pop();
+        needsUpdateChunks = true;
 
-        chunkPtr->bufferVBOs();
-        drawableChunks.insert(chunkPtr);
-        chunkPtr->setState(ChunkState::DRAWABLE);
+        auto zonePtr = zonesToErode.front();
+        zonesToErode.pop();
 
-        actionTimeLeft -= actionTimeBufferVbos;
+        Chunk::erodeZone(
+            zonePtr,
+            dev_gatheredLayers[gatheredLayersIdx],
+            streams[streamIdx]
+        );
+        ++gatheredLayersIdx;
+        ++streamIdx;
+
+        actionTimeLeft -= actionTimeErodeZone;
+    }
+
+    while (!chunksToGenerateLayers.empty() && actionTimeLeft >= actionTimeGenerateLayers)
+    {
+        needsUpdateChunks = true;
+
+        auto chunkPtr = chunksToGenerateLayers.front();
+        chunksToGenerateLayers.pop();
+
+        chunkPtr->generateLayers(
+            dev_heightfields[heightfieldIdx],
+            dev_layers[layersIdx],
+            dev_biomeWeights[heightfieldIdx],
+            streams[streamIdx]
+        );
+        ++heightfieldIdx;
+        ++layersIdx;
+        ++streamIdx;
+
+        addZonesToTryErosionSet(chunkPtr);
+
+        chunkPtr->setState(ChunkState::NEEDS_GATHER_FEATURE_PLACEMENTS);
+
+        actionTimeLeft -= actionTimeGenerateLayers;
+    }
+
+    while (!chunksToGatherHeightfield.empty() && actionTimeLeft >= actionTimeGatherHeightfield)
+    {
+        needsUpdateChunks = true;
+
+        auto chunkPtr = chunksToGatherHeightfield.front();
+        chunksToGatherHeightfield.pop();
+
+        chunkPtr->gatherHeightfield(); // can set state to NEEDS_LAYERS
+
+        actionTimeLeft -= actionTimeGatherHeightfield;
+    }
+
+    while (!chunksToGenerateHeightfield.empty() && actionTimeLeft >= actionTimeGenerateHeightfield)
+    {
+        needsUpdateChunks = true;
+
+        auto chunkPtr = chunksToGenerateHeightfield.front();
+        chunksToGenerateHeightfield.pop();
+
+        chunkPtr->generateHeightfield(
+            dev_heightfields[heightfieldIdx],
+            dev_biomeWeights[heightfieldIdx],
+            streams[streamIdx]
+        );
+        ++heightfieldIdx;
+        ++streamIdx;
+
+        chunkPtr->setState(ChunkState::HAS_HEIGHTFIELD);
+
+        actionTimeLeft -= actionTimeGenerateHeightfield;
+    }
+
+    if (streamIdx > 0)
+    {
+        cudaDeviceSynchronize();
     }
 
 #if DEBUG_TIME_CHUNK_FILL
@@ -511,4 +685,16 @@ void Terrain::draw(const ShaderProgram& prog, const Player* player)
 void Terrain::setCurrentChunkPos(ivec2 newCurrentChunk)
 {
     this->currentChunkPos = newCurrentChunk;
+}
+
+void Terrain::debugPrintCurrentChunkState()
+{
+    ivec2 zonePos = zonePosFromChunkPos(currentChunkPos);
+    const auto& zonePtr = zones[zonePos];
+    const auto& chunkPtr = zonePtr->chunks[localChunkPosToIdx(currentChunkPos - zonePtr->worldChunkPos)];
+    bool isInDrawableChunks = drawableChunks.find(chunkPtr.get()) != drawableChunks.end();
+
+    printf("chunk (%d, %d) state: %d\n", currentChunkPos.x, currentChunkPos.y, (int)chunkPtr->getState());
+    printf("is in drawable chunks: %s\n", isInDrawableChunks ? "yes" : "no");
+    printf("idx count: %d\n", chunkPtr->getIdxCount());
 }

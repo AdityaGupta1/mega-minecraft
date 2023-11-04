@@ -15,7 +15,7 @@ Chunk::Chunk(ivec2 worldChunkPos)
 
 #pragma region state functions
 
-ChunkState Chunk::getState()
+ChunkState Chunk::getState() const
 {
     return this->state;
 }
@@ -147,9 +147,21 @@ void Chunk::iterateNeighborChunks(Chunk* const (&neighborChunks)[diameter][diame
                 continue;
             }
 
-            bool isReady = chunkProcessorFunc(chunkPtr, neighborChunks, centerX, centerZ);
+            bool isReady = true;
+            for (int offsetZ = -start; offsetZ <= start && isReady; ++offsetZ)
+            {
+                for (int offsetX = -start; offsetX <= start && isReady; ++offsetX)
+                {
+                    if (neighborChunks[centerZ + offsetZ][centerX + offsetX] == nullptr)
+                    {
+                        isReady = false;
+                    }
+                }
+            }
+
             if (isReady)
             {
+                chunkProcessorFunc(chunkPtr, neighborChunks, centerX, centerZ);
                 chunkPtr->setState(nextState);
             }
         }
@@ -241,15 +253,15 @@ void Chunk::generateHeightfield(
     CudaUtils::checkCUDAError("Chunk::generateHeightfield() failed");
 }
 
-void copyEdge(int offset, int& in, int& out)
+void calculateEdgeIndices(int offset, int& in, int& out)
 {
     in = (offset == -1) ? 15 : 0;
     out = (offset == -1) ? 0 : 17;
 }
 
-bool Chunk::otherChunkGatherHeightfield(Chunk* chunkPtr, Chunk* const (&neighborChunks)[5][5], int centerX, int centerZ)
+void Chunk::otherChunkGatherHeightfield(Chunk* chunkPtr, Chunk* const (&neighborChunks)[5][5], int centerX, int centerZ)
 {
-    chunkPtr->gatheredHeightfield.resize(18 * 18);
+    chunkPtr->gatheredHeightfield.reserve(18 * 18);
 
     for (const auto& neighborDir : DirectionEnums::dirVecs2d)
     {
@@ -258,12 +270,6 @@ bool Chunk::otherChunkGatherHeightfield(Chunk* chunkPtr, Chunk* const (&neighbor
 
         const auto& neighborPtr = neighborChunks[centerZ + offsetZ][centerX + offsetX];
 
-        if (neighborPtr == nullptr)
-        {
-            chunkPtr->gatheredHeightfield.clear();
-            return false;
-        }
-
         if (offsetX == 0 || offsetZ == 0)
         {
             // edge
@@ -271,22 +277,22 @@ bool Chunk::otherChunkGatherHeightfield(Chunk* chunkPtr, Chunk* const (&neighbor
             {
                 // +/- x
                 int xIn, xOut;
-                copyEdge(offsetX, xIn, xOut);
+                calculateEdgeIndices(offsetX, xIn, xOut);
 
                 for (int z = 0; z < 16; ++z)
                 {
-                    chunkPtr->gatheredHeightfield[posTo2dIndex<18>(xOut, z + 1)] = chunkPtr->heightfield[posTo2dIndex(xIn, z)];
+                    chunkPtr->gatheredHeightfield[posTo2dIndex<18>(xOut, z + 1)] = neighborPtr->heightfield[posTo2dIndex(xIn, z)];
                 }
             }
             else
             {
                 // +/- z
                 int zIn, zOut;
-                copyEdge(offsetZ, zIn, zOut);
+                calculateEdgeIndices(offsetZ, zIn, zOut);
 
                 for (int x = 0; x < 16; ++x)
                 {
-                    chunkPtr->gatheredHeightfield[posTo2dIndex<18>(x + 1, zOut)] = chunkPtr->heightfield[posTo2dIndex(x, zIn)];
+                    chunkPtr->gatheredHeightfield[posTo2dIndex<18>(x + 1, zOut)] = neighborPtr->heightfield[posTo2dIndex(x, zIn)];
                 }
             }
         }
@@ -294,9 +300,9 @@ bool Chunk::otherChunkGatherHeightfield(Chunk* chunkPtr, Chunk* const (&neighbor
         {
             // corner
             int xIn, xOut, zIn, zOut;
-            copyEdge(offsetX, xIn, xOut);
-            copyEdge(offsetZ, zIn, zOut);
-            chunkPtr->gatheredHeightfield[posTo2dIndex<18>(xOut, zOut)] = chunkPtr->heightfield[posTo2dIndex(xIn, zIn)];
+            calculateEdgeIndices(offsetX, xIn, xOut);
+            calculateEdgeIndices(offsetZ, zIn, zOut);
+            chunkPtr->gatheredHeightfield[posTo2dIndex<18>(xOut, zOut)] = neighborPtr->heightfield[posTo2dIndex(xIn, zIn)];
         }
     }
 
@@ -308,8 +314,6 @@ bool Chunk::otherChunkGatherHeightfield(Chunk* chunkPtr, Chunk* const (&neighbor
             chunkPtr->gatheredHeightfield[posTo2dIndex<18>(x + 1, z + 1)] = chunkPtr->heightfield[posTo2dIndex(x, z)];
         }
     }
-
-    return true;
 }
 
 void Chunk::gatherHeightfield()
@@ -349,7 +353,16 @@ __global__ void kernGenerateLayers(
 
     __syncthreads();
 
-    const float maxHeight = shared_heightfield[posTo2dIndex<18>(x + 1, z + 1)];
+    const ivec2 pos18 = ivec2(x + 1, z + 1);
+    const float maxHeight = shared_heightfield[posTo2dIndex<18>(pos18)];
+
+    float slope = 0;
+    #pragma unroll
+    for (int i = 0; i < 8; ++i)
+    {
+        float neighborHeight = shared_heightfield[posTo2dIndex<18>(pos18 + dev_dirVecs2d[i])];
+        slope = max(slope, abs(neighborHeight - maxHeight));
+    }
 
     float* columnLayers = layers + (int)Material::numMaterials * idx;
 
@@ -372,9 +385,23 @@ __global__ void kernGenerateLayers(
         }
     }
 
-    for (int layerIdx = numStratifiedMaterials; layerIdx < (int)Material::numMaterials; ++layerIdx)
+    height = maxHeight;
+    for (int layerIdx = (int)Material::numMaterials - 1; layerIdx >= numStratifiedMaterials; --layerIdx)
     {
-        columnLayers[layerIdx] = maxHeight - 1.f; // TODO: replace this with actual calculations
+        const auto& materialInfo = dev_materialInfos[layerIdx];
+
+        float layerHeight;
+        if (slope > materialInfo.noiseScaleOrMaxSlope)
+        {
+            layerHeight = 0;
+        }
+        else
+        {
+            layerHeight = materialInfo.thickness * ((materialInfo.noiseScaleOrMaxSlope - slope) / materialInfo.noiseScaleOrMaxSlope);
+        }
+
+        height -= layerHeight;
+        columnLayers[layerIdx] = height;
     }
 }
 
@@ -396,6 +423,56 @@ void Chunk::generateLayers(float* dev_heightfield, float* dev_layers, float* dev
     cudaMemcpyAsync(this->layers.data(), dev_layers, 256 * (int)Material::numMaterials * sizeof(float), cudaMemcpyDeviceToHost, stream);
 
     CudaUtils::checkCUDAError("Chunk::generateLayers() failed");
+}
+
+#pragma endregion
+
+#pragma region erosion
+
+void copyLayers(Zone* zonePtr, std::array<float[(int)Material::numMaterials], ZONE_SIZE* ZONE_SIZE * 4 * 256>& gatheredLayers, bool toGatheredLayers)
+{
+    for (int chunkZ = 0; chunkZ < ZONE_SIZE * 2; ++chunkZ)
+    {
+        for (int chunkX = 0; chunkX < ZONE_SIZE * 2; ++chunkX)
+        {
+            Chunk* chunkPtr = zonePtr->gatheredChunks[posTo2dIndex<ZONE_SIZE * 2>(chunkX, chunkZ)];
+            const ivec2 chunkBlockPos = ivec2(chunkX, chunkZ) * 16;
+            for (int blockZ = 0; blockZ < 16; ++blockZ)
+            {
+                for (int blockX = 0; blockX < 16; ++blockX)
+                {
+                    auto& srcLayers = chunkPtr->layers[posTo2dIndex(blockX, blockZ)];
+                    auto& dstLayers = gatheredLayers[posTo2dIndex<ZONE_SIZE * 2 * 16>(chunkBlockPos + ivec2(blockX, blockZ))];
+                    if (!toGatheredLayers)
+                    {
+                        std::swap(srcLayers, dstLayers);
+                    }
+                    std::memcpy(dstLayers, srcLayers, (int)Material::numMaterials * sizeof(float));
+                }
+            }
+        }
+    }
+}
+
+void Chunk::erodeZone(Zone* zonePtr, float* dev_gatheredLayers, cudaStream_t stream)
+{
+    std::array<float[(int)Material::numMaterials], ZONE_SIZE * ZONE_SIZE * 4 * 256> gatheredLayers;
+    copyLayers(zonePtr, gatheredLayers, true);
+    zonePtr->gatheredChunks.clear();
+
+    int gatheredLayersSizeBytes = gatheredLayers.size() * (int)Material::numMaterials * sizeof(float);
+    cudaMemcpyAsync(dev_gatheredLayers, gatheredLayers.data(), gatheredLayersSizeBytes, cudaMemcpyHostToDevice, stream);
+
+    // TODO: kernel execution
+
+    cudaMemcpyAsync(gatheredLayers.data(), dev_gatheredLayers, gatheredLayersSizeBytes, cudaMemcpyDeviceToHost, stream);
+
+    copyLayers(zonePtr, gatheredLayers, false);
+
+    for (const auto& chunkPtr : zonePtr->chunks)
+    {
+        chunkPtr->setState(ChunkState::NEEDS_GATHER_FEATURE_PLACEMENTS);
+    }
 }
 
 #pragma endregion
@@ -443,7 +520,7 @@ void Chunk::generateOwnFeaturePlacements()
     // this probably won't include decorators (single block/column things) since those can be done on the CPU at the end of Chunk::fill()
 }
 
-bool Chunk::otherChunkGatherFeaturePlacements(Chunk* chunkPtr, Chunk* const (&neighborChunks)[9][9], int centerX, int centerZ)
+void Chunk::otherChunkGatherFeaturePlacements(Chunk* chunkPtr, Chunk* const (&neighborChunks)[9][9], int centerX, int centerZ)
 {
     chunkPtr->gatheredFeaturePlacements.clear();
 
@@ -453,20 +530,12 @@ bool Chunk::otherChunkGatherFeaturePlacements(Chunk* chunkPtr, Chunk* const (&ne
         {
             const auto& neighborPtr = neighborChunks[centerZ + offsetZ][centerX + offsetX];
 
-            if (neighborPtr == nullptr)
-            {
-                chunkPtr->gatheredFeaturePlacements.clear();
-                return false;
-            }
-
             for (const auto& neighborFeaturePlacement : neighborPtr->featurePlacements)
             {
                 chunkPtr->gatheredFeaturePlacements.push_back(neighborFeaturePlacement);
             }
         }
     }
-
-    return true;
 }
 
 void Chunk::gatherFeaturePlacements()
@@ -543,17 +612,28 @@ __global__ void kernFill(
         }
 
         int thisLayerIdx = -1;
+        bool isTopBlock;
         for (int layerIdx = layerIdxStart; layerIdx < (int)Material::numMaterials + 1; ++layerIdx)
         {
             if (y < shared_layersAndHeight[layerIdx])
             {
                 thisLayerIdx = layerIdx - 1;
+                isTopBlock = shared_layersAndHeight[layerIdx] - y < 1.f;
                 break;
             }
         }
 
-        // TODO: if this is the top block, replace it with biome-specific option (e.g. dirt to grass or mycelium depending on biome)
         block = dev_materialInfos[thisLayerIdx].block;
+        if (isTopBlock)
+        {
+            // TODO: use biome-specific options (e.g. dirt to grass or mycelium depending on biome)
+            // also need to support replacing other things (maybe just make top block a generic block that always gets replaced?
+
+            if (block == Block::DIRT)
+            {
+                block = Block::GRASS;
+            }
+        }
     }
 
     if (y < featureHeightBounds[0] || y > featureHeightBounds[1])
