@@ -58,10 +58,15 @@ else(UNIX)
 endif(UNIX)
 
 set(GLM_ROOT_DIR "external")
+set(OPTIX_ROOT_DIR "external")
 find_package(GLM REQUIRED)
 include_directories(${GLM_INCLUDE_DIRS})
 
 include_directories(${CMAKE_SOURCE_DIR}/src)
+
+find_package(OptiX REQUIRED)
+
+include_directories(${OPTIX_INCLUDE_DIRS})
 
 file(GLOB_RECURSE headers "src/*.h" "src/*.hpp")
 file(GLOB_RECURSE sources "src/*.cpp" "src/*.cu")
