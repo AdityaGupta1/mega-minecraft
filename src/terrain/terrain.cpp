@@ -11,15 +11,16 @@
 
 static constexpr int chunkVbosGenRadius = 12;
 // [+1] Gather heightfields of 3x3 chunks and place material layers
-// [+1] Gather material layers of 2x2 chunks (3x3 with closer half or quarter of neighbors) to do erosion
+// [+5] Gather chunks to do zone erosion (for a corner chunk, 3 more in zone and 2 for padding; may not be super accurate but whatever)
 // [+2] Gather eroded material layers and feature placements of 5x5 chunks and fill features
 // [+2] Extra padding to minimize VBO recreation
-static constexpr int chunkMaxGenRadius = chunkVbosGenRadius + 6;
+static constexpr int chunkMaxGenRadius = chunkVbosGenRadius + 10;
 
 // TODO: get better estimates for these
 // ================================================================================
-static constexpr int totalActionTime = 100;
+static constexpr int totalActionTime = 500;
 // ================================================================================
+static constexpr int actionTimeErodeZone                  = totalActionTime;
 static constexpr int actionTimeGenerateHeightfield        = 4;
 static constexpr int actionTimeGatherHeightfield          = 2;
 static constexpr int actionTimeGenerateLayers             = 6;
@@ -127,15 +128,15 @@ int localChunkPosToIdx(ivec2 localChunkPos)
     return localChunkPos.x + ZONE_SIZE * localChunkPos.y;
 }
 
-Zone* Terrain::createZone(ivec2 zonePos)
+Zone* Terrain::createZone(ivec2 zoneWorldChunkPos)
 {
-    auto newZoneUptr = std::make_unique<Zone>(zonePos);
+    auto newZoneUptr = std::make_unique<Zone>(zoneWorldChunkPos);
     Zone* newZonePtr = newZoneUptr.get();
-    zones[zonePos] = std::move(newZoneUptr);
+    zones[zoneWorldChunkPos] = std::move(newZoneUptr);
 
     for (int i = 0; i < 8; ++i)
     {
-        ivec2 neighborPos = zonePos + (ZONE_SIZE * DirectionEnums::dirVecs2d[i]);
+        ivec2 neighborPos = zoneWorldChunkPos + (ZONE_SIZE * DirectionEnums::dirVecs2d[i]);
 
         auto neighborZoneIt = zones.find(neighborPos);
         if (neighborZoneIt == zones.end())
@@ -254,12 +255,6 @@ void Terrain::updateChunk(int dx, int dz)
     }
 }
 
-// This function looks at the area covered by CHUNK_GEN_HEIGHTFIELDS_RADIUS. For each chunk, it first
-// creates the chunk if it doesn't exist, also creating the associated zone if necsesary. Then, it looks at
-// the chunk's state and adds it to the correct queue iff chunk.readyForQueue == true. This also includes
-// setting readyForQueue to false so the chunk will be skipped until it's ready for the next state. The states 
-// themselves, as well as readyForQueue, will be updated after the associated call or CPU thread finishes 
-// execution. Kernels and threads are spawned from Terrain::tick().
 void Terrain::updateChunks()
 {
     for (int dz = -chunkMaxGenRadius; dz <= chunkMaxGenRadius; ++dz)
@@ -269,6 +264,56 @@ void Terrain::updateChunks()
             updateChunk(dx, dz);
         }
     }
+}
+
+void Terrain::addZonesToTryErosionSet(Chunk* chunkPtr)
+{
+    Zone* zonePtr = chunkPtr->zonePtr;
+    zonesToTryErosion.insert(zonePtr);
+
+    ivec2 localChunkPos = chunkPtr->worldChunkPos - zonePtr->worldChunkPos;
+    int startDirIdx;
+    if (localChunkPos.x < 2)
+    {
+        startDirIdx = localChunkPos.y < 2 ? 4 : 6;
+    }
+    else
+    {
+        startDirIdx = localChunkPos.y < 2 ? 0 : 2;
+    }
+
+    for (int i = 0; i < 3; ++i)
+    {
+        Zone* neighborZonePtr = zonePtr->neighbors[(startDirIdx + i) % 8];
+        if (neighborZonePtr != nullptr)
+        {
+            zonesToTryErosion.insert(neighborZonePtr);
+        }
+    }
+}
+
+void Terrain::updateZones()
+{
+    for (const auto& zonePtr : zonesToTryErosion)
+    {
+        // EROSION TODO: actually check if neighborhood is ready rather than checking only this zone's chunks
+        bool isReady = true;
+        for (const auto& chunkPtr : zonePtr->chunks)
+        {
+            if (chunkPtr == nullptr || chunkPtr->getState() < ChunkState::HAS_LAYERS)
+            {
+                isReady = false;
+                break;
+            }
+        }
+
+        if (isReady)
+        {
+            zonesToErode.push(zonePtr);
+        }
+    }
+
+    zonesToTryErosion.clear();
 }
 
 void Terrain::tick()
@@ -281,7 +326,6 @@ void Terrain::tick()
         drawableChunks.erase(chunkPtr);
         chunkPtr->destroyVBOs();
         chunkPtr->setState(ChunkState::IS_FILLED);
-
     }
 
     if (currentChunkPos != lastChunkPos)
@@ -293,6 +337,7 @@ void Terrain::tick()
     if (needsUpdateChunks)
     {
         updateChunks();
+        updateZones();
         needsUpdateChunks = false;
     }
 
@@ -302,6 +347,22 @@ void Terrain::tick()
     int heightfieldIdx = 0;
     int layersIdx = 0;
     int streamIdx = 0;
+
+    while (!zonesToErode.empty() && actionTimeLeft >= actionTimeErodeZone)
+    {
+        needsUpdateChunks = true;
+
+        auto zonePtr = zonesToErode.front();
+        zonesToErode.pop();
+
+        // EROSION TODO: replace this with call to erosion kernel
+        for (const auto& chunkPtr : zonePtr->chunks)
+        {
+            chunkPtr->setState(ChunkState::NEEDS_GATHER_FEATURE_PLACEMENTS);
+        }
+
+        actionTimeLeft -= actionTimeErodeZone;
+    }
 
     while (!chunksToGenerateHeightfield.empty() && actionTimeLeft >= actionTimeGenerateHeightfield)
     {
@@ -352,6 +413,8 @@ void Terrain::tick()
         ++layersIdx;
         ++streamIdx;
 
+        addZonesToTryErosionSet(chunkPtr);
+
         chunkPtr->setState(ChunkState::NEEDS_GATHER_FEATURE_PLACEMENTS);
 
         actionTimeLeft -= actionTimeGenerateLayers;
@@ -396,7 +459,7 @@ void Terrain::tick()
             Chunk* neighborChunkPtr = chunkPtr->neighbors[i];
             if (neighborChunkPtr != nullptr && neighborChunkPtr->getState() == ChunkState::DRAWABLE)
             {
-                chunksToDestroyVbos.push(neighborChunkPtr);
+                //chunksToDestroyVbos.push(neighborChunkPtr);
             }
         }
 
