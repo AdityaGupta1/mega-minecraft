@@ -290,22 +290,25 @@ void Terrain::addZonesToTryErosionSet(Chunk* chunkPtr)
     }
 }
 
+bool isZoneReadyForErosion(Zone* zonePtr)
+{
+    // EROSION TODO: actually check if neighborhood is ready rather than checking only this zone's chunks
+    for (const auto& chunkPtr : zonePtr->chunks)
+    {
+        if (chunkPtr == nullptr || chunkPtr->getState() < ChunkState::HAS_LAYERS)
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 void Terrain::updateZones()
 {
     for (const auto& zonePtr : zonesToTryErosion)
     {
-        // EROSION TODO: actually check if neighborhood is ready rather than checking only this zone's chunks
-        bool isReady = true;
-        for (const auto& chunkPtr : zonePtr->chunks)
-        {
-            if (chunkPtr == nullptr || chunkPtr->getState() < ChunkState::HAS_LAYERS)
-            {
-                isReady = false;
-                break;
-            }
-        }
-
-        if (isReady)
+        if (isZoneReadyForErosion(zonePtr))
         {
             zonesToErode.push(zonePtr);
         }
