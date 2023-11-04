@@ -12,8 +12,8 @@
 static constexpr int chunkVbosGenRadius = 12;
 // [+1] Gather heightfields of 3x3 chunks and place material layers
 // [+5] Gather chunks to do zone erosion (for a corner chunk, 3 more in zone and 2 for padding; may not be super accurate but whatever)
-// [+2] Gather eroded material layers and feature placements of 5x5 chunks and fill features
-static constexpr int chunkMaxGenRadius = chunkVbosGenRadius + 8;
+//     [+2] Gather feature placements of 5x5 chunks for filling chunk (this is independent of erosion so it can be contained in the +5 for erosion)
+static constexpr int chunkMaxGenRadius = chunkVbosGenRadius + 6;
 
 // TODO: get better estimates for these
 // ================================================================================
