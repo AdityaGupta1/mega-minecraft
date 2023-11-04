@@ -571,7 +571,7 @@ void Terrain::tick()
 
         addZonesToTryErosionSet(chunkPtr);
 
-        chunkPtr->setState(ChunkState::NEEDS_GATHER_FEATURE_PLACEMENTS);
+        chunkPtr->setState(ChunkState::HAS_LAYERS);
 
         actionTimeLeft -= actionTimeGenerateLayers;
     }

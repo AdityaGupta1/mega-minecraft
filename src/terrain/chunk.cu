@@ -429,14 +429,35 @@ void Chunk::generateLayers(float* dev_heightfield, float* dev_layers, float* dev
 
 #pragma region erosion
 
+__global__ void kernErodeZone(
+    float* heightfield,
+    float* layers,
+    float* biomeWeights,
+    ivec3 chunkWorldBlockPos)
+{
+}
+
 void copyLayers(Zone* zonePtr, std::array<float[(int)Material::numMaterials], ZONE_SIZE* ZONE_SIZE * 4 * 256>& gatheredLayers, bool toGatheredLayers)
 {
-    for (int chunkZ = 0; chunkZ < ZONE_SIZE * 2; ++chunkZ)
+    int maxDim = toGatheredLayers ? ZONE_SIZE * 2 : ZONE_SIZE;
+
+    for (int chunkZ = 0; chunkZ < maxDim; ++chunkZ)
     {
-        for (int chunkX = 0; chunkX < ZONE_SIZE * 2; ++chunkX)
+        for (int chunkX = 0; chunkX < maxDim; ++chunkX)
         {
-            Chunk* chunkPtr = zonePtr->gatheredChunks[posTo2dIndex<ZONE_SIZE * 2>(chunkX, chunkZ)];
-            const ivec2 chunkBlockPos = ivec2(chunkX, chunkZ) * 16;
+            Chunk* chunkPtr;
+            ivec2 chunkBlockPos;
+            if (toGatheredLayers)
+            {
+                chunkPtr = zonePtr->gatheredChunks[posTo2dIndex<ZONE_SIZE * 2>(chunkX, chunkZ)];
+                chunkBlockPos = ivec2(chunkX, chunkZ) * 16;
+            }
+            else
+            {
+                chunkPtr = zonePtr->chunks[posTo2dIndex<ZONE_SIZE>(chunkX, chunkZ)].get();
+                chunkBlockPos = (ivec2(chunkX, chunkZ) + ivec2(ZONE_SIZE / 2)) * 16;
+            }
+
             for (int blockZ = 0; blockZ < 16; ++blockZ)
             {
                 for (int blockX = 0; blockX < 16; ++blockX)
@@ -448,6 +469,15 @@ void copyLayers(Zone* zonePtr, std::array<float[(int)Material::numMaterials], ZO
                         std::swap(srcLayers, dstLayers);
                     }
                     std::memcpy(dstLayers, srcLayers, (int)Material::numMaterials * sizeof(float));
+
+                    //if (!toGatheredLayers)
+                    //{
+                    //    for (int i = 0; i < (int)Material::numMaterials; ++i)
+                    //    {
+                    //        dstLayers[i] = 0.f;
+                    //    }
+                    //    dstLayers[(int)Material::numMaterials - 1] = 50.f;
+                    //}
                 }
             }
         }
