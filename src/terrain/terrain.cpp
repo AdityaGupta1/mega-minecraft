@@ -374,33 +374,6 @@ bool isZoneReadyForErosion(Zone* zonePtr)
         }
     }
 
-    /*int sideLength = ZONE_SIZE * 2;
-    for (int y = 0; y < sideLength; ++y)
-    {
-        for (int x = 0; x < sideLength; ++x)
-        {
-            int index = y * sideLength + x;
-            Chunk* chunk = zonePtr->gatheredChunks[index];
-            if (chunk)
-            {
-                std::cout << "("
-                    << std::setw(5) << std::setfill(' ') << chunk->worldChunkPos.x << ", "
-                    << std::setw(5) << std::setfill(' ') << chunk->worldChunkPos.y << ") ";
-            }
-            else
-            {
-                std::cout << "("
-                    << std::setw(5) << std::setfill(' ') << "null" << ", "
-                    << std::setw(5) << std::setfill(' ') << "null" << ") ";
-            }
-        }
-        std::cout << std::endl;
-    }
-
-    std::cout << std::endl;
-    std::cout << std::endl;
-    std::cout << std::endl;*/
-
     return true;
 }
 
