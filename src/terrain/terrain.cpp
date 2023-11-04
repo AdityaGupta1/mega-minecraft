@@ -364,6 +364,22 @@ void Terrain::tick()
     int layersIdx = 0;
     int streamIdx = 0;
 
+    while (!chunksToCreateAndBufferVbos.empty() && actionTimeLeft >= actionTimeCreateAndBufferVbos)
+    {
+        needsUpdateChunks = true;
+
+        auto chunkPtr = chunksToCreateAndBufferVbos.front();
+        chunksToCreateAndBufferVbos.pop();
+
+        chunkPtr->createVBOs();
+        chunkPtr->bufferVBOs();
+        drawableChunks.insert(chunkPtr);
+        chunkPtr->setState(ChunkState::DRAWABLE);
+        chunkPtr->setNotReadyForQueue();
+
+        actionTimeLeft -= actionTimeCreateAndBufferVbos;
+    }
+
     while (!zonesToErode.empty() && actionTimeLeft >= actionTimeErodeZone)
     {
         needsUpdateChunks = true;
@@ -378,74 +394,6 @@ void Terrain::tick()
         }
 
         actionTimeLeft -= actionTimeErodeZone;
-    }
-
-    while (!chunksToGenerateHeightfield.empty() && actionTimeLeft >= actionTimeGenerateHeightfield)
-    {
-        needsUpdateChunks = true;
-
-        auto chunkPtr = chunksToGenerateHeightfield.front();
-        chunksToGenerateHeightfield.pop();
-
-        chunkPtr->generateHeightfield(
-            dev_heightfields[heightfieldIdx],
-            dev_biomeWeights[heightfieldIdx],
-            streams[streamIdx]
-        );
-        ++heightfieldIdx;
-        ++streamIdx;
-
-        chunkPtr->setState(ChunkState::HAS_HEIGHTFIELD);
-
-        actionTimeLeft -= actionTimeGenerateHeightfield;
-    }
-
-    while (!chunksToGatherHeightfield.empty() && actionTimeLeft >= actionTimeGatherHeightfield)
-    {
-        needsUpdateChunks = true;
-
-        auto chunkPtr = chunksToGatherHeightfield.front();
-        chunksToGatherHeightfield.pop();
-
-        chunkPtr->gatherHeightfield(); // can set state to NEEDS_LAYERS
-
-        actionTimeLeft -= actionTimeGatherHeightfield;
-    }
-
-    while (!chunksToGenerateLayers.empty() && actionTimeLeft >= actionTimeGenerateLayers)
-    {
-        needsUpdateChunks = true;
-
-        auto chunkPtr = chunksToGenerateLayers.front();
-        chunksToGenerateLayers.pop();
-
-        chunkPtr->generateLayers(
-            dev_heightfields[heightfieldIdx],
-            dev_layers[layersIdx],
-            dev_biomeWeights[heightfieldIdx],
-            streams[streamIdx]
-        );
-        ++heightfieldIdx;
-        ++layersIdx;
-        ++streamIdx;
-
-        addZonesToTryErosionSet(chunkPtr);
-
-        chunkPtr->setState(ChunkState::NEEDS_GATHER_FEATURE_PLACEMENTS);
-
-        actionTimeLeft -= actionTimeGenerateLayers;
-    }
-
-    while (!chunksToGatherFeaturePlacements.empty() && actionTimeLeft >= actionTimeGatherFeaturePlacements)
-    {
-        needsUpdateChunks = true;
-
-        auto chunkPtr = chunksToGatherFeaturePlacements.front();
-        chunksToGatherFeaturePlacements.pop();
-
-        chunkPtr->gatherFeaturePlacements(); // can set state to READY_TO_FILL
-
-        actionTimeLeft -= actionTimeGatherFeaturePlacements;
     }
 
     while (!chunksToFill.empty() && actionTimeLeft >= actionTimeFill)
@@ -480,25 +428,77 @@ void Terrain::tick()
         actionTimeLeft -= actionTimeFill;
     }
 
-    if (streamIdx > 0)
-    {
-        cudaDeviceSynchronize();
-    }
-
-    while (!chunksToCreateAndBufferVbos.empty() && actionTimeLeft >= actionTimeCreateAndBufferVbos)
+    while (!chunksToGatherFeaturePlacements.empty() && actionTimeLeft >= actionTimeGatherFeaturePlacements)
     {
         needsUpdateChunks = true;
 
-        auto chunkPtr = chunksToCreateAndBufferVbos.front();
-        chunksToCreateAndBufferVbos.pop();
+        auto chunkPtr = chunksToGatherFeaturePlacements.front();
+        chunksToGatherFeaturePlacements.pop();
 
-        chunkPtr->createVBOs();
-        chunkPtr->bufferVBOs();
-        drawableChunks.insert(chunkPtr);
-        chunkPtr->setState(ChunkState::DRAWABLE);
-        chunkPtr->setNotReadyForQueue();
+        chunkPtr->gatherFeaturePlacements(); // can set state to READY_TO_FILL
 
-        actionTimeLeft -= actionTimeCreateAndBufferVbos;
+        actionTimeLeft -= actionTimeGatherFeaturePlacements;
+    }
+
+    while (!chunksToGenerateLayers.empty() && actionTimeLeft >= actionTimeGenerateLayers)
+    {
+        needsUpdateChunks = true;
+
+        auto chunkPtr = chunksToGenerateLayers.front();
+        chunksToGenerateLayers.pop();
+
+        chunkPtr->generateLayers(
+            dev_heightfields[heightfieldIdx],
+            dev_layers[layersIdx],
+            dev_biomeWeights[heightfieldIdx],
+            streams[streamIdx]
+        );
+        ++heightfieldIdx;
+        ++layersIdx;
+        ++streamIdx;
+
+        addZonesToTryErosionSet(chunkPtr);
+
+        chunkPtr->setState(ChunkState::NEEDS_GATHER_FEATURE_PLACEMENTS);
+
+        actionTimeLeft -= actionTimeGenerateLayers;
+    }
+
+    while (!chunksToGatherHeightfield.empty() && actionTimeLeft >= actionTimeGatherHeightfield)
+    {
+        needsUpdateChunks = true;
+
+        auto chunkPtr = chunksToGatherHeightfield.front();
+        chunksToGatherHeightfield.pop();
+
+        chunkPtr->gatherHeightfield(); // can set state to NEEDS_LAYERS
+
+        actionTimeLeft -= actionTimeGatherHeightfield;
+    }
+
+    while (!chunksToGenerateHeightfield.empty() && actionTimeLeft >= actionTimeGenerateHeightfield)
+    {
+        needsUpdateChunks = true;
+
+        auto chunkPtr = chunksToGenerateHeightfield.front();
+        chunksToGenerateHeightfield.pop();
+
+        chunkPtr->generateHeightfield(
+            dev_heightfields[heightfieldIdx],
+            dev_biomeWeights[heightfieldIdx],
+            streams[streamIdx]
+        );
+        ++heightfieldIdx;
+        ++streamIdx;
+
+        chunkPtr->setState(ChunkState::HAS_HEIGHTFIELD);
+
+        actionTimeLeft -= actionTimeGenerateHeightfield;
+    }
+
+    if (streamIdx > 0)
+    {
+        cudaDeviceSynchronize();
     }
 
 #if DEBUG_TIME_CHUNK_FILL
