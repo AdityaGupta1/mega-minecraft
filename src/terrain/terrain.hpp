@@ -44,8 +44,7 @@ private:
     std::unordered_set<Zone*> zonesToTryErosion;
     std::queue<Zone*> zonesToErode;
     std::queue<Chunk*> chunksToFill;
-    std::queue<Chunk*> chunksToCreateVbos;
-    std::queue<Chunk*> chunksToBufferVbos;
+    std::queue<Chunk*> chunksToCreateAndBufferVbos;
     
     std::unordered_set<Chunk*> drawableChunks;
     std::queue<Chunk*> chunksToDestroyVbos;
@@ -74,4 +73,6 @@ public:
     void draw(const ShaderProgram& prog, const Player* player);
 
     void setCurrentChunkPos(ivec2 newCurrentChunkPos);
+
+    void debugPrintCurrentChunkState();
 };

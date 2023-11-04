@@ -25,7 +25,8 @@ enum class ChunkState : unsigned char
     //NEEDS_FEATURE_PLACEMENTS,
     NEEDS_GATHER_FEATURE_PLACEMENTS,
     READY_TO_FILL, // this and 5x5 neighborhood all have feature placements
-    IS_FILLED,
+    FILLED,
+    NEEDS_VBOS,
     DRAWABLE
 };
 

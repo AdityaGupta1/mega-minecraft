@@ -26,8 +26,7 @@ static constexpr int actionTimeGatherHeightfield          = 2;
 static constexpr int actionTimeGenerateLayers             = 6;
 static constexpr int actionTimeGatherFeaturePlacements    = 2;
 static constexpr int actionTimeFill                       = 4;
-static constexpr int actionTimeCreateVbos                 = 20;
-static constexpr int actionTimeBufferVbos                 = totalActionTime / 5;
+static constexpr int actionTimeCreateAndBufferVbos        = totalActionTime / 4;
 // ================================================================================
 
 Terrain::Terrain()
@@ -248,9 +247,9 @@ void Terrain::updateChunk(int dx, int dz)
 
     switch (chunkPtr->getState())
     {
-    case ChunkState::IS_FILLED:
+    case ChunkState::NEEDS_VBOS:
         chunkPtr->setNotReadyForQueue();
-        chunksToCreateVbos.push(chunkPtr);
+        chunksToCreateAndBufferVbos.push(chunkPtr);
         return;
     }
 }
@@ -316,6 +315,24 @@ void Terrain::updateZones()
     zonesToTryErosion.clear();
 }
 
+void checkChunkAndNeighborsForNeedsVbos(Chunk* chunkPtr)
+{
+    if (chunkPtr == nullptr || chunkPtr->getState() < ChunkState::FILLED)
+    {
+        return;
+    }
+
+    for (const auto& neighborChunkPtr : chunkPtr->neighbors)
+    {
+        if (neighborChunkPtr == nullptr || neighborChunkPtr->getState() < ChunkState::FILLED)
+        {
+            return;
+        }
+    }
+
+    chunkPtr->setState(ChunkState::NEEDS_VBOS);
+}
+
 void Terrain::tick()
 {
     while (!chunksToDestroyVbos.empty())
@@ -325,7 +342,7 @@ void Terrain::tick()
 
         drawableChunks.erase(chunkPtr);
         chunkPtr->destroyVBOs();
-        chunkPtr->setState(ChunkState::IS_FILLED);
+        chunkPtr->setState(ChunkState::NEEDS_VBOS);
     }
 
     if (currentChunkPos != lastChunkPos)
@@ -452,15 +469,13 @@ void Terrain::tick()
         ++layersIdx;
         ++streamIdx;
 
-        chunkPtr->setState(ChunkState::IS_FILLED);
+        chunkPtr->setState(ChunkState::FILLED);
+        chunkPtr->setNotReadyForQueue();
 
-        for (int i = 0; i < 4; ++i)
+        checkChunkAndNeighborsForNeedsVbos(chunkPtr);
+        for (const auto& neighborChunkPtr : chunkPtr->neighbors)
         {
-            Chunk* neighborChunkPtr = chunkPtr->neighbors[i];
-            if (neighborChunkPtr != nullptr && neighborChunkPtr->getState() == ChunkState::DRAWABLE)
-            {
-                //chunksToDestroyVbos.push(neighborChunkPtr);
-            }
+            checkChunkAndNeighborsForNeedsVbos(neighborChunkPtr);
         }
 
         actionTimeLeft -= actionTimeFill;
@@ -471,31 +486,20 @@ void Terrain::tick()
         cudaDeviceSynchronize();
     }
 
-    while (!chunksToCreateVbos.empty() && actionTimeLeft >= actionTimeCreateVbos)
+    while (!chunksToCreateAndBufferVbos.empty() && actionTimeLeft >= actionTimeCreateAndBufferVbos)
     {
         needsUpdateChunks = true;
 
-        auto chunkPtr = chunksToCreateVbos.front();
-        chunksToCreateVbos.pop();
+        auto chunkPtr = chunksToCreateAndBufferVbos.front();
+        chunksToCreateAndBufferVbos.pop();
 
         chunkPtr->createVBOs();
-        chunkPtr->setNotReadyForQueue();
-        chunksToBufferVbos.push(chunkPtr); // push directly to queue to avoid leaking chunk VBOs if the chunk goes out of range
-                                           // TODO: need to actually clear chunk VBOs on host when chunk goes out of range
-
-        actionTimeLeft -= actionTimeCreateVbos;
-    }
-
-    while (!chunksToBufferVbos.empty() && actionTimeLeft >= actionTimeBufferVbos)
-    {
-        auto chunkPtr = chunksToBufferVbos.front();
-        chunksToBufferVbos.pop();
-
         chunkPtr->bufferVBOs();
         drawableChunks.insert(chunkPtr);
         chunkPtr->setState(ChunkState::DRAWABLE);
+        chunkPtr->setNotReadyForQueue();
 
-        actionTimeLeft -= actionTimeBufferVbos;
+        actionTimeLeft -= actionTimeCreateAndBufferVbos;
     }
 
 #if DEBUG_TIME_CHUNK_FILL
@@ -570,4 +574,15 @@ void Terrain::draw(const ShaderProgram& prog, const Player* player)
 void Terrain::setCurrentChunkPos(ivec2 newCurrentChunk)
 {
     this->currentChunkPos = newCurrentChunk;
+}
+
+void Terrain::debugPrintCurrentChunkState()
+{
+    ivec2 zonePos = zonePosFromChunkPos(currentChunkPos);
+    const auto& zonePtr = zones[zonePos];
+    const auto& chunkPtr = zonePtr->chunks[localChunkPosToIdx(currentChunkPos - zonePtr->worldChunkPos)];
+    bool isInDrawableChunks = drawableChunks.find(chunkPtr.get()) != drawableChunks.end();
+    printf("chunk (%d, %d) state: %d\n", currentChunkPos.x, currentChunkPos.y, (int)chunkPtr->getState());
+    printf("is in drawable chunks: %s\n", isInDrawableChunks ? "yes" : "no");
+    printf("idx count: %d\n", chunkPtr->getIdxCount());
 }
