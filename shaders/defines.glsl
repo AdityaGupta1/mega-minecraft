@@ -2,7 +2,7 @@
 // DEBUG FLAGS
 // ========================================
 
-#define CHUNK_COLOR 1
+#define CHUNK_COLOR 0
 
 #define APPLY_SHADOWS 1
 #define APPLY_VOLUMETRIC_FOG 1

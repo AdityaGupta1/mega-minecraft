@@ -85,6 +85,7 @@ void BiomeUtils::init()
     host_materialInfos[(int)Material::ANDESITE] = { Block::ANDESITE, 24.f, 48.f, 0.0030f };
 
     // block, thickness, angle of repose (degrees), maximum slope
+    host_materialInfos[(int)Material::GRAVEL] = { Block::GRAVEL, 2.0f, 35.f, 1.8f };
     host_materialInfos[(int)Material::DIRT] = { Block::DIRT, 2.5f, 27.f, 1.4f };
 
     // convert angles of repose into their tangents
