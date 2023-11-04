@@ -58,8 +58,6 @@ private:
     void updateChunk(int dx, int dz);
     void updateChunks();
 
-    void createChunkVbos(Chunk* chunkPtr);
-
 public:
     Terrain();
     ~Terrain();

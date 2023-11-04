@@ -271,13 +271,6 @@ void Terrain::updateChunks()
     }
 }
 
-void Terrain::createChunkVbos(Chunk* chunkPtr)
-{
-    chunkPtr->createVBOs();
-    chunkPtr->setNotReadyForQueue();
-    chunksToBufferVbos.push(chunkPtr);
-}
-
 void Terrain::tick()
 {
     while (!chunksToDestroyVbos.empty())
@@ -422,7 +415,10 @@ void Terrain::tick()
         auto chunkPtr = chunksToCreateVbos.front();
         chunksToCreateVbos.pop();
 
-        this->createChunkVbos(chunkPtr);
+        chunkPtr->createVBOs();
+        chunkPtr->setNotReadyForQueue();
+        chunksToBufferVbos.push(chunkPtr); // push directly to queue to avoid leaking chunk VBOs if the chunk goes out of range
+                                           // TODO: need to actually clear chunk VBOs on host when chunk goes out of range
 
         actionTimeLeft -= actionTimeCreateVbos;
     }
