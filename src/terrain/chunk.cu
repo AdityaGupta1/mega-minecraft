@@ -147,9 +147,21 @@ void Chunk::iterateNeighborChunks(Chunk* const (&neighborChunks)[diameter][diame
                 continue;
             }
 
-            bool isReady = chunkProcessorFunc(chunkPtr, neighborChunks, centerX, centerZ);
+            bool isReady = true;
+            for (int offsetZ = -start; offsetZ <= start && isReady; ++offsetZ)
+            {
+                for (int offsetX = -start; offsetX <= start && isReady; ++offsetX)
+                {
+                    if (neighborChunks[centerZ + offsetZ][centerX + offsetX] == nullptr)
+                    {
+                        isReady = false;
+                    }
+                }
+            }
+
             if (isReady)
             {
+                chunkProcessorFunc(chunkPtr, neighborChunks, centerX, centerZ);
                 chunkPtr->setState(nextState);
             }
         }
@@ -247,7 +259,7 @@ void copyEdge(int offset, int& in, int& out)
     out = (offset == -1) ? 0 : 17;
 }
 
-bool Chunk::otherChunkGatherHeightfield(Chunk* chunkPtr, Chunk* const (&neighborChunks)[5][5], int centerX, int centerZ)
+void Chunk::otherChunkGatherHeightfield(Chunk* chunkPtr, Chunk* const (&neighborChunks)[5][5], int centerX, int centerZ)
 {
     chunkPtr->gatheredHeightfield.resize(18 * 18);
 
@@ -257,12 +269,6 @@ bool Chunk::otherChunkGatherHeightfield(Chunk* chunkPtr, Chunk* const (&neighbor
         int offsetZ = neighborDir[1];
 
         const auto& neighborPtr = neighborChunks[centerZ + offsetZ][centerX + offsetX];
-
-        if (neighborPtr == nullptr)
-        {
-            chunkPtr->gatheredHeightfield.clear();
-            return false;
-        }
 
         if (offsetX == 0 || offsetZ == 0)
         {
@@ -308,8 +314,6 @@ bool Chunk::otherChunkGatherHeightfield(Chunk* chunkPtr, Chunk* const (&neighbor
             chunkPtr->gatheredHeightfield[posTo2dIndex<18>(x + 1, z + 1)] = chunkPtr->heightfield[posTo2dIndex(x, z)];
         }
     }
-
-    return true;
 }
 
 void Chunk::gatherHeightfield()
@@ -466,7 +470,7 @@ void Chunk::generateOwnFeaturePlacements()
     // this probably won't include decorators (single block/column things) since those can be done on the CPU at the end of Chunk::fill()
 }
 
-bool Chunk::otherChunkGatherFeaturePlacements(Chunk* chunkPtr, Chunk* const (&neighborChunks)[9][9], int centerX, int centerZ)
+void Chunk::otherChunkGatherFeaturePlacements(Chunk* chunkPtr, Chunk* const (&neighborChunks)[9][9], int centerX, int centerZ)
 {
     chunkPtr->gatheredFeaturePlacements.clear();
 
@@ -476,20 +480,12 @@ bool Chunk::otherChunkGatherFeaturePlacements(Chunk* chunkPtr, Chunk* const (&ne
         {
             const auto& neighborPtr = neighborChunks[centerZ + offsetZ][centerX + offsetX];
 
-            if (neighborPtr == nullptr)
-            {
-                chunkPtr->gatheredFeaturePlacements.clear();
-                return false;
-            }
-
             for (const auto& neighborFeaturePlacement : neighborPtr->featurePlacements)
             {
                 chunkPtr->gatheredFeaturePlacements.push_back(neighborFeaturePlacement);
             }
         }
     }
-
-    return true;
 }
 
 void Chunk::gatherFeaturePlacements()

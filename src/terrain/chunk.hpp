@@ -31,7 +31,7 @@ enum class ChunkState : unsigned char
 
 class Chunk : public Drawable {
     template<std::size_t diameter>
-    using ChunkProcessorFunc = std::function<bool(Chunk* chunkPtr, Chunk* const (&neighborChunks)[diameter][diameter], int centerX, int centerZ)>;
+    using ChunkProcessorFunc = std::function<void(Chunk* chunkPtr, Chunk* const (&neighborChunks)[diameter][diameter], int centerX, int centerZ)>;
 
 private:
     ChunkState state{ ChunkState::EMPTY };
@@ -89,9 +89,9 @@ private:
     template<std::size_t diameter>
     void floodFillAndIterateNeighbors(ChunkState currentState, ChunkState nextState, ChunkProcessorFunc<diameter> chunkProcessorFunc);
 
-    static bool otherChunkGatherHeightfield(Chunk* chunkPtr, Chunk* const (&neighborChunks)[5][5], int centerX, int centerZ);
+    static void otherChunkGatherHeightfield(Chunk* chunkPtr, Chunk* const (&neighborChunks)[5][5], int centerX, int centerZ);
 
-    static bool otherChunkGatherFeaturePlacements(Chunk* chunkPtr, Chunk* const (&neighborChunks)[9][9], int centerX, int centerZ);
+    static void otherChunkGatherFeaturePlacements(Chunk* chunkPtr, Chunk* const (&neighborChunks)[9][9], int centerX, int centerZ);
 
 public:
     void gatherHeightfield();
