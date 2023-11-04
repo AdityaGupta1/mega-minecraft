@@ -1,7 +1,5 @@
 #version 330
 
-#include defines.glsl
-
 const vec3 sunLight = vec3(1.0f, 1.0f, 1.0f);
 const vec3 moonLight = vec3(0.8070f, 0.9823f, 1.0f) * 0.15f;
 const vec3 ambientLight = vec3(0.8, 0.98, 1.0) * 0.16f;

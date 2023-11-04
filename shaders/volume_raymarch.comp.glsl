@@ -1,7 +1,5 @@
 #version 430
 
-#include defines.glsl
-
 layout(local_size_x = 320, local_size_y = 1, local_size_z = 1) in;
 layout(rgba16f) uniform image3D img_volume;
 

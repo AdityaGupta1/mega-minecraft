@@ -109,7 +109,9 @@ static const std::string definesText = Utils::readFile("shaders/defines.glsl");
 
 std::string readFileAndInsertDefines(const std::string& file)
 {
-    return std::regex_replace(Utils::readFile(file), std::regex("#include defines\\.glsl"), definesText);
+    std::string fileText = Utils::readFile(file);
+    fileText.insert(fileText.find('\n') + 1, definesText);
+    return fileText;
 }
 
 bool ShaderProgram::create(const std::string& vertFile, const std::string& fragFile)
