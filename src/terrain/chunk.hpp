@@ -99,6 +99,8 @@ public:
 
     void generateLayers(float* dev_heightfield, float* dev_layers, float* dev_biomeWeights, cudaStream_t stream);
 
+    static void erodeZone(Zone* zonePtr);
+
     void gatherFeaturePlacements();
 
     void fill(Block* dev_blocks, float* dev_heightfield, float* dev_layers, float* dev_biomeWeights, FeaturePlacement* dev_featurePlacements, cudaStream_t stream);

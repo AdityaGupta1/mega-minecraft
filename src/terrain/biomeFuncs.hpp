@@ -75,13 +75,13 @@ void BiomeUtils::init()
 
     // block, thickness, noise amplitude, noise scale
     host_materialInfos[(int)Material::BLACKSTONE] = { Block::BLACKSTONE, 56.f, 32.f, 0.0030f };
-    host_materialInfos[(int)Material::DEEPSLATE] = { Block::DEEPSLATE, 48.f, 24.f, 0.0045f };
-    host_materialInfos[(int)Material::SLATE] = { Block::SLATE, 4.f, 24.f, 0.0062f };
-    host_materialInfos[(int)Material::STONE] = { Block::STONE, 36.f, 30.f, 0.0050f };
-    host_materialInfos[(int)Material::TUFF] = { Block::TUFF, 32.f, 42.f, 0.0060f };
+    host_materialInfos[(int)Material::DEEPSLATE] = { Block::DEEPSLATE, 52.f, 20.f, 0.0045f };
+    host_materialInfos[(int)Material::SLATE] = { Block::SLATE, 6.f, 24.f, 0.0062f };
+    host_materialInfos[(int)Material::STONE] = { Block::STONE, 32.f, 30.f, 0.0050f };
+    host_materialInfos[(int)Material::TUFF] = { Block::TUFF, 24.f, 42.f, 0.0060f };
     host_materialInfos[(int)Material::CALCITE] = { Block::CALCITE, 20.f, 30.f, 0.0040f };
     host_materialInfos[(int)Material::GRANITE] = { Block::GRANITE, 18.f, 36.f, 0.0034f };
-    host_materialInfos[(int)Material::MARBLE] = { Block::MARBLE, 24.f, 56.f, 0.0050f };
+    host_materialInfos[(int)Material::MARBLE] = { Block::MARBLE, 28.f, 56.f, 0.0050f };
     host_materialInfos[(int)Material::ANDESITE] = { Block::ANDESITE, 24.f, 48.f, 0.0030f };
 
     // block, thickness, angle of repose (degrees), maximum slope

@@ -481,11 +481,7 @@ void Terrain::tick()
         auto zonePtr = zonesToErode.front();
         zonesToErode.pop();
 
-        // EROSION TODO: replace this with call to erosion kernel
-        for (const auto& chunkPtr : zonePtr->chunks)
-        {
-            chunkPtr->setState(ChunkState::NEEDS_GATHER_FEATURE_PLACEMENTS);
-        }
+        Chunk::erodeZone(zonePtr);
 
         actionTimeLeft -= actionTimeErodeZone;
     }

@@ -427,6 +427,18 @@ void Chunk::generateLayers(float* dev_heightfield, float* dev_layers, float* dev
 
 #pragma endregion
 
+#pragma region erosion
+
+void Chunk::erodeZone(Zone* zonePtr)
+{
+    for (const auto& chunkPtr : zonePtr->chunks)
+    {
+        chunkPtr->setState(ChunkState::NEEDS_GATHER_FEATURE_PLACEMENTS);
+    }
+}
+
+#pragma endregion
+
 #pragma region feature placements
 
 void Chunk::generateOwnFeaturePlacements()
