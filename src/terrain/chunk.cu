@@ -9,6 +9,8 @@
 
 #define BIOME_OVERRIDE Biome::METEORS
 
+#define DO_EROSION 1
+
 Chunk::Chunk(ivec2 worldChunkPos)
     : worldChunkPos(worldChunkPos), worldBlockPos(worldChunkPos.x * 16, 0, worldChunkPos.y * 16)
 {}
@@ -431,7 +433,7 @@ void Chunk::generateLayers(float* dev_heightfield, float* dev_layers, float* dev
 
 #pragma region erosion
 
-static constexpr int gatheredLayersBaseSize = ZONE_SIZE * ZONE_SIZE * 4 * 256 * numErodedMaterials;
+static constexpr int gatheredLayersBaseSize = ZONE_SIZE * ZONE_SIZE * 4 * 256 * (numErodedMaterials + 1); // +1 for heightfield
 static constexpr int erosionGridSideLength = ZONE_SIZE * 2 * 16;
 
 __global__ void kernDoErosion(float* gatheredLayers, int layerIdx)
@@ -454,7 +456,7 @@ __global__ void kernDoErosion(float* gatheredLayers, int layerIdx)
 
     const ivec2 sharedLayerPos = ivec2(localX + 1, localZ + 1);
     const int sharedLayerIdx = posTo2dIndex<34>(sharedLayerPos);
-    const int gatheredLayersIdx = posTo3dIndex<erosionGridSideLength, numErodedMaterials>(globalX, layerIdx, globalZ);
+    const int gatheredLayersIdx = posTo3dIndex<erosionGridSideLength, numErodedMaterials + 1>(globalX, layerIdx, globalZ);
 
     float thisHeight = gatheredLayers[gatheredLayersIdx];
     shared_layer[sharedLayerIdx] = thisHeight;
@@ -492,7 +494,7 @@ __global__ void kernDoErosion(float* gatheredLayers, int layerIdx)
         ivec2 loadPos = ivec2(blockStartX - 1, blockStartZ - 1) + storePos;
         loadPos = clamp(loadPos, 0, erosionGridSideLength - 1); // values outside the grid (i.e. not in gatheredLayers) extend existing border values
 
-        const int loadIdx = posTo3dIndex<erosionGridSideLength, numErodedMaterials>(loadPos.x, layerIdx, loadPos.y);
+        const int loadIdx = posTo3dIndex<erosionGridSideLength, numErodedMaterials + 1>(loadPos.x, layerIdx, loadPos.y);
         const int storeIdx = posTo2dIndex<34>(storePos);
 
         shared_layer[storeIdx] = gatheredLayers[loadIdx];
@@ -557,13 +559,21 @@ void copyLayers(Zone* zonePtr, float* gatheredLayers, bool toGatheredLayers)
             {
                 for (int blockX = 0; blockX < 16; ++blockX)
                 {
-                    auto srcLayers = &chunkPtr->layers[posTo2dIndex(blockX, blockZ)][numStratifiedMaterials];
-                    auto dstLayers = gatheredLayers + posTo3dIndex<ZONE_SIZE * 2 * 16, numErodedMaterials>(chunkBlockPos.x + blockX, 0, chunkBlockPos.y + blockZ);
+                    int idx2d = posTo2dIndex(blockX, blockZ);
+                    auto srcLayers = &chunkPtr->layers[idx2d][numStratifiedMaterials];
+                    auto dstLayers = gatheredLayers + posTo3dIndex<ZONE_SIZE * 2 * 16, numErodedMaterials + 1>(chunkBlockPos.x + blockX, 0, chunkBlockPos.y + blockZ);
+
                     if (!toGatheredLayers)
                     {
                         std::swap(srcLayers, dstLayers);
                     }
+
                     std::memcpy(dstLayers, srcLayers, numErodedMaterials * sizeof(float));
+
+                    if (toGatheredLayers)
+                    {
+                        dstLayers[numErodedMaterials] = chunkPtr->heightfield[idx2d];
+                    }
                 }
             }
         }
@@ -572,6 +582,7 @@ void copyLayers(Zone* zonePtr, float* gatheredLayers, bool toGatheredLayers)
 
 void Chunk::erodeZone(Zone* zonePtr, float* dev_gatheredLayers, cudaStream_t stream)
 {
+#if DO_EROSION
     float* gatheredLayers = new float[gatheredLayersBaseSize];
     copyLayers(zonePtr, gatheredLayers, true);
     zonePtr->gatheredChunks.clear();
@@ -609,6 +620,9 @@ void Chunk::erodeZone(Zone* zonePtr, float* dev_gatheredLayers, cudaStream_t str
 
     copyLayers(zonePtr, gatheredLayers, false);
     delete[] gatheredLayers;
+#else
+    zonePtr->gatheredChunks.clear();
+#endif
 
     for (const auto& chunkPtr : zonePtr->chunks)
     {
