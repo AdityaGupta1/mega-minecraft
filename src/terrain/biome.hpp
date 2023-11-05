@@ -50,6 +50,7 @@ struct MaterialInfo
     float thickness;
     float noiseAmplitudeOrTanAngleOfRepose;
     float noiseScaleOrMaxSlope;
+    glm::vec2 heightBounds;
 };
 
 enum class Feature : unsigned char

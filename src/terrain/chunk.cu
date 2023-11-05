@@ -401,7 +401,9 @@ __global__ void kernGenerateLayers(
         }
         else
         {
-            layerHeight = materialInfo.thickness * ((materialInfo.noiseScaleOrMaxSlope - slope) / materialInfo.noiseScaleOrMaxSlope);
+            layerHeight = materialInfo.thickness 
+                * ((materialInfo.noiseScaleOrMaxSlope - slope) / materialInfo.noiseScaleOrMaxSlope)
+                * clamp((materialInfo.heightBounds[0] - height) / (materialInfo.heightBounds[1] - materialInfo.heightBounds[0]), 0.f, 1.f);
         }
 
         height -= layerHeight;
