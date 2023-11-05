@@ -54,16 +54,18 @@ int posTo2dIndex(const ivec2 pos)
     return posTo2dIndex<size>(pos.x, pos.y);
 }
 
+template<int xzSize = 16, int ySize = 384>
 __host__ __device__
-int posTo3dBlockIndex(const int x, const int y, const int z)
+int posTo3dIndex(const int x, const int y, const int z)
 {
-    return y + 384 * posTo2dIndex(x, z);
+    return y + ySize * posTo2dIndex<xzSize>(x, z);
 }
 
+template<int xzSize = 16, int ySize = 384>
 __host__ __device__
-int posTo3dBlockIndex(const ivec3 pos)
+int posTo3dIndex(const ivec3 pos)
 {
-    return posTo3dBlockIndex(pos.x, pos.y, pos.z);
+    return posTo3dIndex<xzSize, ySize>(pos.x, pos.y, pos.z);
 }
 
 __host__ __device__ Biome getRandomBiome(const float* columnBiomeWeights, float rand)
@@ -429,15 +431,37 @@ void Chunk::generateLayers(float* dev_heightfield, float* dev_layers, float* dev
 
 #pragma region erosion
 
-__global__ void kernErodeZone(
-    float* heightfield,
-    float* layers,
-    float* biomeWeights,
-    ivec3 chunkWorldBlockPos)
+__global__ void kernDoErosion(float* gatheredLayers, int layer)
 {
+    __shared__ float shared_layer[34 * 34]; // 32x32 with 1 padding
+    __shared__ bool didChange;
+
+    const int localX = threadIdx.x;
+    const int localZ = threadIdx.y;
+    const int localIdx = posTo2dIndex<32>(localX, localZ);
+    const int blockStartX = (blockIdx.x * blockDim.x);
+    const int blockStartZ = (blockIdx.y * blockDim.y);
+    const int globalX = blockStartX + localX;
+    const int globalZ = blockStartZ + localZ;
+
+    const int sharedLayerIdx = posTo2dIndex<34>(localX + 1, localZ + 1);
+    const int gatheredLayersIdx = posTo3dIndex<ZONE_SIZE * 2 * 16, (int)Material::numMaterials>(globalX, layer, globalZ);
+
+    float thisHeight = gatheredLayers[gatheredLayersIdx];
+    shared_layer[sharedLayerIdx] = thisHeight;
+
+    // TODO: load border values
+
+    __syncthreads();
+
+    // TODO: actually do erosion lol
+    //       don't overwrite shared memory, just change thisHeight
+    thisHeight += 100.f;
+
+    gatheredLayers[gatheredLayersIdx] = thisHeight;
 }
 
-void copyLayers(Zone* zonePtr, std::array<float[(int)Material::numMaterials], ZONE_SIZE* ZONE_SIZE * 4 * 256>& gatheredLayers, bool toGatheredLayers)
+void copyLayers(Zone* zonePtr, std::array<float[(int)Material::numMaterials], ZONE_SIZE * ZONE_SIZE * 4 * 256>& gatheredLayers, bool toGatheredLayers)
 {
     int maxDim = toGatheredLayers ? ZONE_SIZE * 2 : ZONE_SIZE;
 
@@ -484,7 +508,11 @@ void Chunk::erodeZone(Zone* zonePtr, float* dev_gatheredLayers, cudaStream_t str
     int gatheredLayersSizeBytes = gatheredLayers.size() * (int)Material::numMaterials * sizeof(float);
     cudaMemcpyAsync(dev_gatheredLayers, gatheredLayers.data(), gatheredLayersSizeBytes, cudaMemcpyHostToDevice, stream);
 
-    // TODO: kernel execution
+    const dim3 blockSize2d(32, 32);
+    const int blocksPerGrid = (ZONE_SIZE * 2 * 16) / 32; // = ZONE_SIZE but writing it out for clarity
+    const dim3 blocksPerGrid2d(blocksPerGrid, blocksPerGrid);
+    // TODO: multiple kernel executions until no more changes, and then move to next material
+    kernDoErosion<<<blocksPerGrid2d, blockSize2d, 0, stream>>>(dev_gatheredLayers, (int)Material::DIRT);
 
     cudaMemcpyAsync(gatheredLayers.data(), dev_gatheredLayers, gatheredLayersSizeBytes, cudaMemcpyDeviceToHost, stream);
 
@@ -592,7 +620,7 @@ __global__ void kernFill(
     const int y = (blockIdx.y * blockDim.y) + threadIdx.y;
     const int z = (blockIdx.z * blockDim.z) + threadIdx.z;
 
-    const int idx = posTo3dBlockIndex(x, y, z);
+    const int idx = posTo3dIndex(x, y, z);
     const int idx2d = posTo2dIndex(x, z);
 
     if (y < (int)Material::numMaterials)
@@ -759,7 +787,7 @@ void Chunk::createVBOs()
             for (int y = 0; y < 384; ++y)
             {
                 ivec3 thisPos = ivec3(x, y, z);
-                Block thisBlock = blocks[posTo3dBlockIndex(thisPos)];
+                Block thisBlock = blocks[posTo3dIndex(thisPos)];
 
                 if (thisBlock == Block::AIR)
                 {
@@ -803,7 +831,7 @@ void Chunk::createVBOs()
                             continue;
                         }
 
-                        neighborBlock = neighborPosChunk->blocks[posTo3dBlockIndex(neighborPos)];
+                        neighborBlock = neighborPosChunk->blocks[posTo3dIndex(neighborPos)];
 
                         if (neighborBlock != Block::AIR) // TODO: this will get more complicated with transparent and non-cube blocks
                         {
