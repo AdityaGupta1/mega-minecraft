@@ -363,7 +363,7 @@ __global__ void kernGenerateLayers(
     for (int i = 0; i < 8; ++i)
     {
         float neighborHeight = shared_heightfield[posTo2dIndex<18>(pos18 + dev_dirVecs2d[i])];
-        slope = max(slope, abs(neighborHeight - maxHeight));
+        slope = max(slope, abs(neighborHeight - maxHeight) * (i % 2 == 1 ? SQRT_2 : 1));
     }
 
     float* columnLayers = layers + (int)Material::numMaterials * idx;
@@ -503,10 +503,11 @@ __global__ void kernDoErosion(float* gatheredLayers, int layerIdx)
     float newHeight = thisHeight;
     const float tanAngleOfRepose = dev_materialInfos[numStratifiedMaterials + layerIdx].noiseAmplitudeOrTanAngleOfRepose;
 
-    for (const auto& neighborDir : dev_dirVecs2d)
+    for (int i = 0; i < 8; ++i)
     {
+        const auto& neighborDir = dev_dirVecs2d[i];
         float neighborHeight = shared_layer[posTo2dIndex<34>(sharedLayerPos + neighborDir)];
-        newHeight = max(newHeight, neighborHeight - tanAngleOfRepose);
+        newHeight = max(newHeight, neighborHeight - tanAngleOfRepose * (i % 2 == 1 ? SQRT_2 : 1));
     }
 
     gatheredLayers[gatheredLayersIdx] = newHeight;
