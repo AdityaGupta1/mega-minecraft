@@ -431,10 +431,13 @@ void Chunk::generateLayers(float* dev_heightfield, float* dev_layers, float* dev
 
 #pragma region erosion
 
-__global__ void kernDoErosion(float* gatheredLayers, int layer)
+static constexpr int gatheredLayersBaseSize = ZONE_SIZE * ZONE_SIZE * 4 * 256 * (int)Material::numMaterials;
+static constexpr int erosionGridSideLength = ZONE_SIZE * 2 * 16;
+
+__global__ void kernDoErosion(float* gatheredLayers, int layerIdx)
 {
     __shared__ float shared_layer[34 * 34]; // 32x32 with 1 padding
-    __shared__ bool didChange;
+    __shared__ bool shared_didChange;
 
     const int localX = threadIdx.x;
     const int localZ = threadIdx.y;
@@ -444,21 +447,89 @@ __global__ void kernDoErosion(float* gatheredLayers, int layer)
     const int globalX = blockStartX + localX;
     const int globalZ = blockStartZ + localZ;
 
-    const int sharedLayerIdx = posTo2dIndex<34>(localX + 1, localZ + 1);
-    const int gatheredLayersIdx = posTo3dIndex<ZONE_SIZE * 2 * 16, (int)Material::numMaterials>(globalX, layer, globalZ);
+    if (localIdx == 0)
+    {
+        shared_didChange = false;
+    }
+
+    const ivec2 sharedLayerPos = ivec2(localX + 1, localZ + 1);
+    const int sharedLayerIdx = posTo2dIndex<34>(sharedLayerPos);
+    const int gatheredLayersIdx = posTo3dIndex<erosionGridSideLength, (int)Material::numMaterials>(globalX, layerIdx, globalZ);
 
     float thisHeight = gatheredLayers[gatheredLayersIdx];
     shared_layer[sharedLayerIdx] = thisHeight;
 
-    // TODO: load border values
+    ivec2 storePos = ivec2(-1);
+    if (localIdx < 64)
+    {
+        storePos = ivec2((localIdx & 31) + 1, localIdx < 32 ? 0 : 33); // localIdx & 31 instead of localIdx % 32
+    }
+    else if (localIdx < 128)
+    {
+        storePos = ivec2(localIdx < 96 ? 0 : 33, (localIdx & 31) + 1);
+    }
+    else
+    {
+        switch (localIdx)
+        {
+        case 128:
+            storePos = ivec2(0, 0);
+            break;
+        case 129:
+            storePos = ivec2(33, 0);
+            break;
+        case 130:
+            storePos = ivec2(0, 33);
+            break;
+        case 131:
+            storePos = ivec2(33, 33);
+            break;
+        }
+    }
+
+    if (storePos.x != -1)
+    {
+        ivec2 loadPos = ivec2(blockStartX - 1, blockStartZ - 1) + storePos;
+        loadPos = clamp(loadPos, 0, erosionGridSideLength - 1); // values outside the grid (i.e. not in gatheredLayers) extend existing border values
+
+        const int loadIdx = posTo3dIndex<erosionGridSideLength, (int)Material::numMaterials>(loadPos.x, layerIdx, loadPos.y);
+        const int storeIdx = posTo2dIndex<34>(storePos);
+
+        shared_layer[storeIdx] = gatheredLayers[loadIdx];
+    }
 
     __syncthreads();
 
     // TODO: actually do erosion lol
-    //       don't overwrite shared memory, just change thisHeight
-    thisHeight += 100.f;
+    float newHeight = thisHeight;
+    const float tanAngleOfRepose = dev_materialInfos[layerIdx].noiseAmplitudeOrTanAngleOfRepose;
 
-    gatheredLayers[gatheredLayersIdx] = thisHeight;
+    for (const auto& neighborDir : dev_dirVecs2d)
+    {
+        float neighborHeight = shared_layer[posTo2dIndex<34>(sharedLayerPos + neighborDir)];
+        newHeight = max(newHeight, neighborHeight - tanAngleOfRepose);
+    }
+
+    gatheredLayers[gatheredLayersIdx] = newHeight;
+
+    if (newHeight != thisHeight)
+    {
+        shared_didChange = true; // not atomic since any thread that writes to shared_didChange will write the same value
+                                 // plus I think this gets serialized anyway since they're all writing to the same bank
+    }
+
+    __syncthreads();
+
+    if (localIdx != 0)
+    {
+        return;
+    }
+
+    // update global flag if block-level shared flag was set
+    if (shared_didChange)
+    {
+        gatheredLayers[gatheredLayersBaseSize] = 1; // not atomic for same reason as above
+    }
 }
 
 void copyLayers(Zone* zonePtr, float* gatheredLayers, bool toGatheredLayers)
@@ -501,18 +572,36 @@ void copyLayers(Zone* zonePtr, float* gatheredLayers, bool toGatheredLayers)
 
 void Chunk::erodeZone(Zone* zonePtr, float* dev_gatheredLayers, cudaStream_t stream)
 {
-    std::array<float, ZONE_SIZE * ZONE_SIZE * 4 * 256 * (int)Material::numMaterials + 1> gatheredLayers;
+    std::array<float, gatheredLayersBaseSize> gatheredLayers;
     copyLayers(zonePtr, gatheredLayers.data(), true);
+    gatheredLayers.back() = 0.f;
     zonePtr->gatheredChunks.clear();
 
     int gatheredLayersSizeBytes = gatheredLayers.size() * sizeof(float);
     cudaMemcpyAsync(dev_gatheredLayers, gatheredLayers.data(), gatheredLayersSizeBytes, cudaMemcpyHostToDevice, stream);
 
+    float flagDidChange;
+    float* dev_flagDidChange = dev_gatheredLayers + gatheredLayersBaseSize;
+
     const dim3 blockSize2d(32, 32);
     const int blocksPerGrid = (ZONE_SIZE * 2 * 16) / 32; // = ZONE_SIZE but writing it out for clarity
     const dim3 blocksPerGrid2d(blocksPerGrid, blocksPerGrid);
-    // TODO: multiple kernel executions until no more changes, and then move to next material
-    kernDoErosion<<<blocksPerGrid2d, blockSize2d, 0, stream>>>(dev_gatheredLayers, (int)Material::DIRT);
+
+    for (int layerIdx = numStratifiedMaterials; layerIdx < (int)Material::numMaterials; ++layerIdx)
+    {
+        do
+        {
+            flagDidChange = 0;
+            cudaMemcpyAsync(dev_flagDidChange, &flagDidChange, 1 * sizeof(float), cudaMemcpyHostToDevice, stream);
+
+            kernDoErosion<<<blocksPerGrid2d, blockSize2d, 0, stream>>>(dev_gatheredLayers, layerIdx);
+
+            cudaMemcpyAsync(&flagDidChange, dev_flagDidChange, 1 * sizeof(float), cudaMemcpyDeviceToHost, stream);
+
+            cudaStreamSynchronize(stream);
+        }
+        while (flagDidChange != 0);
+    }
 
     cudaMemcpyAsync(gatheredLayers.data(), dev_gatheredLayers, gatheredLayersSizeBytes, cudaMemcpyDeviceToHost, stream);
 
