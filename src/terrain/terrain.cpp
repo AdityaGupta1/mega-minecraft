@@ -66,6 +66,7 @@ static std::array<float*, numDevHeightfields> dev_biomeWeights; // TODO: may nee
 static std::array<float*, numDevLayers> dev_layers;
 
 static std::array<float*, numDevGatheredLayers> dev_gatheredLayers;
+static std::array<float*, numDevGatheredLayers> dev_accumulatedHeights;
 
 static std::array<cudaStream_t, numStreams> streams;
 
@@ -90,7 +91,8 @@ void Terrain::initCuda()
 
     for (int i = 0; i < numDevGatheredLayers; ++i)
     {
-        cudaMalloc((void**)&dev_gatheredLayers[i], (ZONE_SIZE * ZONE_SIZE * 4 * 256 * (numErodedMaterials + 1) + 1) * sizeof(float)); 
+        cudaMalloc((void**)&dev_gatheredLayers[i], (BLOCKS_PER_EROSION_KERNEL * (numErodedMaterials + 1) + 1) * sizeof(float));
+        cudaMalloc((void**)&dev_accumulatedHeights[i], BLOCKS_PER_EROSION_KERNEL * sizeof(float));
     }
 
     CudaUtils::checkCUDAError("cudaMalloc failed");
@@ -125,6 +127,7 @@ void Terrain::freeCuda()
     for (int i = 0; i < numDevGatheredLayers; ++i)
     {
         cudaFree(dev_gatheredLayers[i]);
+        cudaFree(dev_accumulatedHeights[i]);
     }
 
     CudaUtils::checkCUDAError("cudaFree failed");
@@ -524,6 +527,7 @@ void Terrain::tick()
         Chunk::erodeZone(
             zonePtr,
             dev_gatheredLayers[gatheredLayersIdx],
+            dev_accumulatedHeights[gatheredLayersIdx],
             streams[streamIdx]
         );
         ++gatheredLayersIdx;

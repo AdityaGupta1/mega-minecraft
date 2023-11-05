@@ -434,9 +434,12 @@ void Chunk::generateLayers(float* dev_heightfield, float* dev_layers, float* dev
 #pragma region erosion
 
 static constexpr int gatheredLayersBaseSize = ZONE_SIZE * ZONE_SIZE * 4 * 256 * (numErodedMaterials + 1); // +1 for heightfield
-static constexpr int erosionGridSideLength = ZONE_SIZE * 2 * 16;
 
-__global__ void kernDoErosion(float* gatheredLayers, int layerIdx)
+__global__ void kernDoErosion(
+    float* gatheredLayers, 
+    float* accumulatedHeights,
+    int layerIdx,
+    bool isFirst)
 {
     __shared__ float shared_layerStart[34 * 34]; // 32x32 with 1 padding
     __shared__ float shared_layerEnd[34 * 34];
@@ -457,10 +460,12 @@ __global__ void kernDoErosion(float* gatheredLayers, int layerIdx)
 
     const ivec2 sharedLayerPos = ivec2(localX + 1, localZ + 1);
     const int sharedLayerIdx = posTo2dIndex<34>(sharedLayerPos);
-    const int gatheredLayersIdx = posTo3dIndex<erosionGridSideLength, numErodedMaterials + 1>(globalX, layerIdx, globalZ);
+    const int gatheredLayersIdx = posTo3dIndex<EROSION_GRID_SIDE_LENGTH_BLOCKS, numErodedMaterials + 1>(globalX, layerIdx, globalZ);
 
-    const float thisLayerStart = gatheredLayers[gatheredLayersIdx];
-    const float thisLayerEnd = gatheredLayers[posTo3dIndex<erosionGridSideLength, numErodedMaterials + 1>(globalX, layerIdx + 1, globalZ)];
+    const float thisAccumulatedHeight = isFirst ? accumulatedHeights[posTo2dIndex<EROSION_GRID_SIDE_LENGTH_BLOCKS>(globalX, globalZ)] : 0;
+
+    const float thisLayerStart = gatheredLayers[gatheredLayersIdx] + thisAccumulatedHeight;
+    const float thisLayerEnd = gatheredLayers[posTo3dIndex<EROSION_GRID_SIDE_LENGTH_BLOCKS, numErodedMaterials + 1>(globalX, layerIdx + 1, globalZ)] + thisAccumulatedHeight;
     shared_layerStart[sharedLayerIdx] = thisLayerStart;
     shared_layerEnd[sharedLayerIdx] = thisLayerEnd;
 
@@ -495,13 +500,15 @@ __global__ void kernDoErosion(float* gatheredLayers, int layerIdx)
     if (storePos.x != -1)
     {
         ivec2 loadPos = ivec2(blockStartX - 1, blockStartZ - 1) + storePos;
-        loadPos = clamp(loadPos, 0, erosionGridSideLength - 1); // values outside the grid (i.e. not in gatheredLayers) extend existing border values
+        loadPos = clamp(loadPos, 0, EROSION_GRID_SIDE_LENGTH_BLOCKS - 1); // values outside the grid (i.e. not in gatheredLayers) extend existing border values
 
-        const int loadIdx = posTo3dIndex<erosionGridSideLength, numErodedMaterials + 1>(loadPos.x, layerIdx, loadPos.y);
+        const int loadIdx = posTo3dIndex<EROSION_GRID_SIDE_LENGTH_BLOCKS, numErodedMaterials + 1>(loadPos.x, layerIdx, loadPos.y);
         const int storeIdx = posTo2dIndex<34>(storePos);
 
-        shared_layerStart[storeIdx] = gatheredLayers[loadIdx];
-        shared_layerEnd[storeIdx] = gatheredLayers[posTo3dIndex<erosionGridSideLength, numErodedMaterials + 1>(loadPos.x, layerIdx + 1, loadPos.y)];
+        const float thisAccumulatedHeight = isFirst ? accumulatedHeights[posTo2dIndex<EROSION_GRID_SIDE_LENGTH_BLOCKS>(loadPos.x, loadPos.y)] : 0;
+
+        shared_layerStart[storeIdx] = gatheredLayers[loadIdx] + thisAccumulatedHeight;
+        shared_layerEnd[storeIdx] = gatheredLayers[posTo3dIndex<EROSION_GRID_SIDE_LENGTH_BLOCKS, numErodedMaterials + 1>(loadPos.x, layerIdx + 1, loadPos.y)] + thisAccumulatedHeight;
     }
 
     __syncthreads();
@@ -529,6 +536,8 @@ __global__ void kernDoErosion(float* gatheredLayers, int layerIdx)
         {
             shared_didChange = true; // not atomic since any thread that writes to shared_didChange will write the same value
                                      // plus I think this gets serialized anyway since they're all writing to the same bank
+
+            accumulatedHeights[posTo2dIndex<EROSION_GRID_SIDE_LENGTH_BLOCKS>(globalX, globalZ)] += newLayerStart - thisLayerStart;
         }
     }
 
@@ -592,7 +601,7 @@ void copyLayers(Zone* zonePtr, float* gatheredLayers, bool toGatheredLayers)
     }
 }
 
-void Chunk::erodeZone(Zone* zonePtr, float* dev_gatheredLayers, cudaStream_t stream)
+void Chunk::erodeZone(Zone* zonePtr, float* dev_gatheredLayers, float* dev_accumulatedHeights, cudaStream_t stream)
 {
 #if DO_EROSION
     float* gatheredLayers = new float[gatheredLayersBaseSize];
@@ -609,18 +618,30 @@ void Chunk::erodeZone(Zone* zonePtr, float* dev_gatheredLayers, cudaStream_t str
     const int blocksPerGrid = (ZONE_SIZE * 2 * 16) / 32; // = ZONE_SIZE but writing it out for clarity
     const dim3 blocksPerGrid2d(blocksPerGrid, blocksPerGrid);
 
-    for (int layerIdx = 0; layerIdx < numErodedMaterials; ++layerIdx)
+    cudaMemset(dev_accumulatedHeights, 0, BLOCKS_PER_EROSION_KERNEL * sizeof(float));
+
+    //for (int layerIdx = 0; layerIdx < numErodedMaterials; ++layerIdx)
+    for (int layerIdx = numErodedMaterials - 1; layerIdx >= 0; --layerIdx)
     {
+        bool isFirst = true;
+
         do
         {
             flagDidChange = 0;
             cudaMemcpyAsync(dev_flagDidChange, &flagDidChange, 1 * sizeof(float), cudaMemcpyHostToDevice, stream);
 
-            kernDoErosion<<<blocksPerGrid2d, blockSize2d, 0, stream>>>(dev_gatheredLayers, layerIdx);
+            kernDoErosion<<<blocksPerGrid2d, blockSize2d, 0, stream>>>(
+                dev_gatheredLayers,
+                dev_accumulatedHeights,
+                layerIdx,
+                isFirst
+            );
 
             cudaMemcpyAsync(&flagDidChange, dev_flagDidChange, 1 * sizeof(float), cudaMemcpyDeviceToHost, stream);
 
             cudaStreamSynchronize(stream);
+
+            isFirst = false;
         }
         while (flagDidChange != 0);
     }
