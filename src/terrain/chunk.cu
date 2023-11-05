@@ -438,7 +438,8 @@ static constexpr int erosionGridSideLength = ZONE_SIZE * 2 * 16;
 
 __global__ void kernDoErosion(float* gatheredLayers, int layerIdx)
 {
-    __shared__ float shared_layer[34 * 34]; // 32x32 with 1 padding
+    __shared__ float shared_layerStart[34 * 34]; // 32x32 with 1 padding
+    __shared__ float shared_layerEnd[34 * 34];
     __shared__ bool shared_didChange;
 
     const int localX = threadIdx.x;
@@ -458,8 +459,10 @@ __global__ void kernDoErosion(float* gatheredLayers, int layerIdx)
     const int sharedLayerIdx = posTo2dIndex<34>(sharedLayerPos);
     const int gatheredLayersIdx = posTo3dIndex<erosionGridSideLength, numErodedMaterials + 1>(globalX, layerIdx, globalZ);
 
-    float thisHeight = gatheredLayers[gatheredLayersIdx];
-    shared_layer[sharedLayerIdx] = thisHeight;
+    const float thisLayerStart = gatheredLayers[gatheredLayersIdx];
+    const float thisLayerEnd = gatheredLayers[posTo3dIndex<erosionGridSideLength, numErodedMaterials + 1>(globalX, layerIdx + 1, globalZ)];
+    shared_layerStart[sharedLayerIdx] = thisLayerStart;
+    shared_layerEnd[sharedLayerIdx] = thisLayerEnd;
 
     ivec2 storePos = ivec2(-1);
     if (localIdx < 64)
@@ -497,27 +500,36 @@ __global__ void kernDoErosion(float* gatheredLayers, int layerIdx)
         const int loadIdx = posTo3dIndex<erosionGridSideLength, numErodedMaterials + 1>(loadPos.x, layerIdx, loadPos.y);
         const int storeIdx = posTo2dIndex<34>(storePos);
 
-        shared_layer[storeIdx] = gatheredLayers[loadIdx];
+        shared_layerStart[storeIdx] = gatheredLayers[loadIdx];
+        shared_layerEnd[storeIdx] = gatheredLayers[posTo3dIndex<erosionGridSideLength, numErodedMaterials + 1>(loadPos.x, layerIdx + 1, loadPos.y)];
     }
 
     __syncthreads();
 
-    float newHeight = thisHeight;
+    float newLayerStart = thisLayerStart;
+    float maxThickness = thisLayerEnd - thisLayerStart;
     const float tanAngleOfRepose = dev_materialInfos[numStratifiedMaterials + layerIdx].noiseAmplitudeOrTanAngleOfRepose;
 
     for (int i = 0; i < 8; ++i)
     {
         const auto& neighborDir = dev_dirVecs2d[i];
-        float neighborHeight = shared_layer[posTo2dIndex<34>(sharedLayerPos + neighborDir)];
-        newHeight = max(newHeight, neighborHeight - tanAngleOfRepose * (i % 2 == 1 ? SQRT_2 : 1));
+        int neighborIdx = posTo2dIndex<34>(sharedLayerPos + neighborDir);
+
+        float neighborLayerStart = shared_layerStart[neighborIdx];
+        newLayerStart = max(newLayerStart, neighborLayerStart - tanAngleOfRepose * (i % 2 == 1 ? SQRT_2 : 1));
+
+        maxThickness = max(maxThickness, shared_layerEnd[neighborIdx] - neighborLayerStart);
     }
 
-    gatheredLayers[gatheredLayersIdx] = newHeight;
-
-    if (newHeight != thisHeight)
+    if (maxThickness > 0)
     {
-        shared_didChange = true; // not atomic since any thread that writes to shared_didChange will write the same value
-                                 // plus I think this gets serialized anyway since they're all writing to the same bank
+        gatheredLayers[gatheredLayersIdx] = newLayerStart;
+
+        if (newLayerStart != thisLayerStart)
+        {
+            shared_didChange = true; // not atomic since any thread that writes to shared_didChange will write the same value
+                                     // plus I think this gets serialized anyway since they're all writing to the same bank
+        }
     }
 
     __syncthreads();
