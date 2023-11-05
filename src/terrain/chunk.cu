@@ -500,7 +500,6 @@ __global__ void kernDoErosion(float* gatheredLayers, int layerIdx)
 
     __syncthreads();
 
-    // TODO: actually do erosion lol
     float newHeight = thisHeight;
     const float tanAngleOfRepose = dev_materialInfos[numStratifiedMaterials + layerIdx].noiseAmplitudeOrTanAngleOfRepose;
 
