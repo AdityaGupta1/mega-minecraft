@@ -462,11 +462,11 @@ __global__ void kernDoErosion(float* gatheredLayers, int layerIdx)
     ivec2 storePos = ivec2(-1);
     if (localIdx < 64)
     {
-        storePos = ivec2((localIdx & 31) + 1, localIdx < 32 ? 0 : 33); // localIdx & 31 instead of localIdx % 32
+        storePos = ivec2((localIdx % 32) + 1, localIdx < 32 ? 0 : 33);
     }
     else if (localIdx < 128)
     {
-        storePos = ivec2(localIdx < 96 ? 0 : 33, (localIdx & 31) + 1);
+        storePos = ivec2(localIdx < 96 ? 0 : 33, (localIdx % 32) + 1);
     }
     else
     {
