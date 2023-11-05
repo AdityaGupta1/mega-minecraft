@@ -665,14 +665,32 @@ void Terrain::setCurrentChunkPos(ivec2 newCurrentChunk)
     this->currentChunkPos = newCurrentChunk;
 }
 
-void Terrain::debugPrintCurrentChunkState()
+Chunk* Terrain::debugGetCurrentChunk()
 {
     ivec2 zonePos = zonePosFromChunkPos(currentChunkPos);
     const auto& zonePtr = zones[zonePos];
-    const auto& chunkPtr = zonePtr->chunks[localChunkPosToIdx(currentChunkPos - zonePtr->worldChunkPos)];
-    bool isInDrawableChunks = drawableChunks.find(chunkPtr.get()) != drawableChunks.end();
+    return zonePtr->chunks[localChunkPosToIdx(currentChunkPos - zonePtr->worldChunkPos)].get();
+}
+
+void Terrain::debugPrintCurrentChunkState()
+{
+    const auto chunkPtr = debugGetCurrentChunk();
+    bool isInDrawableChunks = drawableChunks.find(chunkPtr) != drawableChunks.end();
 
     printf("chunk (%d, %d) state: %d\n", currentChunkPos.x, currentChunkPos.y, (int)chunkPtr->getState());
     printf("is in drawable chunks: %s\n", isInDrawableChunks ? "yes" : "no");
     printf("idx count: %d\n", chunkPtr->getIdxCount());
+}
+
+void Terrain::debugPrintCurrentColumnLayers(vec2 playerPos)
+{
+    const auto chunkPtr = debugGetCurrentChunk();
+    ivec2 blockPos = ivec2(floor(playerPos)) - ivec2(chunkPtr->worldBlockPos.x, chunkPtr->worldBlockPos.z);
+    int idx = blockPos.x + 16 * blockPos.y;
+    const auto& layers = chunkPtr->layers[idx];
+    for (int i = 0; i < (int)Material::numMaterials; ++i)
+    {
+        printf("%s%02d: %7.3f\n", i < numStratifiedMaterials ? "s" : "e", i, layers[i]);
+    }
+    printf("hgt: %7.3f\n\n", chunkPtr->heightfield[idx]);
 }

@@ -2,7 +2,7 @@
 // DEBUG FLAGS
 // ========================================
 
-#define CHUNK_COLOR    0
+#define CHUNK_COLOR    1
 #define ZONE_COLOR     1
 #define ZONE_SIZE      4
 

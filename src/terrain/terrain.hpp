@@ -75,5 +75,7 @@ public:
 
     void setCurrentChunkPos(ivec2 newCurrentChunkPos);
 
+    Chunk* debugGetCurrentChunk();
     void debugPrintCurrentChunkState();
+    void debugPrintCurrentColumnLayers(vec2 playerPos);
 };

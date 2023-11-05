@@ -231,6 +231,13 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
             terrain->debugPrintCurrentChunkState();
         }
         break;
+    case GLFW_KEY_L:
+        if (action == GLFW_RELEASE)
+        {
+            const vec3 playerPos = player->getPos();
+            terrain->debugPrintCurrentColumnLayers(vec2(playerPos.x, playerPos.z));
+        }
+        break;
     }
 }
 
