@@ -5,6 +5,7 @@
 #include "renderingUtils.hpp"
 #include "structs.hpp"
 #include <regex>
+#include "terrain/terrain.hpp"
 
 ShaderProgram::ShaderProgram()
     : vertShader(-1), fragShader(-1), compShader(-1), prog(-1), 
@@ -105,7 +106,7 @@ bool checkProgLinked(GLint prog)
     return true;
 }
 
-static const std::string definesText = Utils::readFile("shaders/defines.glsl");
+static const std::string definesText = Utils::readFile("shaders/defines.glsl") + "#define ZONE_SIZE " + std::to_string(ZONE_SIZE) + "\n";
 
 std::string readFileAndInsertDefines(const std::string& file)
 {

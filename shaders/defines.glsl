@@ -4,7 +4,6 @@
 
 #define CHUNK_COLOR    1
 #define ZONE_COLOR     1
-#define ZONE_SIZE      4
 
 #define APPLY_SHADOWS           0
 #define APPLY_VOLUMETRIC_FOG    0
