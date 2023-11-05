@@ -12,7 +12,7 @@
 #include <mutex>
 #include "player/player.hpp"
 
-#define ZONE_SIZE 4 // changing this may have disastrous consequences
+#define ZONE_SIZE 12 // changing this may have disastrous consequences
 
 using namespace glm;
 

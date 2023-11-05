@@ -299,13 +299,13 @@ void Terrain::addZonesToTryErosionSet(Chunk* chunkPtr)
 
     ivec2 localChunkPos = chunkPtr->worldChunkPos - zonePtr->worldChunkPos;
     int startDirIdx;
-    if (localChunkPos.x < 2)
+    if (localChunkPos.x < ZONE_SIZE / 2)
     {
-        startDirIdx = localChunkPos.y < 2 ? 4 : 6;
+        startDirIdx = localChunkPos.y < ZONE_SIZE / 2 ? 4 : 6;
     }
     else
     {
-        startDirIdx = localChunkPos.y < 2 ? 0 : 2;
+        startDirIdx = localChunkPos.y < ZONE_SIZE / 2 ? 0 : 2;
     }
 
     for (int i = 0; i < 3; ++i)
@@ -329,6 +329,8 @@ ivec2 getNeighborZoneCornerCoordBounds(int offset)
     case 1:
         return ivec2(0, ZONE_SIZE / 2);
     }
+
+    throw std::exception("invalid offset");
 }
 
 bool isChunkReadyForErosion(Chunk* chunkPtr, Zone* zonePtr)

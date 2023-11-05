@@ -571,13 +571,12 @@ void copyLayers(Zone* zonePtr, float* gatheredLayers, bool toGatheredLayers)
 
 void Chunk::erodeZone(Zone* zonePtr, float* dev_gatheredLayers, cudaStream_t stream)
 {
-    std::array<float, gatheredLayersBaseSize> gatheredLayers;
-    copyLayers(zonePtr, gatheredLayers.data(), true);
-    gatheredLayers.back() = 0.f;
+    float* gatheredLayers = new float[gatheredLayersBaseSize];
+    copyLayers(zonePtr, gatheredLayers, true);
     zonePtr->gatheredChunks.clear();
 
-    int gatheredLayersSizeBytes = gatheredLayers.size() * sizeof(float);
-    cudaMemcpyAsync(dev_gatheredLayers, gatheredLayers.data(), gatheredLayersSizeBytes, cudaMemcpyHostToDevice, stream);
+    int gatheredLayersSizeBytes = gatheredLayersBaseSize * sizeof(float);
+    cudaMemcpyAsync(dev_gatheredLayers, gatheredLayers, gatheredLayersSizeBytes, cudaMemcpyHostToDevice, stream);
 
     float flagDidChange;
     float* dev_flagDidChange = dev_gatheredLayers + gatheredLayersBaseSize;
@@ -602,17 +601,20 @@ void Chunk::erodeZone(Zone* zonePtr, float* dev_gatheredLayers, cudaStream_t str
         while (flagDidChange != 0);
     }
 
-    cudaMemcpyAsync(gatheredLayers.data(), dev_gatheredLayers, gatheredLayersSizeBytes, cudaMemcpyDeviceToHost, stream);
+    cudaMemcpyAsync(gatheredLayers, dev_gatheredLayers, gatheredLayersSizeBytes, cudaMemcpyDeviceToHost, stream);
 
     cudaStreamSynchronize(stream); // all data needs to be copied back to gatheredLayers before calling copyLayers()
                                    // explicit synchronization here may not be necessary (seems to work without it) but it gives peace of mind
 
-    copyLayers(zonePtr, gatheredLayers.data(), false);
+    copyLayers(zonePtr, gatheredLayers, false);
+    delete[] gatheredLayers;
 
     for (const auto& chunkPtr : zonePtr->chunks)
     {
         chunkPtr->setState(ChunkState::NEEDS_GATHER_FEATURE_PLACEMENTS);
     }
+
+    CudaUtils::checkCUDAError("Chunk::erodeZone() failed");
 }
 
 #pragma endregion
