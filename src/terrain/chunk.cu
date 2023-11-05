@@ -526,19 +526,17 @@ __global__ void kernDoErosion(
             float delta = max(0.f, thisStackTop - neighborStackTop);
             deltas[i] = delta;
 
-            if (delta > tanAngleOfRepose/* * (i % 2 == 1 ? SQRT_2 : 1)*/)
+            float multiplier = (i % 2 == 1 ? SQRT_2 : 1);
+            if (delta > tanAngleOfRepose * multiplier)
             {
                 needsErosion = true;
             }
 
-            totalDelta += delta;
+            totalDelta += delta * multiplier;
         }
 
         if (needsErosion)
         {
-            // totalDelta > 0
-            // sum(deltas) = totalDelta
-
             const float c = min(tanAngleOfRepose, thisThickness); // using tanAngleOfRepose as the constant here, may need to revisit later
 
             atomicAdd(shared_deltas + sharedLayerIdx, -c);
@@ -835,27 +833,40 @@ __global__ void kernFill(
             layerIdxStart = 0;
         }
 
-        int thisLayerIdx = -1;
-        bool isTopBlock;
-        for (int layerIdx = layerIdxStart; layerIdx < (int)Material::numMaterials + 1; ++layerIdx)
+        float maxContribution = 0.f;
+        int maxLayerIdx = -1;
+        for (int layerIdx = layerIdxStart; layerIdx < (int)Material::numMaterials; ++layerIdx)
         {
-            if (y < shared_layersAndHeight[layerIdx])
+            float layerContributionStart = max(shared_layersAndHeight[layerIdx], (float)y);
+            float layerContributionEnd = min(shared_layersAndHeight[layerIdx + 1], (float)y + 1.f);
+            float layerContribution = layerContributionEnd - layerContributionStart;
+
+            if (layerContribution > maxContribution)
             {
-                thisLayerIdx = layerIdx - 1;
-                isTopBlock = shared_layersAndHeight[layerIdx] - y < 1.f;
-                break;
+                maxContribution = layerContribution;
+                maxLayerIdx = layerIdx;
             }
         }
 
-        block = dev_materialInfos[thisLayerIdx].block;
-        if (isTopBlock)
+        const float airLayerStart = shared_layersAndHeight[(int)Material::numMaterials];
+        if (airLayerStart < y + 0.5f)
         {
-            // TODO: use biome-specific options (e.g. dirt to grass or mycelium depending on biome)
-            // also need to support replacing other things (maybe just make top block a generic block that always gets replaced?
+            block = Block::AIR;
+        }
+        else
+        {
+            block = dev_materialInfos[maxLayerIdx].block;
 
-            if (block == Block::DIRT)
+            bool isTopBlock = airLayerStart < y + 1.5f;
+            if (isTopBlock)
             {
-                block = Block::GRASS;
+                // TODO: use biome-specific options (e.g. dirt to grass or mycelium depending on biome)
+                // also need to support replacing other things (maybe just make top block a generic block that always gets replaced?
+
+                if (block == Block::DIRT)
+                {
+                    block = Block::GRASS;
+                }
             }
         }
     }

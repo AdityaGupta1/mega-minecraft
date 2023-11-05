@@ -46,7 +46,7 @@ __device__ float getHeight(Biome biome, vec2 pos)
     case Biome::METEORS:
         float noise = pow(abs(fbm(pos * 0.0028f)) + 0.05f, 2.f);
         noise += ((fbm(pos * 0.0050f) - 0.5f) * 2.f) * 0.05f;
-        return 165.f + 120.f * (noise - 0.2f);
+        return 165.f + 150.f * (noise - 0.2f);
     }
 }
 
@@ -85,8 +85,8 @@ void BiomeUtils::init()
     host_materialInfos[(int)Material::ANDESITE] = { Block::ANDESITE, 24.f, 48.f, 0.0030f };
 
     // block, thickness, angle of repose (degrees), maximum slope
-    host_materialInfos[(int)Material::GRAVEL] = { Block::GRAVEL, 0.0f, 55.f, 1.9f };
-    host_materialInfos[(int)Material::DIRT] = { Block::DIRT, 4.2f, 45.f, 1.5f };
+    host_materialInfos[(int)Material::GRAVEL] = { Block::GRAVEL, 2.5f, 33.f, 1.9f };
+    host_materialInfos[(int)Material::DIRT] = { Block::DIRT, 4.2f, 22.f, 1.5f };
 
     // convert angles of repose into their tangents
     for (int layerIdx = numStratifiedMaterials; layerIdx < (int)Material::numMaterials; ++layerIdx)
