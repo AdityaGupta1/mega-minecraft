@@ -53,8 +53,8 @@ std::chrono::system_clock::time_point start;
 static constexpr int numDevBlocks = totalActionTime / actionTimeFill;
 static constexpr int numDevHeightfields = totalActionTime / min(actionTimeGenerateHeightfield, min(actionTimeGenerateLayers, actionTimeFill));
 static constexpr int numDevLayers = totalActionTime / min(actionTimeGenerateLayers, actionTimeFill);
-static constexpr int numDevGatheredLayers = totalActionTime / actionTimeErodeZone;
-static constexpr int numStreams = max(max(numDevBlocks, numDevHeightfields), max(numDevLayers, numDevGatheredLayers));
+static constexpr int numDevGatheredLayers = (totalActionTime / actionTimeErodeZone) * 2;
+static constexpr int numStreams = max(max(numDevBlocks, numDevHeightfields), max(numDevLayers, numDevGatheredLayers / 2));
 
 static std::array<Block*, numDevBlocks> dev_blocks;
 static std::array<FeaturePlacement*, numDevBlocks> dev_featurePlacements;
@@ -524,9 +524,10 @@ void Terrain::tick()
         Chunk::erodeZone(
             zonePtr,
             dev_gatheredLayers[gatheredLayersIdx],
+            dev_gatheredLayers[gatheredLayersIdx + 1],
             streams[streamIdx]
         );
-        ++gatheredLayersIdx;
+        gatheredLayersIdx += 2;
         ++streamIdx;
 
         actionTimeLeft -= actionTimeErodeZone;

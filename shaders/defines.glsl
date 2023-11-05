@@ -2,11 +2,11 @@
 // DEBUG FLAGS
 // ========================================
 
-#define CHUNK_COLOR    0
-#define ZONE_COLOR     0
+#define CHUNK_COLOR    1
+#define ZONE_COLOR     1
 
-#define APPLY_SHADOWS           1
-#define APPLY_VOLUMETRIC_FOG    1
+#define APPLY_SHADOWS           0
+#define APPLY_VOLUMETRIC_FOG    0
 
 // ========================================
 // CONSTANTS

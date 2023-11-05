@@ -436,9 +436,13 @@ void Chunk::generateLayers(float* dev_heightfield, float* dev_layers, float* dev
 static constexpr int gatheredLayersBaseSize = ZONE_SIZE * ZONE_SIZE * 4 * 256 * (numErodedMaterials + 1); // +1 for heightfield
 static constexpr int erosionGridSideLength = ZONE_SIZE * 2 * 16;
 
-__global__ void kernDoErosion(float* gatheredLayers, int layerIdx)
+__global__ void kernDoErosion(
+    float* gatheredLayers1, 
+    float* gatheredLayers2, 
+    int layerIdx)
 {
     __shared__ float shared_layer[34 * 34]; // 32x32 with 1 padding
+    __shared__ float shared_deltas[34 * 34];
     __shared__ bool shared_didChange;
 
     const int localX = threadIdx.x;
@@ -456,71 +460,116 @@ __global__ void kernDoErosion(float* gatheredLayers, int layerIdx)
 
     const ivec2 sharedLayerPos = ivec2(localX + 1, localZ + 1);
     const int sharedLayerIdx = posTo2dIndex<34>(sharedLayerPos);
-    const int gatheredLayersIdx = posTo3dIndex<erosionGridSideLength, numErodedMaterials + 1>(globalX, layerIdx, globalZ);
+    const int gatheredLayersIdx = posTo3dIndex<erosionGridSideLength, numErodedMaterials + 1>(globalX, layerIdx + 1, globalZ);
 
-    float thisHeight = gatheredLayers[gatheredLayersIdx];
-    shared_layer[sharedLayerIdx] = thisHeight;
+    float thisStackTop = gatheredLayers1[gatheredLayersIdx];
+    shared_layer[sharedLayerIdx] = thisStackTop;
+    shared_deltas[sharedLayerIdx] = 0;
 
-    ivec2 storePos = ivec2(-1);
+    ivec2 sharedBorderPos = ivec2(-1);
     if (localIdx < 64)
     {
-        storePos = ivec2((localIdx % 32) + 1, localIdx < 32 ? 0 : 33);
+        sharedBorderPos = ivec2((localIdx % 32) + 1, localIdx < 32 ? 0 : 33);
     }
     else if (localIdx < 128)
     {
-        storePos = ivec2(localIdx < 96 ? 0 : 33, (localIdx % 32) + 1);
+        sharedBorderPos = ivec2(localIdx < 96 ? 0 : 33, (localIdx % 32) + 1);
     }
     else
     {
         switch (localIdx)
         {
         case 128:
-            storePos = ivec2(0, 0);
+            sharedBorderPos = ivec2(0, 0);
             break;
         case 129:
-            storePos = ivec2(33, 0);
+            sharedBorderPos = ivec2(33, 0);
             break;
         case 130:
-            storePos = ivec2(0, 33);
+            sharedBorderPos = ivec2(0, 33);
             break;
         case 131:
-            storePos = ivec2(33, 33);
+            sharedBorderPos = ivec2(33, 33);
             break;
         }
     }
 
-    if (storePos.x != -1)
+    if (sharedBorderPos.x != -1)
     {
-        ivec2 loadPos = ivec2(blockStartX - 1, blockStartZ - 1) + storePos;
-        loadPos = clamp(loadPos, 0, erosionGridSideLength - 1); // values outside the grid (i.e. not in gatheredLayers) extend existing border values
+        ivec2 globalBorderPos = ivec2(blockStartX - 1, blockStartZ - 1) + sharedBorderPos;
+        globalBorderPos = clamp(globalBorderPos, 0, erosionGridSideLength - 1); // values outside the grid (i.e. not in gatheredLayers) extend existing border values
 
-        const int loadIdx = posTo3dIndex<erosionGridSideLength, numErodedMaterials + 1>(loadPos.x, layerIdx, loadPos.y);
-        const int storeIdx = posTo2dIndex<34>(storePos);
+        const int loadIdx = posTo3dIndex<erosionGridSideLength, numErodedMaterials + 1>(globalBorderPos.x, layerIdx + 1, globalBorderPos.y);
+        const int storeIdx = posTo2dIndex<34>(sharedBorderPos);
 
-        shared_layer[storeIdx] = gatheredLayers[loadIdx];
+        shared_layer[storeIdx] = gatheredLayers1[loadIdx];
+        shared_deltas[storeIdx] = 0;
     }
 
     __syncthreads();
 
-    float newHeight = thisHeight;
-    const float tanAngleOfRepose = dev_materialInfos[numStratifiedMaterials + layerIdx].noiseAmplitudeOrTanAngleOfRepose;
+    const float thisStackBottom = gatheredLayers1[posTo3dIndex<erosionGridSideLength, numErodedMaterials + 1>(globalX, layerIdx, globalZ)];
+    const float thisThickness = thisStackTop - thisStackBottom;
 
-    for (int i = 0; i < 8; ++i)
+    if (thisThickness > 0)
     {
-        const auto& neighborDir = dev_dirVecs2d[i];
-        float neighborHeight = shared_layer[posTo2dIndex<34>(sharedLayerPos + neighborDir)];
-        newHeight = max(newHeight, neighborHeight - tanAngleOfRepose * (i % 2 == 1 ? SQRT_2 : 1));
-    }
+        const float tanAngleOfRepose = dev_materialInfos[numStratifiedMaterials + layerIdx].noiseAmplitudeOrTanAngleOfRepose;
 
-    gatheredLayers[gatheredLayersIdx] = newHeight;
+        bool needsErosion = false;
+        float deltas[8];
+        float totalDelta = 0;
+        for (int i = 0; i < 8; ++i)
+        {
+            const auto& neighborDir = dev_dirVecs2d[i];
+            float neighborStackTop = shared_layer[posTo2dIndex<34>(sharedLayerPos + neighborDir)];
 
-    if (newHeight != thisHeight)
-    {
-        shared_didChange = true; // not atomic since any thread that writes to shared_didChange will write the same value
-                                 // plus I think this gets serialized anyway since they're all writing to the same bank
+            float delta = max(0.f, thisStackTop - neighborStackTop);
+            deltas[i] = delta;
+
+            if (delta > tanAngleOfRepose/* * (i % 2 == 1 ? SQRT_2 : 1)*/)
+            {
+                needsErosion = true;
+            }
+
+            totalDelta += delta;
+        }
+
+        if (needsErosion)
+        {
+            // totalDelta > 0
+            // sum(deltas) = totalDelta
+
+            const float c = min(tanAngleOfRepose, thisThickness); // using tanAngleOfRepose as the constant here, may need to revisit later
+
+            atomicAdd(shared_deltas + sharedLayerIdx, -c);
+
+            for (int i = 0; i < 8; ++i)
+            {
+                const auto& neighborDir = dev_dirVecs2d[i];
+                atomicAdd(shared_deltas + posTo2dIndex<34>(sharedLayerPos + neighborDir), c * (deltas[i] / totalDelta));
+            }
+
+            shared_didChange = true; // not atomic since any thread that writes to shared_didChange will write the same value
+                                     // plus I think this gets serialized anyway since they're all writing to the same bank
+        }
     }
 
     __syncthreads();
+
+    atomicAdd(gatheredLayers2 + gatheredLayersIdx, shared_deltas[sharedLayerIdx]);
+
+    if (sharedBorderPos.x != -1)
+    {
+        ivec2 globalBorderPos = ivec2(blockStartX - 1, blockStartZ - 1) + sharedBorderPos;
+
+        if (globalBorderPos.x >= 0 && globalBorderPos.x < erosionGridSideLength && globalBorderPos.y >= 0 && globalBorderPos.y < erosionGridSideLength)
+        {
+            const int loadIdx = posTo2dIndex<34>(sharedBorderPos);
+            const int storeIdx = posTo3dIndex<erosionGridSideLength, numErodedMaterials + 1>(globalBorderPos.x, layerIdx + 1, globalBorderPos.y);
+
+            atomicAdd(gatheredLayers2 + storeIdx, shared_deltas[loadIdx]);
+        }
+    }
 
     if (localIdx != 0)
     {
@@ -530,7 +579,7 @@ __global__ void kernDoErosion(float* gatheredLayers, int layerIdx)
     // update global flag if block-level shared flag was set
     if (shared_didChange)
     {
-        gatheredLayers[gatheredLayersBaseSize] = 1; // not atomic for same reason as above
+        gatheredLayers2[gatheredLayersBaseSize] = 1; // not atomic for same reason as above
     }
 }
 
@@ -574,13 +623,17 @@ void copyLayers(Zone* zonePtr, float* gatheredLayers, bool toGatheredLayers)
                     {
                         dstLayers[numErodedMaterials] = chunkPtr->heightfield[idx2d];
                     }
+                    else
+                    {
+                        chunkPtr->heightfield[idx2d] = srcLayers[numErodedMaterials];
+                    }
                 }
             }
         }
     }
 }
 
-void Chunk::erodeZone(Zone* zonePtr, float* dev_gatheredLayers, cudaStream_t stream)
+void Chunk::erodeZone(Zone* zonePtr, float* dev_gatheredLayers1, float* dev_gatheredLayers2, cudaStream_t stream)
 {
 #if DO_EROSION
     float* gatheredLayers = new float[gatheredLayersBaseSize];
@@ -588,32 +641,46 @@ void Chunk::erodeZone(Zone* zonePtr, float* dev_gatheredLayers, cudaStream_t str
     zonePtr->gatheredChunks.clear();
 
     int gatheredLayersSizeBytes = gatheredLayersBaseSize * sizeof(float);
-    cudaMemcpyAsync(dev_gatheredLayers, gatheredLayers, gatheredLayersSizeBytes, cudaMemcpyHostToDevice, stream);
+    cudaMemcpyAsync(dev_gatheredLayers1, gatheredLayers, gatheredLayersSizeBytes, cudaMemcpyHostToDevice, stream);
 
     float flagDidChange;
-    float* dev_flagDidChange = dev_gatheredLayers + gatheredLayersBaseSize;
 
     const dim3 blockSize2d(32, 32);
     const int blocksPerGrid = (ZONE_SIZE * 2 * 16) / 32; // = ZONE_SIZE but writing it out for clarity
     const dim3 blocksPerGrid2d(blocksPerGrid, blocksPerGrid);
 
+    int iter = 0;
     for (int layerIdx = 0; layerIdx < numErodedMaterials; ++layerIdx)
     {
         do
         {
+            cudaMemcpyAsync(dev_gatheredLayers2, dev_gatheredLayers1, gatheredLayersSizeBytes, cudaMemcpyDeviceToDevice, stream);
+
             flagDidChange = 0;
+            float* dev_flagDidChange = dev_gatheredLayers2 + gatheredLayersBaseSize;
             cudaMemcpyAsync(dev_flagDidChange, &flagDidChange, 1 * sizeof(float), cudaMemcpyHostToDevice, stream);
 
-            kernDoErosion<<<blocksPerGrid2d, blockSize2d, 0, stream>>>(dev_gatheredLayers, layerIdx);
+            kernDoErosion<<<blocksPerGrid2d, blockSize2d, 0, stream>>>(dev_gatheredLayers1, dev_gatheredLayers2, layerIdx);
 
             cudaMemcpyAsync(&flagDidChange, dev_flagDidChange, 1 * sizeof(float), cudaMemcpyDeviceToHost, stream);
 
             cudaStreamSynchronize(stream);
+
+            std::swap(dev_gatheredLayers1, dev_gatheredLayers2);
+
+            ++iter;
+            //if (iter > 1000)
+            //{
+            //    iter = 0;
+            //    break;
+            //}
         }
         while (flagDidChange != 0);
     }
 
-    cudaMemcpyAsync(gatheredLayers, dev_gatheredLayers, gatheredLayersSizeBytes, cudaMemcpyDeviceToHost, stream);
+    printf("%d\n", ++iter);
+
+    cudaMemcpyAsync(gatheredLayers, dev_gatheredLayers1, gatheredLayersSizeBytes, cudaMemcpyDeviceToHost, stream);
 
     cudaStreamSynchronize(stream); // all data needs to be copied back to gatheredLayers before calling copyLayers()
                                    // explicit synchronization here may not be necessary (seems to work without it) but it gives peace of mind
