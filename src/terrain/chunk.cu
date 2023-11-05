@@ -431,7 +431,7 @@ void Chunk::generateLayers(float* dev_heightfield, float* dev_layers, float* dev
 
 #pragma region erosion
 
-static constexpr int gatheredLayersBaseSize = ZONE_SIZE * ZONE_SIZE * 4 * 256 * (int)Material::numMaterials;
+static constexpr int gatheredLayersBaseSize = ZONE_SIZE * ZONE_SIZE * 4 * 256 * numErodedMaterials;
 static constexpr int erosionGridSideLength = ZONE_SIZE * 2 * 16;
 
 __global__ void kernDoErosion(float* gatheredLayers, int layerIdx)
@@ -454,7 +454,7 @@ __global__ void kernDoErosion(float* gatheredLayers, int layerIdx)
 
     const ivec2 sharedLayerPos = ivec2(localX + 1, localZ + 1);
     const int sharedLayerIdx = posTo2dIndex<34>(sharedLayerPos);
-    const int gatheredLayersIdx = posTo3dIndex<erosionGridSideLength, (int)Material::numMaterials>(globalX, layerIdx, globalZ);
+    const int gatheredLayersIdx = posTo3dIndex<erosionGridSideLength, numErodedMaterials>(globalX, layerIdx, globalZ);
 
     float thisHeight = gatheredLayers[gatheredLayersIdx];
     shared_layer[sharedLayerIdx] = thisHeight;
@@ -492,7 +492,7 @@ __global__ void kernDoErosion(float* gatheredLayers, int layerIdx)
         ivec2 loadPos = ivec2(blockStartX - 1, blockStartZ - 1) + storePos;
         loadPos = clamp(loadPos, 0, erosionGridSideLength - 1); // values outside the grid (i.e. not in gatheredLayers) extend existing border values
 
-        const int loadIdx = posTo3dIndex<erosionGridSideLength, (int)Material::numMaterials>(loadPos.x, layerIdx, loadPos.y);
+        const int loadIdx = posTo3dIndex<erosionGridSideLength, numErodedMaterials>(loadPos.x, layerIdx, loadPos.y);
         const int storeIdx = posTo2dIndex<34>(storePos);
 
         shared_layer[storeIdx] = gatheredLayers[loadIdx];
@@ -502,7 +502,7 @@ __global__ void kernDoErosion(float* gatheredLayers, int layerIdx)
 
     // TODO: actually do erosion lol
     float newHeight = thisHeight;
-    const float tanAngleOfRepose = dev_materialInfos[layerIdx].noiseAmplitudeOrTanAngleOfRepose;
+    const float tanAngleOfRepose = dev_materialInfos[numStratifiedMaterials + layerIdx].noiseAmplitudeOrTanAngleOfRepose;
 
     for (const auto& neighborDir : dev_dirVecs2d)
     {
@@ -557,13 +557,13 @@ void copyLayers(Zone* zonePtr, float* gatheredLayers, bool toGatheredLayers)
             {
                 for (int blockX = 0; blockX < 16; ++blockX)
                 {
-                    auto srcLayers = chunkPtr->layers[posTo2dIndex(blockX, blockZ)];
-                    auto dstLayers = gatheredLayers + posTo3dIndex<ZONE_SIZE * 2 * 16, (int)Material::numMaterials>(chunkBlockPos.x + blockX, 0, chunkBlockPos.y + blockZ);
+                    auto srcLayers = &chunkPtr->layers[posTo2dIndex(blockX, blockZ)][numStratifiedMaterials];
+                    auto dstLayers = gatheredLayers + posTo3dIndex<ZONE_SIZE * 2 * 16, numErodedMaterials>(chunkBlockPos.x + blockX, 0, chunkBlockPos.y + blockZ);
                     if (!toGatheredLayers)
                     {
                         std::swap(srcLayers, dstLayers);
                     }
-                    std::memcpy(dstLayers, srcLayers, (int)Material::numMaterials * sizeof(float));
+                    std::memcpy(dstLayers, srcLayers, numErodedMaterials * sizeof(float));
                 }
             }
         }
@@ -587,7 +587,7 @@ void Chunk::erodeZone(Zone* zonePtr, float* dev_gatheredLayers, cudaStream_t str
     const int blocksPerGrid = (ZONE_SIZE * 2 * 16) / 32; // = ZONE_SIZE but writing it out for clarity
     const dim3 blocksPerGrid2d(blocksPerGrid, blocksPerGrid);
 
-    for (int layerIdx = numStratifiedMaterials; layerIdx < (int)Material::numMaterials; ++layerIdx)
+    for (int layerIdx = 0; layerIdx < numErodedMaterials; ++layerIdx)
     {
         do
         {

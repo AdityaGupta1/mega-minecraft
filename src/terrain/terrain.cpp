@@ -90,7 +90,7 @@ void Terrain::initCuda()
 
     for (int i = 0; i < numDevGatheredLayers; ++i)
     {
-        cudaMalloc((void**)&dev_gatheredLayers[i], (ZONE_SIZE * ZONE_SIZE * 4 * 256 * (int)Material::numMaterials + 1) * sizeof(float)); // 1 extra for global "hasChanged" flag
+        cudaMalloc((void**)&dev_gatheredLayers[i], (ZONE_SIZE * ZONE_SIZE * 4 * 256 * numErodedMaterials + 1) * sizeof(float)); // 1 extra for global "hasChanged" flag
     }
 
     CudaUtils::checkCUDAError("cudaMalloc failed");
@@ -692,5 +692,6 @@ void Terrain::debugPrintCurrentColumnLayers(vec2 playerPos)
     {
         printf("%s%02d: %7.3f\n", i < numStratifiedMaterials ? "s" : "e", i, layers[i]);
     }
+    printf("------------\n");
     printf("hgt: %7.3f\n\n", chunkPtr->heightfield[idx]);
 }
