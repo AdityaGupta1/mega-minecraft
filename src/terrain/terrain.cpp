@@ -90,7 +90,7 @@ void Terrain::initCuda()
 
     for (int i = 0; i < numDevGatheredLayers; ++i)
     {
-        cudaMalloc((void**)&dev_gatheredLayers[i], ZONE_SIZE * ZONE_SIZE * 4 * 256 * (int)Material::numMaterials * sizeof(float));
+        cudaMalloc((void**)&dev_gatheredLayers[i], (ZONE_SIZE * ZONE_SIZE * 4 * 256 * (int)Material::numMaterials + 1) * sizeof(float)); // 1 extra for global "hasChanged" flag
     }
 
     CudaUtils::checkCUDAError("cudaMalloc failed");

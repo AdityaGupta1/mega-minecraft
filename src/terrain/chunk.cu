@@ -461,7 +461,7 @@ __global__ void kernDoErosion(float* gatheredLayers, int layer)
     gatheredLayers[gatheredLayersIdx] = thisHeight;
 }
 
-void copyLayers(Zone* zonePtr, std::array<float[(int)Material::numMaterials], ZONE_SIZE * ZONE_SIZE * 4 * 256>& gatheredLayers, bool toGatheredLayers)
+void copyLayers(Zone* zonePtr, float* gatheredLayers, bool toGatheredLayers)
 {
     int maxDim = toGatheredLayers ? ZONE_SIZE * 2 : ZONE_SIZE;
 
@@ -487,7 +487,7 @@ void copyLayers(Zone* zonePtr, std::array<float[(int)Material::numMaterials], ZO
                 for (int blockX = 0; blockX < 16; ++blockX)
                 {
                     auto srcLayers = chunkPtr->layers[posTo2dIndex(blockX, blockZ)];
-                    auto dstLayers = gatheredLayers[posTo2dIndex<ZONE_SIZE * 2 * 16>(chunkBlockPos + ivec2(blockX, blockZ))];
+                    auto dstLayers = gatheredLayers + posTo3dIndex<ZONE_SIZE * 2 * 16, (int)Material::numMaterials>(chunkBlockPos.x + blockX, 0, chunkBlockPos.y + blockZ);
                     if (!toGatheredLayers)
                     {
                         std::swap(srcLayers, dstLayers);
@@ -501,11 +501,11 @@ void copyLayers(Zone* zonePtr, std::array<float[(int)Material::numMaterials], ZO
 
 void Chunk::erodeZone(Zone* zonePtr, float* dev_gatheredLayers, cudaStream_t stream)
 {
-    std::array<float[(int)Material::numMaterials], ZONE_SIZE * ZONE_SIZE * 4 * 256> gatheredLayers;
-    copyLayers(zonePtr, gatheredLayers, true);
+    std::array<float, ZONE_SIZE * ZONE_SIZE * 4 * 256 * (int)Material::numMaterials + 1> gatheredLayers;
+    copyLayers(zonePtr, gatheredLayers.data(), true);
     zonePtr->gatheredChunks.clear();
 
-    int gatheredLayersSizeBytes = gatheredLayers.size() * (int)Material::numMaterials * sizeof(float);
+    int gatheredLayersSizeBytes = gatheredLayers.size() * sizeof(float);
     cudaMemcpyAsync(dev_gatheredLayers, gatheredLayers.data(), gatheredLayersSizeBytes, cudaMemcpyHostToDevice, stream);
 
     const dim3 blockSize2d(32, 32);
@@ -519,7 +519,7 @@ void Chunk::erodeZone(Zone* zonePtr, float* dev_gatheredLayers, cudaStream_t str
     cudaStreamSynchronize(stream); // all data needs to be copied back to gatheredLayers before calling copyLayers()
                                    // explicit synchronization here may not be necessary (seems to work without it) but it gives peace of mind
 
-    copyLayers(zonePtr, gatheredLayers, false);
+    copyLayers(zonePtr, gatheredLayers.data(), false);
 
     for (const auto& chunkPtr : zonePtr->chunks)
     {
