@@ -66,8 +66,8 @@ __device__ float fbm(vec2 pos)
 
 struct BiomeNoise
 {
-    float moisture;
     float magic;
+    float moisture;
 };
 
 __device__ float getSingleBiomeNoise(vec2 pos, float noiseScale, vec2 offset, float smoothstepThreshold)
@@ -86,24 +86,29 @@ __device__ BiomeNoise getBiomeNoise(const vec2 worldPos)
     const vec2 biomeNoisePos = (worldPos + noiseOffset) * overallBiomeScale;
 
     BiomeNoise noise;
-    noise.moisture = getSingleBiomeNoise(biomeNoisePos, 0.005f, vec2(1835.32f, 3019.39f), 0.12f);
     noise.magic = getSingleBiomeNoise(biomeNoisePos, 0.003f, vec2(5612.35f, 9182.49f), 0.07f);
+    noise.moisture = getSingleBiomeNoise(biomeNoisePos, 0.005f, vec2(1835.32f, 3019.39f), 0.12f);
     return noise;
+}
+
+__constant__ BiomeNoise dev_biomeNoiseWeights[numBiomes];
+
+__device__ void applySingleBiomeNoise(float& totalWeight, const float noise, const float weight)
+{
+    if (weight >= 0)
+    {
+        totalWeight *= glm::mix(1.f - noise, noise, weight);
+    }
 }
 
 __device__ float getBiomeWeight(Biome biome, const BiomeNoise& noise)
 {
-    switch (biome)
-    {
-    case Biome::PLAINS:
-        return noise.moisture * (1.f - noise.magic);
-    case Biome::DESERT:
-        return (1.f - noise.moisture) * (1.f - noise.magic);
-    case Biome::PURPLE_MUSHROOMS:
-        return noise.moisture * noise.magic;
-    case Biome::MOUNTAINS:
-        return (1.f - noise.moisture) * noise.magic;
-    }
+    const auto& biomeNoiseWeights = dev_biomeNoiseWeights[(int)biome];
+
+    float totalWeight = 1.f;
+    applySingleBiomeNoise(totalWeight, biomeNoiseWeights.magic, noise.magic);
+    applySingleBiomeNoise(totalWeight, biomeNoiseWeights.moisture, noise.moisture);
+    return totalWeight;
 }
 
 __device__ float getHeight(Biome biome, vec2 pos)
@@ -134,6 +139,16 @@ static std::array<ivec2, numFeatures> featureHeightBounds;
 
 void BiomeUtils::init()
 {
+    BiomeNoise* host_biomeNoiseWeights = new BiomeNoise[numBiomes];
+
+    host_biomeNoiseWeights[(int)Biome::PLAINS] = { 0, 1 };
+    host_biomeNoiseWeights[(int)Biome::DESERT] = { 0, 0 };
+    host_biomeNoiseWeights[(int)Biome::PURPLE_MUSHROOMS] = { 1, 1 };
+    host_biomeNoiseWeights[(int)Biome::MOUNTAINS] = { 1, 0 };
+
+    cudaMemcpyToSymbol(dev_biomeNoiseWeights, host_biomeNoiseWeights, numBiomes * sizeof(BiomeNoise));
+    delete[] host_biomeNoiseWeights;
+
     BiomeBlocks* host_biomeBlocks = new BiomeBlocks[numBiomes];
 
     host_biomeBlocks[(int)Biome::PURPLE_MUSHROOMS].grassBlock = Block::MYCELIUM;

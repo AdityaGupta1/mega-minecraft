@@ -10,6 +10,15 @@ enum class Biome : unsigned char
     DESERT,
     PURPLE_MUSHROOMS,
     MOUNTAINS
+
+    //JUNGLE,
+    //RED_DESERT,
+    //PURPLE_MUSHROOMS,
+    //CRYSTALS,
+    //OASIS,
+    //DESERT,
+    //PLAINS,
+    //MOUNTAINS
 };
 
 static constexpr int numBiomes = (int)Biome::MOUNTAINS + 1;

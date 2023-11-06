@@ -601,7 +601,7 @@ void Terrain::tick()
     if (!finishedTiming)
     {
         bool areQueuesEmpty = chunksToGenerateHeightfield.empty() && chunksToGenerateLayers.empty() && chunksToGatherFeaturePlacements.empty()
-            && chunksToFill.empty() && chunksToCreateVbos.empty() && chunksToBufferVbos.empty();
+            && chunksToFill.empty() && chunksToCreateAndBufferVbos.empty();
 
         if (!startedTiming && !areQueuesEmpty)
         {
