@@ -18,6 +18,7 @@ private:
     mat4 viewMat;
 
     bool camChanged{ true };
+    bool keyCam{ false };
 
 public:
     void tick(bool* viewMatChanged);
@@ -30,5 +31,6 @@ public:
     mat4 getViewMat() const;
 
     void move(vec3 input);
-    void rotate(float dTheta, float dPhi);
+    void rotate(float dTheta, float dPhi, bool fromKey);
+    void toggleCamMode();
 };
