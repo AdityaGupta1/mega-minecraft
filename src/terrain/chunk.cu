@@ -287,11 +287,18 @@ void Chunk::gatherHeightfield()
 
 #pragma region layers
 
-__device__ float getStratifiedMaterialThickness(int layerIdx, vec2 worldPos)
+__device__ float getStratifiedMaterialThickness(int layerIdx, float materialWeight, vec2 worldPos)
 {
-    const auto& materialInfo = dev_materialInfos[layerIdx];
-    vec2 noisePos = worldPos * materialInfo.noiseScaleOrMaxSlope + vec2(layerIdx * 5283.64f);
-    return max(0.f, materialInfo.thickness + materialInfo.noiseAmplitudeOrTanAngleOfRepose * fbm(noisePos));
+    if (materialWeight > 0)
+    {
+        const auto& materialInfo = dev_materialInfos[layerIdx];
+        vec2 noisePos = worldPos * materialInfo.noiseScaleOrMaxSlope + vec2(layerIdx * 5283.64f);
+        return max(0.f, materialInfo.thickness + materialInfo.noiseAmplitudeOrTanAngleOfRepose * fbm(noisePos)) * materialWeight;
+    }
+    else
+    {
+        return 0;
+    }
 }
 
 __global__ void kernGenerateLayers(
@@ -362,36 +369,14 @@ __global__ void kernGenerateLayers(
             break;
         }
 
-        float layerHeight;
-        float materialWeight = totalMaterialWeights[layerIdx];
-        if (materialWeight > 0)
-        {
-            layerHeight = getStratifiedMaterialThickness(layerIdx, worldPos) * materialWeight;
-        }
-        else
-        {
-            layerHeight = 0;
-        }
-
-        height += layerHeight;
+        height += getStratifiedMaterialThickness(layerIdx, totalMaterialWeights[layerIdx], worldPos);
     }
 
     height = 0;
     #pragma unroll
     for (int layerIdx = numForwardMaterials; layerIdx < numStratifiedMaterials; ++layerIdx)
     {
-        float layerHeight;
-        float materialWeight = totalMaterialWeights[layerIdx];
-        if (materialWeight > 0)
-        {
-            layerHeight = getStratifiedMaterialThickness(layerIdx, worldPos) * materialWeight;
-        }
-        else
-        {
-            layerHeight = 0;
-        }
-
-        height += layerHeight;
+        height += getStratifiedMaterialThickness(layerIdx, totalMaterialWeights[layerIdx], worldPos);
         columnLayers[layerIdx] = height; // actual height is calculated by in kernFill by subtracting this value from start height of eroded layers
     }
 
