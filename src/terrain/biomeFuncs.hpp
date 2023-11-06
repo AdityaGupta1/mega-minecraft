@@ -50,28 +50,28 @@ __device__ float getHeight(Biome biome, vec2 pos)
     }
 }
 
-//__constant__ BiomeBlocks dev_biomeBlocks[(int)Biome::numBiomes]; // TODO: convert to only top block for use with hashing transitions (replace generic top block with biome-specific top block)
-__constant__ MaterialInfo dev_materialInfos[(int)Material::numMaterials];
+//__constant__ BiomeBlocks dev_biomeBlocks[numBiomes]; // TODO: convert to only top block for use with hashing transitions (replace generic top block with biome-specific top block)
+__constant__ MaterialInfo dev_materialInfos[numMaterials];
 
 __constant__ ivec2 dev_dirVecs2d[8];
 
-static std::array<std::vector<FeatureGen>, (int)Biome::numBiomes> biomeFeatureGens;
-static std::array<ivec2, (int)Feature::numFeatures> featureHeightBounds;
+static std::array<std::vector<FeatureGen>, numBiomes> biomeFeatureGens;
+static std::array<ivec2, numFeatures> featureHeightBounds;
 
 void BiomeUtils::init()
 {
-    //BiomeBlocks* host_biomeBlocks = new BiomeBlocks[(int)Biome::numBiomes];
+    //BiomeBlocks* host_biomeBlocks = new BiomeBlocks[numBiomes];
 
     //host_biomeBlocks[(int)Biome::PLAINS] = { Block::GRASS, Block::DIRT, Block::STONE };
     //host_biomeBlocks[(int)Biome::DESERT] = { Block::SAND, Block::SAND, Block::STONE };
     //host_biomeBlocks[(int)Biome::PURPLE_MUSHROOMS] = { Block::MYCELIUM, Block::DIRT, Block::STONE };
     //host_biomeBlocks[(int)Biome::METEORS] = { Block::STONE, Block::STONE, Block::STONE };
 
-    //cudaMemcpyToSymbol(dev_biomeBlocks, host_biomeBlocks, (int)Biome::numBiomes * sizeof(BiomeBlocks));
+    //cudaMemcpyToSymbol(dev_biomeBlocks, host_biomeBlocks, numBiomes * sizeof(BiomeBlocks));
 
     //delete[] host_biomeBlocks;
 
-    MaterialInfo* host_materialInfos = new MaterialInfo[(int)Material::numMaterials];
+    MaterialInfo* host_materialInfos = new MaterialInfo[numMaterials];
 
     // block, thickness, noise amplitude, noise scale
     host_materialInfos[(int)Material::BLACKSTONE] = { Block::BLACKSTONE, 56.f, 32.f, 0.0030f };
@@ -84,18 +84,22 @@ void BiomeUtils::init()
     host_materialInfos[(int)Material::MARBLE] = { Block::MARBLE, 28.f, 56.f, 0.0050f };
     host_materialInfos[(int)Material::ANDESITE] = { Block::ANDESITE, 24.f, 48.f, 0.0030f };
 
+    // block, thickness, noise amplitude, noise scale
+    //host_materialInfos[(int)Material::SANDSTONE] = { Block::SANDSTONE, 3.5f, 1.5f, 0.0025f };
+    host_materialInfos[(int)Material::SANDSTONE] = { Block::SANDSTONE, 0.0f, 0.0f, 0.0025f };
+
     // block, thickness, angle of repose (degrees), maximum slope
     host_materialInfos[(int)Material::GRAVEL] = { Block::GRAVEL, 2.5f, 55.f, 1.8f };
     host_materialInfos[(int)Material::DIRT] = { Block::DIRT, 4.2f, 40.f, 1.2f };
 
     // convert angles of repose into their tangents
-    for (int layerIdx = numStratifiedMaterials; layerIdx < (int)Material::numMaterials; ++layerIdx)
+    for (int layerIdx = numStratifiedMaterials; layerIdx < numMaterials; ++layerIdx)
     {
         auto& materialInfo = host_materialInfos[layerIdx];
         materialInfo.noiseAmplitudeOrTanAngleOfRepose = tanf(glm::radians(materialInfo.noiseAmplitudeOrTanAngleOfRepose));
     }
 
-    cudaMemcpyToSymbol(dev_materialInfos, host_materialInfos, (int)Material::numMaterials * sizeof(MaterialInfo));
+    cudaMemcpyToSymbol(dev_materialInfos, host_materialInfos, numMaterials * sizeof(MaterialInfo));
 
     delete[] host_materialInfos;
 

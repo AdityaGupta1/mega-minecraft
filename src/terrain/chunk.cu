@@ -72,7 +72,7 @@ int posTo3dIndex(const ivec3 pos)
 
 __host__ __device__ Biome getRandomBiome(const float* columnBiomeWeights, float rand)
 {
-    for (int i = 0; i < (int)Biome::numBiomes; ++i)
+    for (int i = 0; i < numBiomes; ++i)
     {
         rand -= columnBiomeWeights[i];
         if (rand <= 0.f)
@@ -212,10 +212,10 @@ __global__ void kernGenerateHeightfield(
     const float moisture = getBiomeNoise(biomeNoisePos, 0.005f, vec2(1835.32f, 3019.39f), 0.15f, overallBiomeScale);
     const float magic = getBiomeNoise(biomeNoisePos, 0.003f, vec2(5612.35f, 9182.49f), 0.20f, overallBiomeScale);
 
-    float* columnBiomeWeights = biomeWeights + (int)Biome::numBiomes * idx;
+    float* columnBiomeWeights = biomeWeights + numBiomes * idx;
 
     float height = 0.f;
-    for (int i = 0; i < (int)Biome::numBiomes; ++i) 
+    for (int i = 0; i < numBiomes; ++i) 
     {
         Biome biome = (Biome)i;
 
@@ -248,7 +248,7 @@ void Chunk::generateHeightfield(
     );
 
     cudaMemcpyAsync(this->heightfield.data(), dev_heightfield, 256 * sizeof(float), cudaMemcpyDeviceToHost, stream);
-    cudaMemcpyAsync(this->biomeWeights.data(), dev_biomeWeights, 256 * (int)Biome::numBiomes * sizeof(float), cudaMemcpyDeviceToHost, stream);
+    cudaMemcpyAsync(this->biomeWeights.data(), dev_biomeWeights, 256 * numBiomes * sizeof(float), cudaMemcpyDeviceToHost, stream);
 
     cudaStreamSynchronize(stream); // used here so cudaMemcpyAsync to this->heightfield finishes before generating own feature placements
 
@@ -333,6 +333,13 @@ void Chunk::gatherHeightfield()
 
 #pragma region layers
 
+__device__ float getStratifiedMaterialThickness(int layerIdx, vec2 worldPos)
+{
+    const auto& materialInfo = dev_materialInfos[layerIdx];
+    vec2 noisePos = worldPos * materialInfo.noiseScaleOrMaxSlope + vec2(layerIdx * 5283.64f);
+    return max(0.f, materialInfo.thickness + materialInfo.noiseAmplitudeOrTanAngleOfRepose * fbm(noisePos));
+}
+
 __global__ void kernGenerateLayers(
     float* heightfield,
     float* layers,
@@ -368,11 +375,11 @@ __global__ void kernGenerateLayers(
         slope = max(slope, abs(neighborHeight - maxHeight) * (i % 2 == 1 ? SQRT_2 : 1));
     }
 
-    float* columnLayers = layers + (int)Material::numMaterials * idx;
+    float* columnLayers = layers + numMaterials * idx;
 
     float height = 0;
     #pragma unroll
-    for (int layerIdx = 0; layerIdx < numStratifiedMaterials; ++layerIdx)
+    for (int layerIdx = 0; layerIdx < numForwardMaterials; ++layerIdx)
     {
         columnLayers[layerIdx] = height;
 
@@ -381,27 +388,32 @@ __global__ void kernGenerateLayers(
             continue;
         }
 
-        if (layerIdx != numStratifiedMaterials - 1)
+        if (layerIdx != numForwardMaterials - 1)
         {
-            const auto& materialInfo = dev_materialInfos[layerIdx];
-            vec2 noisePos = worldPos * materialInfo.noiseScaleOrMaxSlope + vec2(layerIdx * 5283.64f);
-            height += max(0.f, materialInfo.thickness + materialInfo.noiseAmplitudeOrTanAngleOfRepose * fbm(noisePos));
+            height += getStratifiedMaterialThickness(layerIdx, worldPos);
         }
     }
 
     height = maxHeight;
-    for (int layerIdx = (int)Material::numMaterials - 1; layerIdx >= numStratifiedMaterials; --layerIdx)
+    for (int layerIdx = numMaterials - 1; layerIdx >= numForwardMaterials; --layerIdx)
     {
         const auto& materialInfo = dev_materialInfos[layerIdx];
 
         float layerHeight;
-        if (slope > materialInfo.noiseScaleOrMaxSlope)
+        if (layerIdx < numStratifiedMaterials)
         {
-            layerHeight = 0;
+            layerHeight = getStratifiedMaterialThickness(layerIdx, worldPos);
         }
         else
         {
-            layerHeight = materialInfo.thickness * ((materialInfo.noiseScaleOrMaxSlope - slope) / materialInfo.noiseScaleOrMaxSlope);
+            if (slope > materialInfo.noiseScaleOrMaxSlope)
+            {
+                layerHeight = 0;
+            }
+            else
+            {
+                layerHeight = materialInfo.thickness * ((materialInfo.noiseScaleOrMaxSlope - slope) / materialInfo.noiseScaleOrMaxSlope);
+            }
         }
 
         height -= layerHeight;
@@ -413,7 +425,7 @@ void Chunk::generateLayers(float* dev_heightfield, float* dev_layers, float* dev
 {
     cudaMemcpyAsync(dev_heightfield, this->gatheredHeightfield.data(), 18 * 18 * sizeof(float), cudaMemcpyHostToDevice, stream);
     this->gatheredHeightfield.clear();
-    cudaMemcpyAsync(dev_biomeWeights, this->biomeWeights.data(), 256 * (int)Biome::numBiomes * sizeof(float), cudaMemcpyHostToDevice, stream);
+    cudaMemcpyAsync(dev_biomeWeights, this->biomeWeights.data(), 256 * numBiomes * sizeof(float), cudaMemcpyHostToDevice, stream);
 
     const dim3 blockSize2d(16, 16);
     const dim3 blocksPerGrid2d(1, 1);
@@ -424,7 +436,7 @@ void Chunk::generateLayers(float* dev_heightfield, float* dev_layers, float* dev
         this->worldBlockPos
     );
 
-    cudaMemcpyAsync(this->layers.data(), dev_layers, 256 * (int)Material::numMaterials * sizeof(float), cudaMemcpyDeviceToHost, stream);
+    cudaMemcpyAsync(this->layers.data(), dev_layers, 256 * numMaterials * sizeof(float), cudaMemcpyDeviceToHost, stream);
 
     CudaUtils::checkCUDAError("Chunk::generateLayers() failed");
 }
@@ -751,8 +763,8 @@ __global__ void kernFill(
     ivec2 featureHeightBounds,
     ivec3 chunkWorldBlockPos)
 {
-    __shared__ float shared_layersAndHeight[(int)Material::numMaterials + 1];
-    __shared__ float shared_biomeWeights[(int)Biome::numBiomes];
+    __shared__ float shared_layersAndHeight[numMaterials + 1];
+    __shared__ float shared_biomeWeights[numBiomes];
 
     const int x = (blockIdx.x * blockDim.x) + threadIdx.x;
     const int y = (blockIdx.y * blockDim.y) + threadIdx.y;
@@ -761,21 +773,21 @@ __global__ void kernFill(
     const int idx = posTo3dIndex(x, y, z);
     const int idx2d = posTo2dIndex(x, z);
 
-    if (y < (int)Material::numMaterials)
+    if (y < numMaterials)
     {
-        const float* columnLayers = layers + (int)Material::numMaterials * idx2d;
+        const float* columnLayers = layers + numMaterials * idx2d;
         shared_layersAndHeight[y] = columnLayers[y];
     }
-    else if (y == (int)Material::numMaterials)
+    else if (y == numMaterials)
     {
         shared_layersAndHeight[y] = heightfield[idx2d];
     }
     else
     {
-        const int biomeWeightIdx = y - (int)Material::numMaterials - 1;
-        if (biomeWeightIdx < (int)Biome::numBiomes)
+        const int biomeWeightIdx = y - numMaterials - 1;
+        if (biomeWeightIdx < numBiomes)
         {
-            const float* columnBiomeWeights = biomeWeights + (int)Biome::numBiomes * idx2d;
+            const float* columnBiomeWeights = biomeWeights + numBiomes * idx2d;
             shared_biomeWeights[biomeWeightIdx] = columnBiomeWeights[biomeWeightIdx];
         }
     }
@@ -792,9 +804,9 @@ __global__ void kernFill(
     if (y < height)
     {
         int layerIdxStart;
-        if (y >= shared_layersAndHeight[numStratifiedMaterials])
+        if (y >= shared_layersAndHeight[numForwardMaterials])
         {
-            layerIdxStart = numStratifiedMaterials;
+            layerIdxStart = numForwardMaterials;
         }
         else
         {
@@ -803,7 +815,7 @@ __global__ void kernFill(
 
         float maxContribution = 0.f;
         int maxLayerIdx = -1;
-        for (int layerIdx = layerIdxStart; layerIdx < (int)Material::numMaterials; ++layerIdx)
+        for (int layerIdx = layerIdxStart; layerIdx < numMaterials; ++layerIdx)
         {
             float layerContributionStart = max(shared_layersAndHeight[layerIdx], (float)y);
             float layerContributionEnd = min(shared_layersAndHeight[layerIdx + 1], (float)y + 1.f);
@@ -816,7 +828,7 @@ __global__ void kernFill(
             }
         }
 
-        const float airLayerStart = shared_layersAndHeight[(int)Material::numMaterials];
+        const float airLayerStart = shared_layersAndHeight[numMaterials];
         if (airLayerStart < y + 0.5f)
         {
             block = Block::AIR;
@@ -886,8 +898,8 @@ void Chunk::fill(
     this->gatheredFeaturePlacements.clear();
 
     cudaMemcpyAsync(dev_heightfield, this->heightfield.data(), 256 * sizeof(float), cudaMemcpyHostToDevice, stream);
-    cudaMemcpyAsync(dev_layers, this->layers.data(), 256 * (int)Material::numMaterials * sizeof(float), cudaMemcpyHostToDevice, stream);
-    cudaMemcpyAsync(dev_biomeWeights, this->biomeWeights.data(), 256 * (int)Biome::numBiomes * sizeof(float), cudaMemcpyHostToDevice, stream);
+    cudaMemcpyAsync(dev_layers, this->layers.data(), 256 * numMaterials * sizeof(float), cudaMemcpyHostToDevice, stream);
+    cudaMemcpyAsync(dev_biomeWeights, this->biomeWeights.data(), 256 * numBiomes * sizeof(float), cudaMemcpyHostToDevice, stream);
 
     const dim3 blockSize3d(1, 384, 1);
     const dim3 blocksPerGrid3d(16, 1, 16);

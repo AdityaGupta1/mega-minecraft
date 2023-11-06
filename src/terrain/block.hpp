@@ -24,9 +24,10 @@ enum class Block : unsigned char
     DEEPSLATE,
     GRANITE,
     SLATE,
-
-    numBlocks
+    SANDSTONE
 };
+
+static constexpr int numBlocks = (int)Block::SANDSTONE + 1;
 
 struct SideUv
 {

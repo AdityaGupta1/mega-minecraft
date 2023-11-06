@@ -9,10 +9,10 @@ enum class Biome : unsigned char
     PLAINS,
     DESERT,
     PURPLE_MUSHROOMS,
-    METEORS,
-
-    numBiomes
+    METEORS
 };
+
+static constexpr int numBiomes = (int)Biome::METEORS + 1;
 
 struct BiomeBlocks
 {
@@ -33,16 +33,19 @@ enum class Material : unsigned char
     GRANITE,
     MARBLE,
     ANDESITE,
+    
+    // stratified but placed backwards
+    SANDSTONE,
 
     // eroded
     GRAVEL,
-    DIRT,
-
-    numMaterials
+    DIRT
 };
 
-const int numStratifiedMaterials = (int)Material::GRAVEL;
-const int numErodedMaterials = (int)Material::numMaterials - numStratifiedMaterials;
+static constexpr int numMaterials = (int)Material::DIRT + 1;
+static constexpr int numStratifiedMaterials = (int)Material::SANDSTONE + 1;
+static constexpr int numForwardMaterials = (int)Material::ANDESITE + 1;
+static constexpr int numErodedMaterials = numMaterials - numStratifiedMaterials;
 
 struct MaterialInfo
 {
@@ -56,10 +59,10 @@ enum class Feature : unsigned char
 {
     NONE,
     SPHERE,
-    PURPLE_MUSHROOM,
-
-    numFeatures
+    PURPLE_MUSHROOM
 };
+
+static constexpr int numFeatures = (int)Feature::PURPLE_MUSHROOM + 1;
 
 struct FeatureGen
 {

@@ -81,12 +81,12 @@ void Terrain::initCuda()
     for (int i = 0; i < numDevHeightfields; ++i)
     {
         cudaMalloc((void**)&dev_heightfields[i], 18 * 18 * sizeof(float));
-        cudaMalloc((void**)&dev_biomeWeights[i], 256 * (int)Biome::numBiomes * sizeof(float));
+        cudaMalloc((void**)&dev_biomeWeights[i], 256 * numBiomes * sizeof(float));
     }
 
     for (int i = 0; i < numDevLayers; ++i)
     {
-        cudaMalloc((void**)&dev_layers[i], 256 * (int)Material::numMaterials * sizeof(float));
+        cudaMalloc((void**)&dev_layers[i], 256 * numMaterials * sizeof(float));
     }
 
     for (int i = 0; i < numDevGatheredLayers; ++i)
@@ -694,7 +694,7 @@ void Terrain::debugPrintCurrentColumnLayers(vec2 playerPos)
     ivec2 blockPos = ivec2(floor(playerPos)) - ivec2(chunkPtr->worldBlockPos.x, chunkPtr->worldBlockPos.z);
     int idx = blockPos.x + 16 * blockPos.y;
     const auto& layers = chunkPtr->layers[idx];
-    for (int i = 0; i < (int)Material::numMaterials; ++i)
+    for (int i = 0; i < numMaterials; ++i)
     {
         printf("%s%02d: %7.3f\n", i < numStratifiedMaterials ? "s" : "e", i, layers[i]);
     }
