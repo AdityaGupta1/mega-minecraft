@@ -2,6 +2,7 @@
 
 #include <optix.h>
 #include <optix_stubs.h>
+
 #include <vector>
 
 #include "cuda/cudaUtils.hpp"
