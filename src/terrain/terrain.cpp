@@ -696,7 +696,7 @@ void Terrain::debugPrintCurrentColumnLayers(vec2 playerPos)
     const auto& layers = chunkPtr->layers[idx];
     for (int i = 0; i < numMaterials; ++i)
     {
-        printf("%s%02d: %7.3f\n", i < numStratifiedMaterials ? "s" : "e", i, layers[i]);
+        printf("%s_%s_%02d: %7.3f\n", i < numStratifiedMaterials ? "s" : "e", i < numForwardMaterials ? "F" : "B", i, layers[i]);
     }
     printf("------------\n");
     printf("hgt: %7.3f\n\n", chunkPtr->heightfield[idx]);

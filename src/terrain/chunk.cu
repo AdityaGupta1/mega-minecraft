@@ -383,18 +383,16 @@ __global__ void kernGenerateLayers(
     {
         columnLayers[layerIdx] = height;
 
-        if (height > maxHeight)
+        if (height > maxHeight || layerIdx == numForwardMaterials - 1)
         {
-            continue;
+            break;
         }
 
-        if (layerIdx != numForwardMaterials - 1)
-        {
-            height += getStratifiedMaterialThickness(layerIdx, worldPos);
-        }
+        height += getStratifiedMaterialThickness(layerIdx, worldPos);
     }
 
     height = maxHeight;
+    #pragma unroll
     for (int layerIdx = numMaterials - 1; layerIdx >= numForwardMaterials; --layerIdx)
     {
         const auto& materialInfo = dev_materialInfos[layerIdx];
@@ -815,6 +813,7 @@ __global__ void kernFill(
 
         float maxContribution = 0.f;
         int maxLayerIdx = -1;
+        #pragma unroll
         for (int layerIdx = layerIdxStart; layerIdx < numMaterials; ++layerIdx)
         {
             float layerContributionStart = max(shared_layersAndHeight[layerIdx], (float)y);
