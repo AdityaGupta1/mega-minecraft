@@ -28,7 +28,11 @@ void BlockUtils::init()
     blockDatas[(int)Block::DEEPSLATE] = { BlockUvs(ivec2(3, 1), ivec2(4, 1)).setRandomFlip(false, true, true) };
     blockDatas[(int)Block::GRANITE] = { BlockUvs(ivec2(5, 1)).setRandomRotation() };
     blockDatas[(int)Block::SLATE] = { BlockUvs(ivec2(6, 1)) };
-    blockDatas[(int)Block::SANDSTONE] = { BlockUvs(ivec2(7, 1), ivec2(8, 1)) };
+    blockDatas[(int)Block::SANDSTONE] = { BlockUvs(ivec2(7, 1), ivec2(8, 1), ivec2(9, 1)) };
+    blockDatas[(int)Block::CLAY] = { BlockUvs(ivec2(10, 1)) };
+    blockDatas[(int)Block::RED_SAND] = { BlockUvs(ivec2(11, 1)).setRandomRotation() };
+    blockDatas[(int)Block::RED_SANDSTONE] = { BlockUvs(ivec2(12, 1), ivec2(13, 1), ivec2(14, 1)) };
+    blockDatas[(int)Block::MUD] = { BlockUvs(ivec2(15, 1)) };
 }
 
 BlockData BlockUtils::getBlockData(Block block)
