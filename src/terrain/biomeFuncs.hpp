@@ -67,15 +67,18 @@ __device__ float fbm(vec2 pos)
 struct BiomeNoise
 {
     float magic;
+    float temperature;
     float moisture;
 };
+
+//static constexpr float overallBiomeScale = 0.32f;
+static constexpr float overallBiomeScale = 1.0f;
+__constant__ BiomeNoise dev_biomeNoiseWeights[numBiomes];
 
 __device__ float getSingleBiomeNoise(vec2 pos, float noiseScale, vec2 offset, float smoothstepThreshold)
 {
     return glm::smoothstep(-smoothstepThreshold, smoothstepThreshold, glm::simplex(pos * noiseScale + offset));
 }
-
-static constexpr float overallBiomeScale = 0.32f;
 
 __device__ BiomeNoise getBiomeNoise(const vec2 worldPos)
 {
@@ -86,12 +89,11 @@ __device__ BiomeNoise getBiomeNoise(const vec2 worldPos)
     const vec2 biomeNoisePos = (worldPos + noiseOffset) * overallBiomeScale;
 
     BiomeNoise noise;
-    noise.magic = getSingleBiomeNoise(biomeNoisePos, 0.003f, vec2(5612.35f, 9182.49f), 0.07f);
-    noise.moisture = getSingleBiomeNoise(biomeNoisePos, 0.005f, vec2(1835.32f, 3019.39f), 0.12f);
+    noise.magic = getSingleBiomeNoise(biomeNoisePos, 0.0030f, vec2(5612.35f, 9182.49f), 0.07f);
+    noise.temperature = getSingleBiomeNoise(biomeNoisePos, 0.0012f, vec2(-4021.34f, -8720.12f), 0.06f);
+    noise.moisture = getSingleBiomeNoise(biomeNoisePos, 0.0050f, vec2(1835.32f, 3019.39f), 0.12f);
     return noise;
 }
-
-__constant__ BiomeNoise dev_biomeNoiseWeights[numBiomes];
 
 __device__ void applySingleBiomeNoise(float& totalWeight, const float noise, const float weight)
 {
@@ -107,6 +109,7 @@ __device__ float getBiomeWeight(Biome biome, const BiomeNoise& noise)
 
     float totalWeight = 1.f;
     applySingleBiomeNoise(totalWeight, biomeNoiseWeights.magic, noise.magic);
+    applySingleBiomeNoise(totalWeight, biomeNoiseWeights.temperature, noise.temperature);
     applySingleBiomeNoise(totalWeight, biomeNoiseWeights.moisture, noise.moisture);
     return totalWeight;
 }
@@ -115,12 +118,20 @@ __device__ float getHeight(Biome biome, vec2 pos)
 {
     switch (biome)
     {
-    case Biome::PLAINS:
-        return 144.f + 8.f * fbm(pos * 0.0080f);
-    case Biome::DESERT:
-        return 134.f + 5.f * fbm(pos * 0.0100f);
+    case Biome::JUNGLE:
+        return 139.f + 8.f * fbm(pos * 0.0120f);
+    case Biome::RED_DESERT:
+        return 137.f + 13.f * fbm(pos * 0.0075f);
     case Biome::PURPLE_MUSHROOMS:
         return 136.f + 9.f * fbm(pos * 0.0140f);
+    case Biome::CRYSTALS:
+        return 125.f + 6.f * fbm(pos * 0.0200f);
+    case Biome::OASIS:
+        return 134.f + 9.f * fbm(pos * 0.0120f);
+    case Biome::DESERT:
+        return 134.f + 6.f * fbm(pos * 0.0110f);
+    case Biome::PLAINS:
+        return 144.f + 8.f * fbm(pos * 0.0080f);
     case Biome::MOUNTAINS:
         float noise = pow(abs(fbm(pos * 0.0040f)) + 0.05f, 2.f);
         noise += ((fbm(pos * 0.0050f) - 0.5f) * 2.f) * 0.05f;
@@ -141,10 +152,14 @@ void BiomeUtils::init()
 {
     BiomeNoise* host_biomeNoiseWeights = new BiomeNoise[numBiomes];
 
-    host_biomeNoiseWeights[(int)Biome::PLAINS] = { 0, 1 };
-    host_biomeNoiseWeights[(int)Biome::DESERT] = { 0, 0 };
-    host_biomeNoiseWeights[(int)Biome::PURPLE_MUSHROOMS] = { 1, 1 };
-    host_biomeNoiseWeights[(int)Biome::MOUNTAINS] = { 1, 0 };
+    host_biomeNoiseWeights[(int)Biome::JUNGLE] = { 1, 1, 1 };
+    host_biomeNoiseWeights[(int)Biome::RED_DESERT] = { 1, 1, 0 };
+    host_biomeNoiseWeights[(int)Biome::PURPLE_MUSHROOMS] = { 1, 0, 1 };
+    host_biomeNoiseWeights[(int)Biome::CRYSTALS] = { 1, 0, 0 };
+    host_biomeNoiseWeights[(int)Biome::OASIS] = { 0, 1, 1 };
+    host_biomeNoiseWeights[(int)Biome::DESERT] = { 0, 1, 0 };
+    host_biomeNoiseWeights[(int)Biome::PLAINS] = { 0, 0, 1 };
+    host_biomeNoiseWeights[(int)Biome::MOUNTAINS] = { 0, 0, 0 };
 
     cudaMemcpyToSymbol(dev_biomeNoiseWeights, host_biomeNoiseWeights, numBiomes * sizeof(BiomeNoise));
     delete[] host_biomeNoiseWeights;
@@ -174,11 +189,15 @@ void BiomeUtils::init()
     setMaterialInfoSameBlock(ANDESITE, 24.f, 48.f, 0.0030f);
 
     // material/block, thickness, noise amplitude, noise scale
+    setMaterialInfoSameBlock(RED_SANDSTONE, 3.0f, 2.0f, 0.0035f);
     setMaterialInfoSameBlock(SANDSTONE, 3.5f, 1.5f, 0.0025f);
 
     // material/block, thickness, angle of repose (degrees), maximum slope
     setMaterialInfoSameBlock(GRAVEL, 2.5f, 55.f, 1.8f);
+    setMaterialInfoSameBlock(CLAY, 2.7f, 40.f, 1.8f);
+    setMaterialInfoSameBlock(MUD, 2.3f, 45.f, 1.6f);
     setMaterialInfoSameBlock(DIRT, 4.2f, 40.f, 1.2f);
+    setMaterialInfoSameBlock(RED_SAND, 3.5f, 30.f, 1.5f);
     setMaterialInfoSameBlock(SAND, 3.8f, 35.f, 1.4f);
 
 #undef setMaterialInfo
@@ -208,16 +227,40 @@ void BiomeUtils::init()
 
     for (int biomeIdx = 0; biomeIdx < numBiomes; ++biomeIdx)
     {
+        setCurrentBiomeMaterialWeight(RED_SANDSTONE, 0);
         setCurrentBiomeMaterialWeight(SANDSTONE, 0);
+
         setCurrentBiomeMaterialWeight(GRAVEL, 0);
+        setCurrentBiomeMaterialWeight(CLAY, 0);
+        setCurrentBiomeMaterialWeight(MUD, 0);
+        setCurrentBiomeMaterialWeight(RED_SAND, 0);
         setCurrentBiomeMaterialWeight(SAND, 0);
     }
 
-    setBiomeMaterialWeight(MOUNTAINS, GRAVEL, 1);
+    setBiomeMaterialWeight(JUNGLE, CLAY, 1.0f);
+    setBiomeMaterialWeight(JUNGLE, MUD, 1.0f);
+    setBiomeMaterialWeight(JUNGLE, DIRT, 0.5f);
 
-    setBiomeMaterialWeight(DESERT, SANDSTONE, 1);
-    setBiomeMaterialWeight(DESERT, DIRT, 0);
-    setBiomeMaterialWeight(DESERT, SAND, 1);
+    setBiomeMaterialWeight(RED_DESERT, RED_SANDSTONE, 1.0f);
+    setBiomeMaterialWeight(RED_DESERT, DIRT, 0.0f);
+    setBiomeMaterialWeight(RED_DESERT, RED_SAND, 1.0f);
+
+    setBiomeMaterialWeight(PURPLE_MUSHROOMS, GRAVEL, 0.4f);
+
+    setBiomeMaterialWeight(CRYSTALS, GRAVEL, 0.35f);
+    setBiomeMaterialWeight(CRYSTALS, CLAY, 0.2f);
+    setBiomeMaterialWeight(CRYSTALS, DIRT, 0.0f);
+
+    setBiomeMaterialWeight(OASIS, SANDSTONE, 1.0f);
+    setBiomeMaterialWeight(OASIS, CLAY, 0.4f);
+    setBiomeMaterialWeight(OASIS, DIRT, 0.6f);
+    setBiomeMaterialWeight(OASIS, SAND, 0.4f);
+
+    setBiomeMaterialWeight(DESERT, SANDSTONE, 1.0f);
+    setBiomeMaterialWeight(DESERT, DIRT, 0.0f);
+    setBiomeMaterialWeight(DESERT, SAND, 1.0f);
+
+    setBiomeMaterialWeight(MOUNTAINS, GRAVEL, 1.0f);
 
 #undef setCurrentBiomeMaterialWeight
 #undef setBiomeMaterialWeight
