@@ -138,11 +138,6 @@ void Chunk::floodFillAndIterateNeighbors(ChunkState currentState, ChunkState nex
 
 #pragma region heightfield
 
-__device__ float getBiomeNoise(vec2 pos, float noiseScale, vec2 offset, float smoothstepThreshold)
-{
-    return glm::smoothstep(-smoothstepThreshold, smoothstepThreshold, glm::simplex(pos * noiseScale + offset));
-}
-
 __global__ void kernGenerateHeightfield(
     float* heightfield,
     float* biomeWeights,
@@ -155,16 +150,7 @@ __global__ void kernGenerateHeightfield(
 
     const vec2 worldPos = vec2(chunkWorldBlockPos.x + x, chunkWorldBlockPos.z + z);
 
-    const vec2 noiseOffset = vec2(
-        glm::simplex(worldPos * 0.015f + vec2(6839.19f, 1803.34f)),
-        glm::simplex(worldPos * 0.015f + vec2(8230.53f, 2042.84f))
-    ) * 14.f;
-    
-    const float overallBiomeScale = 0.32f;
-    const vec2 biomeNoisePos = (worldPos + noiseOffset) * overallBiomeScale;
-
-    const float moisture = getBiomeNoise(biomeNoisePos, 0.005f, vec2(1835.32f, 3019.39f), 0.12f);
-    const float magic = getBiomeNoise(biomeNoisePos, 0.003f, vec2(5612.35f, 9182.49f), 0.07f);
+    const auto biomeNoise = getBiomeNoise(worldPos);
 
     float* columnBiomeWeights = biomeWeights + numBiomes * idx;
 
@@ -176,7 +162,7 @@ __global__ void kernGenerateHeightfield(
 #ifdef BIOME_OVERRIDE
         float weight = (biome == BIOME_OVERRIDE) ? 1.f : 0.f;
 #else
-        float weight = getBiomeWeight(biome, moisture, magic);
+        float weight = getBiomeWeight(biome, biomeNoise);
 #endif
         if (weight > 0.f)
         {

@@ -64,18 +64,45 @@ __device__ float fbm(vec2 pos)
     return fbm;
 }
 
-__device__ float getBiomeWeight(Biome biome, float moisture, float magic)
+struct BiomeNoise
+{
+    float moisture;
+    float magic;
+};
+
+__device__ float getSingleBiomeNoise(vec2 pos, float noiseScale, vec2 offset, float smoothstepThreshold)
+{
+    return glm::smoothstep(-smoothstepThreshold, smoothstepThreshold, glm::simplex(pos * noiseScale + offset));
+}
+
+static constexpr float overallBiomeScale = 0.32f;
+
+__device__ BiomeNoise getBiomeNoise(const vec2 worldPos)
+{
+    const vec2 noiseOffset = vec2(
+        glm::simplex(worldPos * 0.015f + vec2(6839.19f, 1803.34f)),
+        glm::simplex(worldPos * 0.015f + vec2(8230.53f, 2042.84f))
+    ) * 14.f;
+    const vec2 biomeNoisePos = (worldPos + noiseOffset) * overallBiomeScale;
+
+    BiomeNoise noise;
+    noise.moisture = getSingleBiomeNoise(biomeNoisePos, 0.005f, vec2(1835.32f, 3019.39f), 0.12f);
+    noise.magic = getSingleBiomeNoise(biomeNoisePos, 0.003f, vec2(5612.35f, 9182.49f), 0.07f);
+    return noise;
+}
+
+__device__ float getBiomeWeight(Biome biome, const BiomeNoise& noise)
 {
     switch (biome)
     {
     case Biome::PLAINS:
-        return moisture * (1.f - magic);
+        return noise.moisture * (1.f - noise.magic);
     case Biome::DESERT:
-        return (1.f - moisture) * (1.f - magic);
+        return (1.f - noise.moisture) * (1.f - noise.magic);
     case Biome::PURPLE_MUSHROOMS:
-        return moisture * magic;
+        return noise.moisture * noise.magic;
     case Biome::MOUNTAINS:
-        return (1.f - moisture) * magic;
+        return (1.f - noise.moisture) * noise.magic;
     }
 }
 
