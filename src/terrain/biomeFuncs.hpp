@@ -71,8 +71,7 @@ struct BiomeNoise
     float moisture;
 };
 
-//static constexpr float overallBiomeScale = 0.32f;
-static constexpr float overallBiomeScale = 1.0f;
+static constexpr float overallBiomeScale = 0.32f;
 __constant__ BiomeNoise dev_biomeNoiseWeights[numBiomes];
 
 __device__ float getSingleBiomeNoise(vec2 pos, float noiseScale, vec2 offset, float smoothstepThreshold)
@@ -125,7 +124,7 @@ __device__ float getHeight(Biome biome, vec2 pos)
     case Biome::PURPLE_MUSHROOMS:
         return 136.f + 9.f * fbm(pos * 0.0140f);
     case Biome::CRYSTALS:
-        return 125.f + 6.f * fbm(pos * 0.0200f);
+        return 129.f + 7.f * fbm(pos * 0.0200f);
     case Biome::OASIS:
         return 134.f + 9.f * fbm(pos * 0.0120f);
     case Biome::DESERT:

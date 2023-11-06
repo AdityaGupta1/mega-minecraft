@@ -7,7 +7,7 @@
 #include "featurePlacement.hpp"
 #include "util/rng.hpp"
 
-#define BIOME_OVERRIDE Biome::RED_DESERT
+//#define BIOME_OVERRIDE Biome::RED_DESERT
 
 #define DO_EROSION 1
 
@@ -360,7 +360,7 @@ __global__ void kernGenerateLayers(
 
     height = 0;
     #pragma unroll
-    for (int layerIdx = numForwardMaterials; layerIdx < numStratifiedMaterials; ++layerIdx)
+    for (int layerIdx = numStratifiedMaterials - 1; layerIdx >= numForwardMaterials; --layerIdx)
     {
         height += getStratifiedMaterialThickness(layerIdx, totalMaterialWeights[layerIdx], worldPos);
         columnLayers[layerIdx] = height; // actual height is calculated by in kernFill by subtracting this value from start height of eroded layers
