@@ -163,8 +163,8 @@ __global__ void kernGenerateHeightfield(
     const float overallBiomeScale = 0.32f;
     const vec2 biomeNoisePos = (worldPos + noiseOffset) * overallBiomeScale;
 
-    const float moisture = getBiomeNoise(biomeNoisePos, 0.005f, vec2(1835.32f, 3019.39f), 0.10f);
-    const float magic = getBiomeNoise(biomeNoisePos, 0.003f, vec2(5612.35f, 9182.49f), 0.13f);
+    const float moisture = getBiomeNoise(biomeNoisePos, 0.005f, vec2(1835.32f, 3019.39f), 0.12f);
+    const float magic = getBiomeNoise(biomeNoisePos, 0.003f, vec2(5612.35f, 9182.49f), 0.07f);
 
     float* columnBiomeWeights = biomeWeights + numBiomes * idx;
 
@@ -822,12 +822,10 @@ __global__ void kernFill(
             bool isTopBlock = airLayerStart < y + 1.5f;
             if (isTopBlock)
             {
-                // TODO: use biome-specific options (e.g. dirt to grass or mycelium depending on biome)
-                // also need to support replacing other things (maybe just make top block a generic block that always gets replaced?
-
                 if (block == Block::DIRT)
                 {
-                    block = Block::GRASS;
+                    const Biome randBiome = getRandomBiome(shared_biomeWeights, u01(rng));
+                    block = dev_biomeBlocks[(int)randBiome].grassBlock;
                 }
             }
         }
