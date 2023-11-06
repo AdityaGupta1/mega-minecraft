@@ -5,6 +5,52 @@
 #include <glm/gtc/noise.hpp>
 #include <unordered_map>
 
+#pragma region utility functions
+
+template<int xSize = 16>
+__host__ __device__
+int posTo2dIndex(const int x, const int z)
+{
+    return x + xSize * z;
+}
+
+template<int xSize = 16>
+__host__ __device__
+int posTo2dIndex(const ivec2 pos)
+{
+    return posTo2dIndex<xSize>(pos.x, pos.y);
+}
+
+template<int xSize = 16, int ySize = 384>
+__host__ __device__
+int posTo3dIndex(const int x, const int y, const int z)
+{
+    return y + ySize * posTo2dIndex<xSize>(x, z);
+}
+
+template<int xSize = 16, int ySize = 384>
+__host__ __device__
+int posTo3dIndex(const ivec3 pos)
+{
+    return posTo3dIndex<xSize, ySize>(pos.x, pos.y, pos.z);
+}
+
+__host__ __device__ Biome getRandomBiome(const float* columnBiomeWeights, float rand)
+{
+    for (int i = 0; i < numBiomes; ++i)
+    {
+        rand -= columnBiomeWeights[i];
+        if (rand <= 0.f)
+        {
+            return (Biome)i;
+        }
+    }
+
+    return Biome::PLAINS;
+}
+
+#pragma endregion
+
 __device__ float fbm(vec2 pos)
 {
     float fbm = 0.f;
@@ -28,7 +74,7 @@ __device__ float getBiomeWeight(Biome biome, float moisture, float magic)
         return (1.f - moisture) * (1.f - magic);
     case Biome::PURPLE_MUSHROOMS:
         return moisture * magic;
-    case Biome::METEORS:
+    case Biome::MOUNTAINS:
         return (1.f - moisture) * magic;
     }
 }
@@ -38,12 +84,12 @@ __device__ float getHeight(Biome biome, vec2 pos)
     switch (biome)
     {
     case Biome::PLAINS:
-        return 144.f + 8.f * fbm(pos * 0.0160f);
+        return 144.f + 8.f * fbm(pos * 0.0080f);
     case Biome::DESERT:
         return 134.f + 5.f * fbm(pos * 0.0100f);
     case Biome::PURPLE_MUSHROOMS:
-        return 136.f + 6.f * fbm(pos * 0.0080f);
-    case Biome::METEORS:
+        return 136.f + 9.f * fbm(pos * 0.0140f);
+    case Biome::MOUNTAINS:
         float noise = pow(abs(fbm(pos * 0.0040f)) + 0.05f, 2.f);
         noise += ((fbm(pos * 0.0050f) - 0.5f) * 2.f) * 0.05f;
         return 165.f + 120.f * (noise - 0.2f);
@@ -52,6 +98,7 @@ __device__ float getHeight(Biome biome, vec2 pos)
 
 //__constant__ BiomeBlocks dev_biomeBlocks[numBiomes]; // TODO: convert to only top block for use with hashing transitions (replace generic top block with biome-specific top block)
 __constant__ MaterialInfo dev_materialInfos[numMaterials];
+__constant__ float dev_biomeMaterialWeights[numBiomes * numMaterials];
 
 __constant__ ivec2 dev_dirVecs2d[8];
 
@@ -65,12 +112,13 @@ void BiomeUtils::init()
     //host_biomeBlocks[(int)Biome::PLAINS] = { Block::GRASS, Block::DIRT, Block::STONE };
     //host_biomeBlocks[(int)Biome::DESERT] = { Block::SAND, Block::SAND, Block::STONE };
     //host_biomeBlocks[(int)Biome::PURPLE_MUSHROOMS] = { Block::MYCELIUM, Block::DIRT, Block::STONE };
-    //host_biomeBlocks[(int)Biome::METEORS] = { Block::STONE, Block::STONE, Block::STONE };
+    //host_biomeBlocks[(int)Biome::MOUNTAINS] = { Block::STONE, Block::STONE, Block::STONE };
 
     //cudaMemcpyToSymbol(dev_biomeBlocks, host_biomeBlocks, numBiomes * sizeof(BiomeBlocks));
 
     //delete[] host_biomeBlocks;
 
+#pragma region material infos
     MaterialInfo* host_materialInfos = new MaterialInfo[numMaterials];
 
     // block, thickness, noise amplitude, noise scale
@@ -91,6 +139,7 @@ void BiomeUtils::init()
     // block, thickness, angle of repose (degrees), maximum slope
     host_materialInfos[(int)Material::GRAVEL] = { Block::GRAVEL, 2.5f, 55.f, 1.8f };
     host_materialInfos[(int)Material::DIRT] = { Block::DIRT, 4.2f, 40.f, 1.2f };
+    host_materialInfos[(int)Material::SAND] = { Block::SAND, 3.8f, 35.f, 1.4f };
 
     // convert angles of repose into their tangents
     for (int layerIdx = numStratifiedMaterials; layerIdx < numMaterials; ++layerIdx)
@@ -100,8 +149,39 @@ void BiomeUtils::init()
     }
 
     cudaMemcpyToSymbol(dev_materialInfos, host_materialInfos, numMaterials * sizeof(MaterialInfo));
-
     delete[] host_materialInfos;
+#pragma endregion
+
+#pragma region biome material weights
+    float* host_biomeMaterialWeights = new float[numBiomes * numMaterials];
+
+#define setCurrentBiomeMaterialWeight(material, weight) host_biomeMaterialWeights[posTo2dIndex<numMaterials>((int)Material::material, biomeIdx)] = weight
+#define setBiomeMaterialWeight(biome, material, weight) host_biomeMaterialWeights[posTo2dIndex<numMaterials>((int)Material::material, (int)Biome::biome)] = weight
+
+    for (int i = 0; i < numBiomes * numMaterials; ++i)
+    {
+        host_biomeMaterialWeights[i] = 1;
+    }
+
+    for (int biomeIdx = 0; biomeIdx < numBiomes; ++biomeIdx)
+    {
+        setCurrentBiomeMaterialWeight(SANDSTONE, 0);
+        setCurrentBiomeMaterialWeight(GRAVEL, 0);
+        setCurrentBiomeMaterialWeight(SAND, 0);
+    }
+
+    setBiomeMaterialWeight(MOUNTAINS, GRAVEL, 1);
+
+    setBiomeMaterialWeight(DESERT, SANDSTONE, 1);
+    setBiomeMaterialWeight(DESERT, DIRT, 0);
+    setBiomeMaterialWeight(DESERT, SAND, 1);
+
+#undef setCurrentBiomeMaterialWeight
+#undef setBiomeMaterialWeight
+
+    cudaMemcpyToSymbol(dev_biomeMaterialWeights, host_biomeMaterialWeights, numBiomes * numMaterials * sizeof(float));
+    delete[] host_biomeMaterialWeights;
+#pragma endregion
 
     cudaMemcpyToSymbol(dev_dirVecs2d, DirectionEnums::dirVecs2d.data(), 8 * sizeof(ivec2));
 

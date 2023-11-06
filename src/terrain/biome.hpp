@@ -9,10 +9,10 @@ enum class Biome : unsigned char
     PLAINS,
     DESERT,
     PURPLE_MUSHROOMS,
-    METEORS
+    MOUNTAINS
 };
 
-static constexpr int numBiomes = (int)Biome::METEORS + 1;
+static constexpr int numBiomes = (int)Biome::MOUNTAINS + 1;
 
 struct BiomeBlocks
 {
@@ -39,10 +39,11 @@ enum class Material : unsigned char
 
     // eroded
     GRAVEL,
-    DIRT
+    DIRT,
+    SAND
 };
 
-static constexpr int numMaterials = (int)Material::DIRT + 1;
+static constexpr int numMaterials = (int)Material::SAND + 1;
 static constexpr int numStratifiedMaterials = (int)Material::SANDSTONE + 1;
 static constexpr int numForwardMaterials = (int)Material::ANDESITE + 1;
 static constexpr int numErodedMaterials = numMaterials - numStratifiedMaterials;

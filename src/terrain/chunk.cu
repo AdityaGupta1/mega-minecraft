@@ -7,7 +7,7 @@
 #include "featurePlacement.hpp"
 #include "util/rng.hpp"
 
-#define BIOME_OVERRIDE Biome::METEORS
+//#define BIOME_OVERRIDE Biome::MOUNTAINS
 
 #define DO_EROSION 1
 
@@ -36,52 +36,6 @@ bool Chunk::isReadyForQueue()
 void Chunk::setNotReadyForQueue()
 {
     this->readyForQueue = false;
-}
-
-#pragma endregion
-
-#pragma region utility functions
-
-template<int size = 16>
-__host__ __device__
-int posTo2dIndex(const int x, const int z)
-{
-    return x + size * z;
-}
-
-template<int size = 16>
-__host__ __device__
-int posTo2dIndex(const ivec2 pos)
-{
-    return posTo2dIndex<size>(pos.x, pos.y);
-}
-
-template<int xzSize = 16, int ySize = 384>
-__host__ __device__
-int posTo3dIndex(const int x, const int y, const int z)
-{
-    return y + ySize * posTo2dIndex<xzSize>(x, z);
-}
-
-template<int xzSize = 16, int ySize = 384>
-__host__ __device__
-int posTo3dIndex(const ivec3 pos)
-{
-    return posTo3dIndex<xzSize, ySize>(pos.x, pos.y, pos.z);
-}
-
-__host__ __device__ Biome getRandomBiome(const float* columnBiomeWeights, float rand)
-{
-    for (int i = 0; i < numBiomes; ++i)
-    {
-        rand -= columnBiomeWeights[i];
-        if (rand <= 0.f)
-        {
-            return (Biome)i;
-        }
-    }
-
-    return Biome::PLAINS;
 }
 
 #pragma endregion
@@ -184,9 +138,9 @@ void Chunk::floodFillAndIterateNeighbors(ChunkState currentState, ChunkState nex
 
 #pragma region heightfield
 
-__device__ float getBiomeNoise(vec2 pos, float noiseScale, vec2 offset, float smoothstepThreshold, float overallBiomeScale)
+__device__ float getBiomeNoise(vec2 pos, float noiseScale, vec2 offset, float smoothstepThreshold)
 {
-    return glm::smoothstep(-smoothstepThreshold * overallBiomeScale, smoothstepThreshold * overallBiomeScale, glm::simplex(pos * noiseScale + offset));
+    return glm::smoothstep(-smoothstepThreshold, smoothstepThreshold, glm::simplex(pos * noiseScale + offset));
 }
 
 __global__ void kernGenerateHeightfield(
@@ -206,11 +160,11 @@ __global__ void kernGenerateHeightfield(
         glm::simplex(worldPos * 0.015f + vec2(8230.53f, 2042.84f))
     ) * 14.f;
     
-    const float overallBiomeScale = 0.4f;
+    const float overallBiomeScale = 0.32f;
     const vec2 biomeNoisePos = (worldPos + noiseOffset) * overallBiomeScale;
 
-    const float moisture = getBiomeNoise(biomeNoisePos, 0.005f, vec2(1835.32f, 3019.39f), 0.15f, overallBiomeScale);
-    const float magic = getBiomeNoise(biomeNoisePos, 0.003f, vec2(5612.35f, 9182.49f), 0.20f, overallBiomeScale);
+    const float moisture = getBiomeNoise(biomeNoisePos, 0.005f, vec2(1835.32f, 3019.39f), 0.10f);
+    const float magic = getBiomeNoise(biomeNoisePos, 0.003f, vec2(5612.35f, 9182.49f), 0.13f);
 
     float* columnBiomeWeights = biomeWeights + numBiomes * idx;
 
@@ -364,6 +318,26 @@ __global__ void kernGenerateLayers(
 
     __syncthreads();
 
+    float totalMaterialWeights[numMaterials];
+    #pragma unroll
+    for (int materialIdx = 0; materialIdx < numMaterials; ++materialIdx)
+    {
+        totalMaterialWeights[materialIdx] = 0;
+    }
+
+    const float* columnBiomeWeights = biomeWeights + numBiomes * idx;
+    #pragma unroll
+    for (int biomeIdx = 0; biomeIdx < numBiomes; ++biomeIdx)
+    {
+        const float biomeWeight = columnBiomeWeights[biomeIdx];
+
+        #pragma unroll
+        for (int materialIdx = 0; materialIdx < numMaterials; ++materialIdx)
+        {
+            totalMaterialWeights[materialIdx] += biomeWeight * dev_biomeMaterialWeights[posTo2dIndex<numMaterials>(materialIdx, biomeIdx)];
+        }
+    }
+
     const ivec2 pos18 = ivec2(x + 1, z + 1);
     const float maxHeight = shared_heightfield[posTo2dIndex<18>(pos18)];
 
@@ -388,7 +362,18 @@ __global__ void kernGenerateLayers(
             break;
         }
 
-        height += getStratifiedMaterialThickness(layerIdx, worldPos);
+        float layerHeight;
+        float materialWeight = totalMaterialWeights[layerIdx];
+        if (materialWeight > 0)
+        {
+            layerHeight = getStratifiedMaterialThickness(layerIdx, worldPos) * materialWeight;
+        }
+        else
+        {
+            layerHeight = 0;
+        }
+
+        height += layerHeight;
     }
 
     height = maxHeight;
@@ -398,20 +383,22 @@ __global__ void kernGenerateLayers(
         const auto& materialInfo = dev_materialInfos[layerIdx];
 
         float layerHeight;
-        if (layerIdx < numStratifiedMaterials)
+        float materialWeight = totalMaterialWeights[layerIdx];
+        if (materialWeight > 0)
         {
-            layerHeight = getStratifiedMaterialThickness(layerIdx, worldPos);
-        }
-        else
-        {
-            if (slope > materialInfo.noiseScaleOrMaxSlope)
+            if (layerIdx < numStratifiedMaterials)
             {
-                layerHeight = 0;
+                layerHeight = getStratifiedMaterialThickness(layerIdx, worldPos);
             }
             else
             {
-                layerHeight = materialInfo.thickness * ((materialInfo.noiseScaleOrMaxSlope - slope) / materialInfo.noiseScaleOrMaxSlope);
+                layerHeight = max(0.f, materialInfo.thickness * ((materialInfo.noiseScaleOrMaxSlope - slope) / materialInfo.noiseScaleOrMaxSlope));
             }
+            layerHeight *= materialWeight;
+        }
+        else
+        {
+            layerHeight = 0;
         }
 
         height -= layerHeight;
