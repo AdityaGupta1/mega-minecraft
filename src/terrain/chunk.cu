@@ -7,7 +7,7 @@
 #include "featurePlacement.hpp"
 #include "util/rng.hpp"
 
-//#define BIOME_OVERRIDE Biome::RED_DESERT
+#define BIOME_OVERRIDE Biome::JUNGLE
 
 #define DO_EROSION 1
 
