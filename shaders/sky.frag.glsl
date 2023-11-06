@@ -34,6 +34,7 @@ void main() {
     // add volumetric fog
     // -----------------------------------
 
+#if APPLY_VOLUMETRIC_FOG
     vec4 scatteringInformation = texture(tex_volume, vec3(fs_uv, 1));
     vec3 inScattering = scatteringInformation.rgb;
     float transmittance = scatteringInformation.a;
@@ -42,6 +43,7 @@ void main() {
 
     float fogFactor = 0.5f * clamp(1 - dot(normalize(u_sunDir.xyz), vec3(0, 1, 0)), 0, 1);
     finalColor = mix(finalColor, colorWithFog, fogFactor);
+#endif
 
     // set output color
     // -----------------------------------
