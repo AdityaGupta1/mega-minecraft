@@ -16,9 +16,7 @@ static constexpr int numBiomes = (int)Biome::MOUNTAINS + 1;
 
 struct BiomeBlocks
 {
-    Block blockTop;
-    Block blockMid;
-    Block blockStone;
+    Block grassBlock{ Block::GRASS };
 };
 
 enum class Material : unsigned char

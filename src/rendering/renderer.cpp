@@ -352,9 +352,12 @@ void Renderer::resizeTextures()
     glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, windowSize->x, windowSize->y);
 }
 
+static constexpr float fovNormal = glm::radians(52.f);
+static constexpr float fovZoomed = glm::radians(15.f);
+
 void Renderer::setProjMat()
 {
-    float fovy = this->isZoomed ? (PI_OVER_FOUR * 0.36f) : PI_OVER_FOUR;
+    float fovy = this->isZoomed ? fovZoomed : fovNormal;
     projMat = glm::perspective(fovy, windowSize->x / (float)windowSize->y, 0.01f, 1000.f);
 }
 
