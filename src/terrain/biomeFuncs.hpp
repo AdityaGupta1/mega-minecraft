@@ -133,8 +133,7 @@ void BiomeUtils::init()
     host_materialInfos[(int)Material::ANDESITE] = { Block::ANDESITE, 24.f, 48.f, 0.0030f };
 
     // block, thickness, noise amplitude, noise scale
-    //host_materialInfos[(int)Material::SANDSTONE] = { Block::SANDSTONE, 3.5f, 1.5f, 0.0025f };
-    host_materialInfos[(int)Material::SANDSTONE] = { Block::SANDSTONE, 0.0f, 0.0f, 0.0025f };
+    host_materialInfos[(int)Material::SANDSTONE] = { Block::SANDSTONE, 3.5f, 1.5f, 0.0025f };
 
     // block, thickness, angle of repose (degrees), maximum slope
     host_materialInfos[(int)Material::GRAVEL] = { Block::GRAVEL, 2.5f, 55.f, 1.8f };

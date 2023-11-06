@@ -206,7 +206,7 @@ void Chunk::generateHeightfield(
 
     cudaStreamSynchronize(stream); // used here so cudaMemcpyAsync to this->heightfield finishes before generating own feature placements
 
-    generateOwnFeaturePlacements(); // TODO: maybe move to a separate step
+    generateOwnFeaturePlacements(); // TODO: maybe move to a separate step to allow for placing features based on eroded layers
 
     CudaUtils::checkCUDAError("Chunk::generateHeightfield() failed");
 }
@@ -376,30 +376,33 @@ __global__ void kernGenerateLayers(
         height += layerHeight;
     }
 
-    height = maxHeight;
+    height = 0;
     #pragma unroll
-    for (int layerIdx = numMaterials - 1; layerIdx >= numForwardMaterials; --layerIdx)
+    for (int layerIdx = numForwardMaterials; layerIdx < numStratifiedMaterials; ++layerIdx)
     {
-        const auto& materialInfo = dev_materialInfos[layerIdx];
-
         float layerHeight;
         float materialWeight = totalMaterialWeights[layerIdx];
         if (materialWeight > 0)
         {
-            if (layerIdx < numStratifiedMaterials)
-            {
-                layerHeight = getStratifiedMaterialThickness(layerIdx, worldPos);
-            }
-            else
-            {
-                layerHeight = max(0.f, materialInfo.thickness * ((materialInfo.noiseScaleOrMaxSlope - slope) / materialInfo.noiseScaleOrMaxSlope));
-            }
-            layerHeight *= materialWeight;
+            layerHeight = getStratifiedMaterialThickness(layerIdx, worldPos) * materialWeight;
         }
         else
         {
             layerHeight = 0;
         }
+
+        height += layerHeight;
+        columnLayers[layerIdx] = height; // actual height is calculated by in kernFill by subtracting this value from start height of eroded layers
+    }
+
+    height = maxHeight;
+    #pragma unroll
+    for (int layerIdx = numMaterials - 1; layerIdx >= numStratifiedMaterials; --layerIdx)
+    {
+        const auto& materialInfo = dev_materialInfos[layerIdx];
+
+        float materialWeight = totalMaterialWeights[layerIdx];
+        float layerHeight = max(0.f, materialInfo.thickness * ((materialInfo.noiseScaleOrMaxSlope - slope) / materialInfo.noiseScaleOrMaxSlope)) * materialWeight;
 
         height -= layerHeight;
         columnLayers[layerIdx] = height;
@@ -775,6 +778,14 @@ __global__ void kernFill(
             const float* columnBiomeWeights = biomeWeights + numBiomes * idx2d;
             shared_biomeWeights[biomeWeightIdx] = columnBiomeWeights[biomeWeightIdx];
         }
+    }
+
+    __syncthreads();
+
+    // calculate actual starting height of backward stratified materials
+    if (y >= numForwardMaterials && y < numStratifiedMaterials)
+    {
+        shared_layersAndHeight[y] = shared_layersAndHeight[numStratifiedMaterials] - shared_layersAndHeight[y];
     }
 
     __syncthreads();
