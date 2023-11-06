@@ -165,6 +165,7 @@ void BiomeUtils::init()
 
     BiomeBlocks* host_biomeBlocks = new BiomeBlocks[numBiomes];
 
+    host_biomeBlocks[(int)Biome::JUNGLE].grassBlock = Block::JUNGLE_GRASS;
     host_biomeBlocks[(int)Biome::PURPLE_MUSHROOMS].grassBlock = Block::MYCELIUM;
 
     cudaMemcpyToSymbol(dev_biomeBlocks, host_biomeBlocks, numBiomes * sizeof(BiomeBlocks));

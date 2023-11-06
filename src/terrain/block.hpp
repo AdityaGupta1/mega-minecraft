@@ -28,10 +28,11 @@ enum class Block : unsigned char
     CLAY,
     RED_SAND,
     RED_SANDSTONE,
-    MUD
+    MUD,
+    JUNGLE_GRASS
 };
 
-static constexpr int numBlocks = (int)Block::MUD + 1;
+static constexpr int numBlocks = (int)Block::JUNGLE_GRASS + 1;
 
 struct SideUv
 {

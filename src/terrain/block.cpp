@@ -33,6 +33,7 @@ void BlockUtils::init()
     blockDatas[(int)Block::RED_SAND] = { BlockUvs(ivec2(11, 1)).setRandomRotation() };
     blockDatas[(int)Block::RED_SANDSTONE] = { BlockUvs(ivec2(12, 1), ivec2(13, 1), ivec2(14, 1)) };
     blockDatas[(int)Block::MUD] = { BlockUvs(ivec2(15, 1)) };
+    blockDatas[(int)Block::JUNGLE_GRASS] = { BlockUvs(ivec2(0, 2), ivec2(1, 2), ivec2(0, 0)).setRandomRotation(false, true, true) };
 }
 
 BlockData BlockUtils::getBlockData(Block block)
