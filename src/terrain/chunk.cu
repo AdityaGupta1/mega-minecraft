@@ -966,7 +966,7 @@ void Chunk::createVBOs()
                         // SEMI_TRANSPARENT displays no matter what
                         // TRANSPARENT (except AIR) displays unless neighbor is TRANSPARENT (may need to revise this if two different transparent blocks are adjacent)
                         // X_SHAPED displays no matter what
-                        if (thisTrans == neighborTrans && (thisTrans == TransparencyType::OPAQUE || thisTrans == TransparencyType::TRANSPARENT))
+                        if (thisTrans == neighborTrans && (thisTrans == TransparencyType::OPAQUE_BLOCK || thisTrans == TransparencyType::TRANSPARENT_BLOCK))
                         {
                             continue;
                         }

@@ -92,16 +92,16 @@ struct BlockUvs
 
 enum class TransparencyType : unsigned char
 {
-    OPAQUE,
+    OPAQUE_BLOCK,
     SEMI_TRANSPARENT, // e.g. leaves
-    TRANSPARENT, // e.g. glass
+    TRANSPARENT_BLOCK, // e.g. glass
     X_SHAPED // e.g. flowers, tall grass
 };
 
 struct BlockData
 {
     BlockUvs uvs;
-    TransparencyType transparency{ TransparencyType::OPAQUE };
+    TransparencyType transparency{ TransparencyType::OPAQUE_BLOCK };
 };
 
 namespace BlockUtils
