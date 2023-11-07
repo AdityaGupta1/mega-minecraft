@@ -7,8 +7,6 @@
 #include "featurePlacement.hpp"
 #include "util/rng.hpp"
 
-//#define BIOME_OVERRIDE Biome::JUNGLE
-
 #define DO_EROSION 1
 
 Chunk::Chunk(ivec2 worldChunkPos)

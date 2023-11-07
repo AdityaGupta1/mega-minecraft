@@ -5,6 +5,8 @@
 #include <glm/gtc/noise.hpp>
 #include <unordered_map>
 
+//#define BIOME_OVERRIDE Biome::MOUNTAINS
+
 #pragma region utility functions
 
 template<int xSize = 16>
@@ -134,8 +136,7 @@ __device__ float getHeight(Biome biome, vec2 pos)
     case Biome::MOUNTAINS:
         float noise = pow(abs(fbm(pos * 0.0035f)) + 0.05f, 2.f);
         noise += ((fbm(pos * 0.0050f) - 0.5f) * 2.f) * 0.05f;
-        noise *= (1.f - (0.35f * fbm(pos * 0.0210f)));
-        return 165.f + 140.f * (noise - 0.15f);
+        return 165.f + (140.f * (noise - 0.15f)) + (noise * (20.f * fbm(pos * 0.0350f)));
     }
 }
 
