@@ -66,9 +66,9 @@ enum class Feature : unsigned char
 {
     NONE,
     SPHERE,
-    PURPLE_MUSHROOM
+    PURPLE_MUSHROOM,
+    RAFFLESIA
     // JUNGLE_TREE
-    // RAFFLESIA (make this huge)
     // PALM_TREE
     // POND (not sure if this should go here or somewhere else)
     // CACTUS

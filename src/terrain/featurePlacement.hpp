@@ -3,6 +3,34 @@
 #include "cuda/cudaUtils.hpp"
 #include "biome.hpp"
 #include "util/rng.hpp"
+#include "util/utils.hpp"
+
+#pragma region SDFs
+
+__device__ float sdSphere(vec3 p, float s)
+{
+    return length(p) - s;
+}
+
+__device__ float sdCappedCylinder(vec3 p, float r, float h)
+{
+    vec2 d = abs(vec2(length(vec2(p.x, p.z)), p.y)) - vec2(r, h);
+    return min(max(d.x, d.y), 0.0f) + length(max(d, 0.0f));
+}
+
+__device__ float opSubtraction(float d1, float d2) 
+{ 
+    return max(d1, -d2); 
+}
+
+__device__ float opOnion(float sdf, float thickness)
+{
+    return abs(sdf) - thickness;
+}
+
+#pragma endregion
+
+#pragma region spline functions
 
 template<int numCtrlPts, int splineSize>
 __device__ void deCasteljau(vec3* ctrlPts, vec3* spline)
@@ -42,6 +70,8 @@ __device__ void calculateLineParams(const vec3& pos, const vec3& linePos1, const
     vec3 pointLine = vecLine * (*ratio);
     *distFromLine = distance(pointPos, pointLine);
 }
+
+#pragma endregion
 
 // block should not change if return value is false
 __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlockPos, Block* block)
@@ -158,5 +188,49 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
 
         return false;
     }
+    case Feature::RAFFLESIA:
+        pos *= 0.8f;
+
+        vec3 centerSdfPos = pos;
+        centerSdfPos.y -= 1.f;
+        centerSdfPos.y *= 1.4f;
+
+        if (sdSphere(centerSdfPos, 1.f) < 0)
+        {
+            *block = Block::RAFFLESIA_SPIKES;
+            return true;
+        }
+
+        float centerSdf = opOnion(sdSphere(centerSdfPos - vec3(0, 1, 0), 2.0f), 0.8f);
+        float centerHoleSdf = sdSphere(centerSdfPos - vec3(0, 1.8f, 0), 1.8f);
+        centerSdf = opSubtraction(centerSdf, centerHoleSdf);
+
+        if (centerSdf < 0.f)
+        {
+            *block = centerSdfPos.y > 1.f ? Block::RAFFLESIA_CENTER : Block::RAFFLESIA_STEM;
+            return true;
+        }
+
+        const float petalStartAngle = u01(rng) * TWO_PI;
+        for (int i = 0; i < 5; ++i)
+        {
+            const float petalAngle = petalStartAngle + (i * TWO_PI * 0.2f);
+
+            float sinTheta, cosTheta;
+            sincosf(-petalAngle, &sinTheta, &cosTheta);
+            vec3 petalPos = vec3(pos.x * cosTheta + pos.z * sinTheta, pos.y - 3.2f, -pos.x * sinTheta + pos.z * cosTheta);
+            petalPos.y -= (i % 2) * 0.53f;
+            petalPos.y += clamp((abs(petalPos.x - 3.f) - 1.5f) / 1.5f, 0.f, 1.f) * 1.3f;
+            petalPos.x -= 3.8f;
+            petalPos.z *= 1.2f;
+
+            if (sdCappedCylinder(petalPos, 2.5f, 0.5f) < 0)
+            {
+                *block = Block::RAFFLESIA_PETAL;
+                return true;
+            }
+        }
+
+        return false;
     }
 }

@@ -35,6 +35,9 @@ void BlockUtils::init()
     blockDatas[(int)Block::MUD] = { BlockUvs(ivec2(15, 1)) };
     blockDatas[(int)Block::JUNGLE_GRASS] = { BlockUvs(ivec2(0, 2), ivec2(1, 2), ivec2(0, 0)).setRandomRotation(false, true, true) };
     blockDatas[(int)Block::RAFFLESIA_PETAL] = { BlockUvs(ivec2(2, 2)) };
+    blockDatas[(int)Block::RAFFLESIA_CENTER] = { BlockUvs(ivec2(3, 2)) };
+    blockDatas[(int)Block::RAFFLESIA_SPIKES] = { BlockUvs(ivec2(4, 2)) };
+    blockDatas[(int)Block::RAFFLESIA_STEM] = { BlockUvs(ivec2(5, 2)) };
 }
 
 BlockData BlockUtils::getBlockData(Block block)

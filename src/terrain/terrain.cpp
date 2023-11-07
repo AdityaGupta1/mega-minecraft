@@ -18,7 +18,7 @@
 // ================================================================================================================================================================
 // in practice, I give it way more padding so the user doesn't see any lag at borders of render distance
 // ================================================================================================================================================================
-static constexpr int chunkVbosGenRadius = 20;
+static constexpr int chunkVbosGenRadius = 12;
 static constexpr int chunkMaxGenRadius = chunkVbosGenRadius + ((ZONE_SIZE * 5) / 2);
 
 // TODO: get better estimates for these

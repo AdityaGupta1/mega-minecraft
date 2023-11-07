@@ -5,7 +5,7 @@
 #include <glm/gtc/noise.hpp>
 #include <unordered_map>
 
-//#define BIOME_OVERRIDE Biome::MOUNTAINS
+#define BIOME_OVERRIDE Biome::JUNGLE
 
 #pragma region utility functions
 
@@ -273,6 +273,8 @@ void BiomeUtils::init()
 
     cudaMemcpyToSymbol(dev_dirVecs2d, DirectionEnums::dirVecs2d.data(), 8 * sizeof(ivec2));
 
+    biomeFeatureGens[(int)Biome::JUNGLE] = { {Feature::RAFFLESIA, 0.0002f} };
+
     biomeFeatureGens[(int)Biome::PURPLE_MUSHROOMS] = { {Feature::PURPLE_MUSHROOM, 0.002f} };
 
 #define setFeatureHeightBounds(feature, yMin, yMax) featureHeightBounds[(int)Feature::feature] = ivec2(yMin, yMax)
@@ -280,6 +282,7 @@ void BiomeUtils::init()
     setFeatureHeightBounds(NONE, 0, 0);
     setFeatureHeightBounds(SPHERE, -6, 6);
     setFeatureHeightBounds(PURPLE_MUSHROOM, -2, 80);
+    setFeatureHeightBounds(RAFFLESIA, -2, 20); // TODO: revisit
 
 #undef setFeatureHeightBounds
 }
