@@ -277,7 +277,7 @@ void BiomeUtils::init()
 #define setFeatureHeightBounds(feature, yMin, yMax) featureHeightBounds[(int)Feature::feature] = ivec2(yMin, yMax)
 
     setFeatureHeightBounds(NONE, 0, 0);
-    setFeatureHeightBounds(SPHERE, -6, -6);
+    setFeatureHeightBounds(SPHERE, -6, 6);
     setFeatureHeightBounds(PURPLE_MUSHROOM, -2, 80);
 
 #undef setFeatureHeightBounds

@@ -32,6 +32,17 @@ __device__ void deCasteljau(vec3* ctrlPts, vec3* spline)
     }
 }
 
+__device__ void calculateLineParams(const vec3& pos, const vec3& linePos1, const vec3& linePos2, float* ratio, float* distFromLine)
+{
+    vec3 vecLine = linePos2 - linePos1;
+
+    vec3 pointPos = pos - linePos1;
+    *ratio = dot(pointPos, vecLine) / dot(vecLine, vecLine);
+
+    vec3 pointLine = vecLine * (*ratio);
+    *distFromLine = distance(pointPos, pointLine);
+}
+
 // block should not change if return value is false
 __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlockPos, Block* block)
 {
@@ -75,6 +86,7 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
         vec3 ctrlPts[numCtrlPts];
         constexpr float lastCtrlPtIndex = numCtrlPts - 1.f;
         ctrlPts[0] = vec3(0);
+        #pragma unroll
         for (int i = 1; i < numCtrlPts; ++i)
         {
             vec3 offset = vec3(u11(rng), u11(rng), u11(rng)) * vec3(6, 2, 6);
@@ -108,13 +120,9 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
                 pos2 = pos1 + normalize(pos1 - spline[i - 1]) * (3.f + u01(rng) * 1.5f);
             }
 
-            vec3 vecLine = pos2 - pos1;
-
-            vec3 pointPos = pos - pos1;
-            float ratio = dot(pointPos, vecLine) / dot(vecLine, vecLine);
-
-            vec3 pointLine = vecLine * ratio;
-            vec3 vecPointPos = pointPos - pointLine;
+            float ratio;
+            float distFromLine;
+            calculateLineParams(pos, pos1, pos2, &ratio, &distFromLine);
 
             float radius;
             Block potentialBlock;
@@ -129,7 +137,7 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
             {
                 radius = (7.f * u01(rng) + 12.f) * mix(0.8f, 1.2f, (height - 33.f) / 40.f);
 
-                if (length(vecPointPos) < radius - 1.8f && ratio < 0.5f && universalScale < 1.4f)
+                if (distFromLine < radius - 1.8f && ratio < 0.5f && universalScale < 1.4f)
                 {
                     potentialBlock = Block::MUSHROOM_UNDERSIDE;
                 }
@@ -139,7 +147,7 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
                 }
             }
 
-            if ((ratio >= 0 && ratio <= 1 && length(vecPointPos) <= radius) // actually in the line
+            if ((ratio >= 0 && ratio <= 1 && distFromLine <= radius) // actually in the line
                 || (i < lastSplineIndex && ratio < 0 && distance(pos, pos1) < radius) // start cap
                 || (i < (splineSize - 2) && ratio > 1 && distance(pos, pos2) < radius)) // end cap
             {
