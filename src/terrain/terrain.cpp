@@ -689,9 +689,9 @@ ivec2 Terrain::getCurrentChunkPos() const
     return this->currentChunkPos;
 }
 
-void Terrain::setCurrentChunkPos(ivec2 newCurrentChunk)
+void Terrain::setCurrentChunkPos(ivec2 newCurrentChunkPos)
 {
-    this->currentChunkPos = newCurrentChunk;
+    this->currentChunkPos = newCurrentChunkPos;
 }
 
 Chunk* Terrain::debugGetCurrentChunk()

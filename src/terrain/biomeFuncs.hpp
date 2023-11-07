@@ -4,8 +4,7 @@
 #include "cuda/cudaUtils.hpp"
 #include <glm/gtc/noise.hpp>
 #include <unordered_map>
-
-#define BIOME_OVERRIDE Biome::JUNGLE
+#include "defines.hpp"
 
 #pragma region utility functions
 

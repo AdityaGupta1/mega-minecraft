@@ -417,7 +417,7 @@ void Renderer::draw(float deltaTime, bool viewMatChanged, bool windowSizeChanged
     glCullFace(GL_FRONT);
 
     const auto terrainCurrentChunkPos = terrain->getCurrentChunkPos();
-    const vec3 sunMoonViewCenterPos = vec3(terrainCurrentChunkPos.x, 0, terrainCurrentChunkPos.y);
+    const vec3 sunMoonViewCenterPos = vec3(terrainCurrentChunkPos.x * 16, 0, terrainCurrentChunkPos.y * 16);
     vec3 sunMoonDir = sunDir.w > 0 ? vec3(sunDir) : vec3(moonDir);
     const mat4 sunViewMat = glm::lookAt(sunMoonViewCenterPos + sunMoonDir, sunMoonViewCenterPos, vec3(0, 1, 0));
     const mat4 sunViewProjMat = sunProjMat * sunViewMat;

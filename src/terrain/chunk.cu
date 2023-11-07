@@ -156,8 +156,8 @@ __global__ void kernGenerateHeightfield(
     {
         Biome biome = (Biome)i;
 
-#ifdef BIOME_OVERRIDE
-        float weight = (biome == BIOME_OVERRIDE) ? 1.f : 0.f;
+#ifdef DEBUG_BIOME_OVERRIDE
+        float weight = (biome == DEBUG_BIOME_OVERRIDE) ? 1.f : 0.f;
 #else
         float weight = getBiomeWeight(biome, biomeNoise);
 #endif
@@ -356,7 +356,7 @@ __global__ void kernGenerateLayers(
     for (int layerIdx = numStratifiedMaterials - 1; layerIdx >= numForwardMaterials; --layerIdx)
     {
         height += getStratifiedMaterialThickness(layerIdx, totalMaterialWeights[layerIdx], worldPos);
-        columnLayers[layerIdx] = height; // actual height is calculated by in kernFill by subtracting this value from start height of eroded layers
+        columnLayers[layerIdx] = height; // actual height is calculated by in Chunk::fixBackwardStratifiedLayers() subtracting this value from start height of eroded layers
     }
 
     height = maxHeight;
@@ -623,10 +623,27 @@ void Chunk::erodeZone(Zone* zonePtr, float* dev_gatheredLayers, float* dev_accum
 
     for (const auto& chunkPtr : zonePtr->chunks)
     {
+        chunkPtr->fixBackwardStratifiedLayers();
         chunkPtr->setState(ChunkState::NEEDS_FEATURE_PLACEMENTS);
     }
 
     CudaUtils::checkCUDAError("Chunk::erodeZone() failed");
+}
+
+void Chunk::fixBackwardStratifiedLayers()
+{
+    for (int z = 0; z < 16; ++z)
+    {
+        for (int x = 0; x < 16; ++x)
+        {
+            auto columnLayers = this->layers[posTo2dIndex(x, z)];
+            const float erodedStartHeight = columnLayers[numStratifiedMaterials];
+            for (int layerIdx = numForwardMaterials; layerIdx < numStratifiedMaterials; ++layerIdx)
+            {
+                columnLayers[layerIdx] = erodedStartHeight - columnLayers[layerIdx];
+            }
+        }
+    }
 }
 
 #pragma endregion
@@ -742,14 +759,6 @@ __global__ void kernFill(
             const float* columnBiomeWeights = biomeWeights + numBiomes * idx2d;
             shared_biomeWeights[biomeWeightIdx] = columnBiomeWeights[biomeWeightIdx];
         }
-    }
-
-    __syncthreads();
-
-    // calculate actual starting height of backward stratified materials
-    if (y >= numForwardMaterials && y < numStratifiedMaterials)
-    {
-        shared_layersAndHeight[y] = shared_layersAndHeight[numStratifiedMaterials] - shared_layersAndHeight[y];
     }
 
     __syncthreads();

@@ -90,6 +90,8 @@ private:
 
     static void otherChunkGatherHeightfield(Chunk* chunkPtr, Chunk* const (&neighborChunks)[5][5], int centerX, int centerZ);
 
+    void fixBackwardStratifiedLayers();
+
     static void otherChunkGatherFeaturePlacements(Chunk* chunkPtr, Chunk* const (&neighborChunks)[9][9], int centerX, int centerZ);
 
 public:
