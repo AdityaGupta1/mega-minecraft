@@ -353,7 +353,7 @@ void Renderer::resizeTextures()
 }
 
 static constexpr float fovNormal = glm::radians(52.f);
-static constexpr float fovZoomed = glm::radians(15.f);
+static constexpr float fovZoomed = glm::radians(20.f);
 
 void Renderer::setProjMat()
 {
