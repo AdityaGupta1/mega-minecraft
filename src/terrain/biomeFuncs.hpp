@@ -120,23 +120,40 @@ __device__ float getHeight(Biome biome, vec2 pos)
     switch (biome)
     {
     case Biome::JUNGLE:
-        return 139.f + 8.f * fbm(pos * 0.0120f);
+    {
+        float hillsNoise = (glm::simplex(pos * 0.0030f) + 0.5f) * 25.f;
+        return 139.f + 8.f * fbm(pos * 0.0120f) + hillsNoise;
+    }
     case Biome::RED_DESERT:
+    {
         return 137.f + 13.f * fbm(pos * 0.0075f);
+    }
     case Biome::PURPLE_MUSHROOMS:
+    {
         return 136.f + 9.f * fbm(pos * 0.0140f);
+    }
     case Biome::CRYSTALS:
+    {
         return 129.f + 7.f * fbm(pos * 0.0200f);
+    }
     case Biome::OASIS:
+    {
         return 134.f + 9.f * fbm(pos * 0.0120f);
+    }
     case Biome::DESERT:
+    {
         return 134.f + 6.f * fbm(pos * 0.0110f);
+    }
     case Biome::PLAINS:
+    {
         return 144.f + 8.f * fbm(pos * 0.0080f);
+    }
     case Biome::MOUNTAINS:
+    {
         float noise = pow(abs(fbm(pos * 0.0035f)) + 0.05f, 2.f);
         noise += ((fbm(pos * 0.0050f) - 0.5f) * 2.f) * 0.05f;
         return 165.f + (140.f * (noise - 0.15f)) + (noise * (20.f * fbm(pos * 0.0350f)));
+    }
     }
 }
 
