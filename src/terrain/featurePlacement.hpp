@@ -4,8 +4,33 @@
 #include "biome.hpp"
 #include "util/rng.hpp"
 
-#define CONTROL_POINTS 5
-#define SPLINE_SIZE 7
+template<int numCtrlPts, int splineSize>
+__device__ void deCasteljau(vec3* ctrlPts, vec3* spline)
+{
+    for (int i = 0; i < splineSize; ++i)
+    {
+        vec3 ctrlPtsCopy[numCtrlPts];
+
+        for (int j = 0; j < numCtrlPts; ++j)
+        {
+            ctrlPtsCopy[j] = ctrlPts[j];
+        }
+
+        int points = numCtrlPts;
+        float t = float(i) / (splineSize - 1);
+        while (points > 1)
+        {
+            for (int j = 0; j < points - 1; ++j)
+            {
+                ctrlPtsCopy[j] = mix(ctrlPtsCopy[j], ctrlPtsCopy[j + 1], t);
+            }
+
+            --points;
+        }
+
+        spline[i] = ctrlPtsCopy[0];
+    }
+}
 
 // block should not change if return value is false
 __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlockPos, Block* block)
@@ -43,47 +68,28 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
             return false;
         }
 
+        constexpr int numCtrlPts = 5;
+        constexpr int splineSize = 7;
+
         vec3 endPoint = vec3(0, height, 0);
-        vec3 ctrlPts[CONTROL_POINTS];
-        const float lastCtrlPtIndex = CONTROL_POINTS - 1;
+        vec3 ctrlPts[numCtrlPts];
+        constexpr float lastCtrlPtIndex = numCtrlPts - 1.f;
         ctrlPts[0] = vec3(0);
-        for (int i = 1; i < CONTROL_POINTS; ++i)
+        for (int i = 1; i < numCtrlPts; ++i)
         {
             vec3 offset = vec3(u11(rng), u11(rng), u11(rng)) * vec3(6, 2, 6);
-            if (i == CONTROL_POINTS - 1)
+            if (i == numCtrlPts - 1)
             {
                 offset *= 0.6f;
             }
             ctrlPts[i] = (endPoint * (i / lastCtrlPtIndex)) + offset;
         }
 
-        const int lastSplineIndex = SPLINE_SIZE - 1;
-        vec3 spline[SPLINE_SIZE];
-        for (int i = 0; i < SPLINE_SIZE; ++i)
-        {
-            vec3 ctrlPtsCopy[CONTROL_POINTS];
+        constexpr int lastSplineIndex = splineSize - 1;
+        vec3 spline[splineSize];
+        deCasteljau<numCtrlPts, splineSize>(ctrlPts, spline);
 
-            for (int j = 0; j < CONTROL_POINTS; ++j)
-            {
-                ctrlPtsCopy[j] = ctrlPts[j];
-            }
-
-            int points = CONTROL_POINTS;
-            float t = float(i) / lastSplineIndex;
-            while (points > 1)
-            {
-                for (int j = 0; j < points - 1; ++j)
-                {
-                    ctrlPtsCopy[j] = mix(ctrlPtsCopy[j], ctrlPtsCopy[j + 1], t);
-                }
-
-                --points;
-            }
-
-            spline[i] = ctrlPtsCopy[0];
-        }
-
-        for (int i = 0; i < SPLINE_SIZE; ++i)
+        for (int i = 0; i < splineSize; ++i)
         {
             vec3 pos1 = spline[i];
             vec3 pos2;
@@ -133,9 +139,9 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
                 }
             }
 
-            if ((ratio >= 0 && ratio <= 1 && length(vecPointPos) <= radius) 
-                || (i < lastSplineIndex && ratio < 0 && distance(pos, pos1) < radius) 
-                || (i < (SPLINE_SIZE - 2) && ratio > 1 && distance(pos, pos2) < radius))
+            if ((ratio >= 0 && ratio <= 1 && length(vecPointPos) <= radius) // actually in the line
+                || (i < lastSplineIndex && ratio < 0 && distance(pos, pos1) < radius) // start cap
+                || (i < (splineSize - 2) && ratio > 1 && distance(pos, pos2) < radius)) // end cap
             {
                 *block = potentialBlock;
                 return true;
