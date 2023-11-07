@@ -200,6 +200,26 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
     case GLFW_KEY_Q:
         playerMovement.y -= actionToInt(action);
         break;
+    case GLFW_KEY_Z:
+        if (action == GLFW_RELEASE)
+            player->toggleCamMode();
+        break;
+    case GLFW_KEY_RIGHT:
+        if (action == GLFW_PRESS || action == GLFW_REPEAT)
+            player->rotate(-0.1f, 0, true);
+        break;
+    case GLFW_KEY_LEFT:
+        if (action == GLFW_PRESS || action == GLFW_REPEAT)
+            player->rotate(0.1f, 0, true);
+        break;
+    case GLFW_KEY_UP:
+        if (action == GLFW_PRESS || action == GLFW_REPEAT)
+            player->rotate(0, 0.1f, true);
+        break;
+    case GLFW_KEY_DOWN:
+        if (action == GLFW_PRESS || action == GLFW_REPEAT)
+            player->rotate(0, -0.1f, true);
+        break;
     case GLFW_KEY_LEFT_SHIFT:
         if (action == GLFW_PRESS)
         {
@@ -258,7 +278,7 @@ void mousePositionCallback(GLFWwindow* window, double mouseX, double mouseY) {
 
     if (dTheta != 0 || dPhi != 0)
     {
-        player->rotate(dTheta, dPhi);
+        player->rotate(dTheta, dPhi, false);
     }
 
     glfwSetCursorPos(window, centerX, centerY);

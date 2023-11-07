@@ -60,9 +60,16 @@ void Player::move(vec3 input)
     camChanged = true;
 }
 
-void Player::rotate(float dTheta, float dPhi)
+void Player::rotate(float dTheta, float dPhi, bool fromKey)
 {
+    if (fromKey != keyCam)
+        return;
     phi = max(-1.565f, min(1.565f, phi + dPhi)); // slightly under pi/2 in both directions
     theta += dTheta;
     camChanged = true;
+}
+
+void Player::toggleCamMode()
+{
+    keyCam = !keyCam;
 }
