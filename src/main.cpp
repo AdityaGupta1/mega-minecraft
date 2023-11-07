@@ -156,6 +156,8 @@ glm::ivec3 playerMovement = glm::ivec3(0);
 glm::vec3 playerMovementSensitivity = glm::vec3(10.0f, 8.0f, 10.0f);
 float playerMovementMultiplier = 1.f;
 
+bool freeCam = false;
+
 int actionToInt(int action)
 {
     switch (action)
@@ -238,6 +240,11 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
             terrain->debugPrintCurrentColumnLayers(vec2(playerPos.x, playerPos.z));
         }
         break;
+    case GLFW_KEY_F:
+        if (action == GLFW_RELEASE)
+        {
+            freeCam = !freeCam;
+        }
     }
 }
 
@@ -290,7 +297,10 @@ void tick(float deltaTime)
     bool viewMatChanged;
     player->tick(&viewMatChanged);
 
-    terrain->setCurrentChunkPos(Utils::worldPosToChunkPos(player->getPos()));
+    if (!freeCam)
+    {
+        terrain->setCurrentChunkPos(Utils::worldPosToChunkPos(player->getPos()));
+    }
     terrain->tick();
 
     renderer->draw(deltaTime, viewMatChanged, windowSizeChanged);

@@ -75,6 +75,7 @@ public:
 
     void draw(const ShaderProgram& prog, const Player* player);
 
+    ivec2 getCurrentChunkPos() const;
     void setCurrentChunkPos(ivec2 newCurrentChunkPos);
 
     Chunk* debugGetCurrentChunk();

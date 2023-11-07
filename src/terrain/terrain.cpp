@@ -666,6 +666,11 @@ void Terrain::draw(const ShaderProgram& prog, const Player* player)
     }
 }
 
+ivec2 Terrain::getCurrentChunkPos() const
+{
+    return this->currentChunkPos;
+}
+
 void Terrain::setCurrentChunkPos(ivec2 newCurrentChunk)
 {
     this->currentChunkPos = newCurrentChunk;
