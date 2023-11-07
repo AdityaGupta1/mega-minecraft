@@ -67,12 +67,13 @@ enum class Feature : unsigned char
     NONE,
     SPHERE,
     PURPLE_MUSHROOM,
-    RAFFLESIA
-    // JUNGLE_TREE
-    // PALM_TREE
-    // POND (not sure if this should go here or somewhere else)
-    // CACTUS
-    // CRYSTAL
+    RAFFLESIA,
+    SMALL_JUNGLE_TREE
+    //LARGE_JUNGLE_TREE
+    //PALM_TREE
+    //POND (not sure if this should go here or somewhere else)
+    //CACTUS
+    //CRYSTAL
 };
 
 static constexpr int numFeatures = (int)Feature::PURPLE_MUSHROOM + 1;

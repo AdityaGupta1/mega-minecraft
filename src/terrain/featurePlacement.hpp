@@ -189,6 +189,12 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
         return false;
     }
     case Feature::RAFFLESIA:
+    {
+        if (pos.y > 10.f || length(pos) > 15.f)
+        {
+            return false;
+        }
+
         pos *= 0.8f;
 
         vec3 centerSdfPos = pos;
@@ -227,6 +233,29 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
             if (sdCappedCylinder(petalPos, 2.5f, 0.5f) < 0)
             {
                 *block = Block::RAFFLESIA_PETAL;
+                return true;
+            }
+        }
+
+        return false;
+    }
+    case Feature::SMALL_JUNGLE_TREE:
+        float height = 8.f + 4.f * u01(rng);
+
+        if (pos.y < height && ivec2(floor(vec2(pos.x, pos.z))) == ivec2(0))
+        {
+            *block = Block::JUNGLE_LOG;
+            return true;
+        }
+
+        float leavesY = pos.y - (height - 1.f);
+        float leavesRadiusMultiplier = 0.8f + 1.2f * u01(rng);
+        if (leavesY > 0.f && leavesY < 3.f)
+        {
+            float leavesRadius = mix(3.f, 1.8f, leavesY / 3.f) * leavesRadiusMultiplier;
+            if (length(vec2(pos.x, pos.z)) < leavesRadius)
+            {
+                *block = Block::JUNGLE_LEAVES;
                 return true;
             }
         }
