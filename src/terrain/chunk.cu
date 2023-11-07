@@ -6,8 +6,7 @@
 #include "biomeFuncs.hpp"
 #include "featurePlacement.hpp"
 #include "util/rng.hpp"
-
-#define DO_EROSION 1
+#include "defines.hpp"
 
 Chunk::Chunk(ivec2 worldChunkPos)
     : worldChunkPos(worldChunkPos), worldBlockPos(worldChunkPos.x * 16, 0, worldChunkPos.y * 16)
@@ -960,7 +959,14 @@ void Chunk::createVBOs()
 
                         neighborBlock = neighborPosChunk->blocks[posTo3dIndex(neighborPos)];
 
-                        if (neighborBlock != Block::AIR) // TODO: this will get more complicated with transparent and non-cube blocks
+                        const auto thisTrans = thisBlockData.transparency;
+                        const auto neighborTrans = BlockUtils::getBlockData(neighborBlock).transparency;
+
+                        // OPAQUE displays unless neighbor is OPAQUE
+                        // SEMI_TRANSPARENT displays no matter what
+                        // TRANSPARENT (except AIR) displays unless neighbor is TRANSPARENT (may need to revise this if two different transparent blocks are adjacent)
+                        // X_SHAPED displays no matter what
+                        if (thisTrans == neighborTrans && (thisTrans == TransparencyType::OPAQUE || thisTrans == TransparencyType::TRANSPARENT))
                         {
                             continue;
                         }
