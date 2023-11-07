@@ -240,6 +240,7 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
         return false;
     }
     case Feature::SMALL_JUNGLE_TREE:
+    {
         float height = 8.f + 4.f * u01(rng);
 
         if (pos.y < height && ivec2(floor(vec2(pos.x, pos.z))) == ivec2(0))
@@ -261,5 +262,6 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
         }
 
         return false;
+    }
     }
 }
