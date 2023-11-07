@@ -43,9 +43,10 @@ private:
     std::queue<Chunk*> chunksToGenerateHeightfield;
     std::queue<Chunk*> chunksToGatherHeightfield;
     std::queue<Chunk*> chunksToGenerateLayers;
-    std::queue<Chunk*> chunksToGatherFeaturePlacements;
     std::unordered_set<Zone*> zonesToTryErosion;
     std::queue<Zone*> zonesToErode;
+    std::queue<Chunk*> chunksToGenerateFeaturePlacements;
+    std::queue<Chunk*> chunksToGatherFeaturePlacements;
     std::queue<Chunk*> chunksToFill;
     std::queue<Chunk*> chunksToCreateAndBufferVbos;
     

@@ -250,10 +250,10 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
         }
 
         float leavesY = pos.y - (height - 1.f);
-        float leavesRadiusMultiplier = 0.8f + 1.2f * u01(rng);
+        float leavesRadiusMultiplier = 0.8f + 0.4f * u01(rng);
         if (leavesY > 0.f && leavesY < 3.f)
         {
-            float leavesRadius = mix(3.f, 1.8f, leavesY / 3.f) * leavesRadiusMultiplier;
+            float leavesRadius = mix(4.0f, 2.0f, leavesY / 3.f) * leavesRadiusMultiplier;
             if (length(vec2(pos.x, pos.z)) < leavesRadius)
             {
                 *block = Block::JUNGLE_LEAVES;

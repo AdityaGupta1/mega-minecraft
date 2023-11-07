@@ -24,12 +24,13 @@ static constexpr int chunkMaxGenRadius = chunkVbosGenRadius + ((ZONE_SIZE * 5) /
 // ================================================================================
 static constexpr int totalActionTime = 500;
 // ================================================================================
-static constexpr int actionTimeGenerateHeightfield        = 4;
+static constexpr int actionTimeGenerateHeightfield        = 6;
 static constexpr int actionTimeGatherHeightfield          = 2;
 static constexpr int actionTimeGenerateLayers             = 6;
 static constexpr int actionTimeErodeZone                  = totalActionTime;
-static constexpr int actionTimeGatherFeaturePlacements    = 2;
-static constexpr int actionTimeFill                       = 4;
+static constexpr int actionTimeGenerateFeaturePlacements  = 2;
+static constexpr int actionTimeGatherFeaturePlacements    = 4;
+static constexpr int actionTimeFill                       = 10;
 static constexpr int actionTimeCreateAndBufferVbos        = totalActionTime / 4;
 // ================================================================================
 
@@ -257,6 +258,10 @@ void Terrain::updateChunk(int dx, int dz)
     case ChunkState::NEEDS_LAYERS:
         chunkPtr->setNotReadyForQueue();
         chunksToGenerateLayers.push(chunkPtr);
+        return;
+    case ChunkState::NEEDS_FEATURE_PLACEMENTS:
+        chunkPtr->setNotReadyForQueue();
+        chunksToGenerateFeaturePlacements.push(chunkPtr);
         return;
     case ChunkState::NEEDS_GATHER_FEATURE_PLACEMENTS:
         chunkPtr->setNotReadyForQueue();
@@ -516,6 +521,19 @@ void Terrain::tick()
         actionTimeLeft -= actionTimeGatherFeaturePlacements;
     }
 
+    while (!chunksToGenerateFeaturePlacements.empty() && actionTimeLeft >= actionTimeGenerateFeaturePlacements)
+    {
+        needsUpdateChunks = true;
+
+        auto chunkPtr = chunksToGenerateFeaturePlacements.front();
+        chunksToGenerateFeaturePlacements.pop();
+
+        chunkPtr->generateFeaturePlacements();
+        chunkPtr->setState(ChunkState::NEEDS_GATHER_FEATURE_PLACEMENTS);
+
+        actionTimeLeft -= actionTimeGenerateFeaturePlacements;
+    }
+
     while (!zonesToErode.empty() && actionTimeLeft >= actionTimeErodeZone)
     {
         needsUpdateChunks = true;
@@ -599,7 +617,8 @@ void Terrain::tick()
 #if DEBUG_TIME_CHUNK_FILL
     if (!finishedTiming)
     {
-        bool areQueuesEmpty = chunksToGenerateHeightfield.empty() && chunksToGenerateLayers.empty() && chunksToGatherFeaturePlacements.empty()
+        bool areQueuesEmpty = chunksToGenerateHeightfield.empty() && chunksToGenerateLayers.empty() && zonesToTryErosion.empty()
+            && zonesToErode.empty() && chunksToGenerateFeaturePlacements.empty() && chunksToGatherFeaturePlacements.empty()
             && chunksToFill.empty() && chunksToCreateAndBufferVbos.empty();
 
         if (!startedTiming && !areQueuesEmpty)

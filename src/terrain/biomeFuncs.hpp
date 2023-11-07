@@ -290,10 +290,14 @@ void BiomeUtils::init()
 
     cudaMemcpyToSymbol(dev_dirVecs2d, DirectionEnums::dirVecs2d.data(), 8 * sizeof(ivec2));
 
-    biomeFeatureGens[(int)Biome::JUNGLE] = { {Feature::RAFFLESIA, 0.0002f} };
-    biomeFeatureGens[(int)Biome::JUNGLE] = { {Feature::SMALL_JUNGLE_TREE, 0.0020f} };
+    biomeFeatureGens[(int)Biome::JUNGLE] = { 
+        {Feature::RAFFLESIA, 0.0002f},
+        {Feature::SMALL_JUNGLE_TREE, 0.0020f}
+    };
 
-    biomeFeatureGens[(int)Biome::PURPLE_MUSHROOMS] = { {Feature::PURPLE_MUSHROOM, 0.0020f} };
+    biomeFeatureGens[(int)Biome::PURPLE_MUSHROOMS] = {
+        {Feature::PURPLE_MUSHROOM, 0.0020f}
+    };
 
 #define setFeatureHeightBounds(feature, yMin, yMax) featureHeightBounds[(int)Feature::feature] = ivec2(yMin, yMax)
 

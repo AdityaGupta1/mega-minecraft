@@ -187,10 +187,6 @@ void Chunk::generateHeightfield(
     cudaMemcpyAsync(this->heightfield.data(), dev_heightfield, 256 * sizeof(float), cudaMemcpyDeviceToHost, stream);
     cudaMemcpyAsync(this->biomeWeights.data(), dev_biomeWeights, 256 * numBiomes * sizeof(float), cudaMemcpyDeviceToHost, stream);
 
-    cudaStreamSynchronize(stream); // used here so cudaMemcpyAsync to this->heightfield finishes before generating own feature placements
-
-    generateOwnFeaturePlacements(); // TODO: maybe move to a separate step to allow for placing features based on eroded layers
-
     CudaUtils::checkCUDAError("Chunk::generateHeightfield() failed");
 }
 
@@ -627,7 +623,7 @@ void Chunk::erodeZone(Zone* zonePtr, float* dev_gatheredLayers, float* dev_accum
 
     for (const auto& chunkPtr : zonePtr->chunks)
     {
-        chunkPtr->setState(ChunkState::NEEDS_GATHER_FEATURE_PLACEMENTS);
+        chunkPtr->setState(ChunkState::NEEDS_FEATURE_PLACEMENTS);
     }
 
     CudaUtils::checkCUDAError("Chunk::erodeZone() failed");
@@ -637,7 +633,7 @@ void Chunk::erodeZone(Zone* zonePtr, float* dev_gatheredLayers, float* dev_accum
 
 #pragma region feature placements
 
-void Chunk::generateOwnFeaturePlacements()
+void Chunk::generateFeaturePlacements()
 {
     for (int localZ = 0; localZ < 16; ++localZ)
     {

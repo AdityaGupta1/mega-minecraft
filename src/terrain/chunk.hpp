@@ -22,7 +22,7 @@ enum class ChunkState : unsigned char
     NEEDS_LAYERS,
     HAS_LAYERS,
     NEEDS_EROSION,
-    //NEEDS_FEATURE_PLACEMENTS,
+    NEEDS_FEATURE_PLACEMENTS,
     NEEDS_GATHER_FEATURE_PLACEMENTS,
     READY_TO_FILL, // this and 5x5 neighborhood all have feature placements
     FILLED,
@@ -40,8 +40,6 @@ private:
 
     std::vector<FeaturePlacement> featurePlacements;
     std::vector<FeaturePlacement> gatheredFeaturePlacements;
-
-    void generateOwnFeaturePlacements();
 
 public:
     const ivec2 worldChunkPos; // world space pos in terms of chunks (e.g. (3, -4) chunk pos = (48, -64) block pos)
@@ -101,6 +99,7 @@ public:
 
     static void erodeZone(Zone* zonePtr, float* dev_gatheredLayers, float* dev_accumulatedHeights, cudaStream_t stream);
 
+    void generateFeaturePlacements();
     void gatherFeaturePlacements();
 
     void fill(Block* dev_blocks, float* dev_heightfield, float* dev_layers, float* dev_biomeWeights, FeaturePlacement* dev_featurePlacements, cudaStream_t stream);
