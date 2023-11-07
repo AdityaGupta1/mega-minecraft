@@ -8,6 +8,7 @@
 #include "cuda/cudaUtils.hpp"
 #include "player/player.hpp"
 #include "terrain/terrain.hpp"
+#include "util/common.h"
 
 class OptixRenderer
 {
