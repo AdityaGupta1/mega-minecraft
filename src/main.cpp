@@ -213,7 +213,8 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
     case GLFW_KEY_O:
         if (action == GLFW_RELEASE)
         {
-            terrain->debugPrintCurrentChunkState();
+            const vec3 playerPos = player->getPos();
+            terrain->debugPrintCurrentChunkState(vec2(playerPos.x, playerPos.z));
         }
         break;
     case GLFW_KEY_L:

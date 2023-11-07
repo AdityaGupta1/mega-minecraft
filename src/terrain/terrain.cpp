@@ -75,7 +75,7 @@ void Terrain::initCuda()
     for (int i = 0; i < numDevBlocks; ++i)
     {
         cudaMalloc((void**)&dev_blocks[i], 98304 * sizeof(Block));
-        cudaMalloc((void**)&dev_featurePlacements[i], MAX_FEATURES_PER_CHUNK * sizeof(FeaturePlacement));
+        cudaMalloc((void**)&dev_featurePlacements[i], MAX_GATHERED_FEATURES_PER_CHUNK * sizeof(FeaturePlacement));
     }
 
     for (int i = 0; i < numDevHeightfields; ++i)
@@ -138,6 +138,11 @@ void Terrain::freeCuda()
     }
 
     CudaUtils::checkCUDAError("cudaStreamDestroy failed");
+}
+
+ivec2 chunkPosFromPlayerPos(vec2 playerPos)
+{
+    return ivec2(glm::floor(playerPos / 16.f));
 }
 
 ivec2 zonePosFromChunkPos(ivec2 chunkPos)
@@ -694,16 +699,17 @@ void Terrain::setCurrentChunkPos(ivec2 newCurrentChunkPos)
     this->currentChunkPos = newCurrentChunkPos;
 }
 
-Chunk* Terrain::debugGetCurrentChunk()
+Chunk* Terrain::debugGetCurrentChunk(vec2 playerPos)
 {
-    ivec2 zonePos = zonePosFromChunkPos(currentChunkPos);
+    ivec2 chunkPos = chunkPosFromPlayerPos(playerPos);
+    ivec2 zonePos = zonePosFromChunkPos(chunkPos);
     const auto& zonePtr = zones[zonePos];
-    return zonePtr->chunks[localChunkPosToIdx(currentChunkPos - zonePtr->worldChunkPos)].get();
+    return zonePtr->chunks[localChunkPosToIdx(chunkPos - zonePtr->worldChunkPos)].get();
 }
 
-void Terrain::debugPrintCurrentChunkState()
+void Terrain::debugPrintCurrentChunkState(vec2 playerPos)
 {
-    const auto chunkPtr = debugGetCurrentChunk();
+    const auto chunkPtr = debugGetCurrentChunk(playerPos);
     bool isInDrawableChunks = drawableChunks.find(chunkPtr) != drawableChunks.end();
 
     printf("chunk (%d, %d) state: %d\n", currentChunkPos.x, currentChunkPos.y, (int)chunkPtr->getState());
@@ -713,7 +719,7 @@ void Terrain::debugPrintCurrentChunkState()
 
 void Terrain::debugPrintCurrentColumnLayers(vec2 playerPos)
 {
-    const auto chunkPtr = debugGetCurrentChunk();
+    const auto chunkPtr = debugGetCurrentChunk(playerPos);
     ivec2 blockPos = ivec2(floor(playerPos)) - ivec2(chunkPtr->worldBlockPos.x, chunkPtr->worldBlockPos.z);
     int idx = blockPos.x + 16 * blockPos.y;
     const auto& layers = chunkPtr->layers[idx];

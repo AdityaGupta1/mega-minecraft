@@ -6,12 +6,9 @@
 #define DEBUG_TIME_CHUNK_FILL 0
 #define DEBUG_START_IN_FREE_CAM_MODE 1
 
-//#define DEBUG_BIOME_OVERRIDE Biome::DESERT
+#define DEBUG_SKIP_EROSION 0
 
-// ============================================================
-// FEATURE TOGGLES
-// ============================================================
-#define DO_EROSION 1
+#define DEBUG_BIOME_OVERRIDE Biome::JUNGLE
 
 // ============================================================
 // MATH CONSTANTS

@@ -212,7 +212,7 @@ void Chunk::otherChunkGatherHeightfield(Chunk* chunkPtr, Chunk* const (&neighbor
             // edge
             if (offsetZ == 0)
             {
-                // +/- x
+                // +/- localX
                 int xIn, xOut;
                 calculateEdgeIndices(offsetX, xIn, xOut);
 
@@ -223,7 +223,7 @@ void Chunk::otherChunkGatherHeightfield(Chunk* chunkPtr, Chunk* const (&neighbor
             }
             else
             {
-                // +/- z
+                // +/- localZ
                 int zIn, zOut;
                 calculateEdgeIndices(offsetZ, zIn, zOut);
 
@@ -567,7 +567,7 @@ void copyLayers(Zone* zonePtr, float* gatheredLayers, bool toGatheredLayers)
 
 void Chunk::erodeZone(Zone* zonePtr, float* dev_gatheredLayers, float* dev_accumulatedHeights, cudaStream_t stream)
 {
-#if DO_EROSION
+#if !DEBUG_SKIP_EROSION
     float* gatheredLayers = new float[gatheredLayersBaseSize];
     copyLayers(zonePtr, gatheredLayers, true);
     zonePtr->gatheredChunks.clear();
@@ -632,11 +632,11 @@ void Chunk::erodeZone(Zone* zonePtr, float* dev_gatheredLayers, float* dev_accum
 
 void Chunk::fixBackwardStratifiedLayers()
 {
-    for (int z = 0; z < 16; ++z)
+    for (int localZ = 0; localZ < 16; ++localZ)
     {
-        for (int x = 0; x < 16; ++x)
+        for (int localX = 0; localX < 16; ++localX)
         {
-            auto columnLayers = this->layers[posTo2dIndex(x, z)];
+            auto columnLayers = this->layers[posTo2dIndex(localX, localZ)];
             const float erodedStartHeight = columnLayers[numStratifiedMaterials];
             for (int layerIdx = numForwardMaterials; layerIdx < numStratifiedMaterials; ++layerIdx)
             {
@@ -667,11 +667,50 @@ void Chunk::generateFeaturePlacements()
             Biome biome = getRandomBiome(columnBiomeWeights, u01(rng));
             const auto& featureGens = BiomeUtils::getBiomeFeatureGens(biome);
 
+            const auto columnLayers = this->layers[idx2d];
+            Material topLayerMaterial;
+            float topLayerThickness;
+
+            const float lastLayerThickness = this->heightfield[idx2d] - columnLayers[numMaterials - 1];
+            if (lastLayerThickness > 0)
+            {
+                topLayerMaterial = (Material)(numMaterials - 1);
+                topLayerThickness = lastLayerThickness;
+            }
+            else
+            {
+                for (int layerIdx = numMaterials - 2; layerIdx >= 0; --layerIdx)
+                {
+                    const float thickness = columnLayers[layerIdx + 1] - columnLayers[layerIdx];
+                    if (thickness > 0)
+                    {
+                        topLayerMaterial = (Material)layerIdx;
+                        topLayerThickness = thickness;
+                        break;
+                    }
+                }
+            }
+
             Feature feature = Feature::NONE;
             float rand = u01(rng);
             for (int i = 0; i < featureGens.size(); ++i)
             {
                 const auto& featureGen = featureGens[i];
+
+                bool canPlace = false;
+                for (const auto& possibleTopLayer : featureGen.possibleTopLayers)
+                {
+                    if (topLayerMaterial == possibleTopLayer.material && topLayerThickness >= possibleTopLayer.minThickness)
+                    {
+                        canPlace = true;
+                        break;
+                    }
+                }
+
+                if (!canPlace)
+                {
+                    continue;
+                }
 
                 rand -= featureGen.chancePerBlock;
                 if (rand <= 0.f)
@@ -861,7 +900,7 @@ void Chunk::fill(
         allFeaturesHeightBounds[1] = max(allFeaturesHeightBounds[1], thisFeatureHeightBounds[1]);
     }
 
-    int numFeaturePlacements = this->gatheredFeaturePlacements.size();
+    int numFeaturePlacements = min((int)this->gatheredFeaturePlacements.size(), MAX_GATHERED_FEATURES_PER_CHUNK);
     cudaMemcpyAsync(dev_featurePlacements, this->gatheredFeaturePlacements.data(), numFeaturePlacements * sizeof(FeaturePlacement), cudaMemcpyHostToDevice, stream);
     this->gatheredFeaturePlacements.clear();
 

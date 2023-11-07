@@ -2,7 +2,7 @@
 
 #include "block.hpp"
 
-#define MAX_FEATURES_PER_CHUNK 256
+#define MAX_GATHERED_FEATURES_PER_CHUNK 1024
 
 enum class Biome : unsigned char
 {
@@ -78,10 +78,17 @@ enum class Feature : unsigned char
 
 static constexpr int numFeatures = (int)Feature::PURPLE_MUSHROOM + 1;
 
+struct FeatureGenTopLayer
+{
+    Material material;
+    float minThickness;
+};
+
 struct FeatureGen
 {
     Feature feature;
     float chancePerBlock;
+    std::vector<FeatureGenTopLayer> possibleTopLayers;
 };
 
 struct FeaturePlacement
