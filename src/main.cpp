@@ -1,22 +1,8 @@
-/**
-* @file      main.cpp
-* @brief     Example Boids flocking simulation for CIS 565
-* @authors   Liam Boone, Kai Ninomiya, Kangning (Gary) Li
-* @date      2013-2017
-* @copyright University of Pennsylvania
-*/
-
 #include "main.hpp"
 
 #include "terrain/block.hpp"
+#include "defines.hpp"
 
-// ================
-// Configuration
-// ================
-
-/**
-* C main function.
-*/
 int main(int argc, char* argv[]) {
   if (init(argc, argv)) {
     mainLoop();
@@ -26,16 +12,9 @@ int main(int argc, char* argv[]) {
   }
 }
 
-//-------------------------------
-//---------RUNTIME STUFF---------
-//-------------------------------
-
 std::string deviceName;
 GLFWwindow *window;
 
-/**
-* Initialization of CUDA and GLFW.
-*/
 bool init(int argc, char **argv) {
     cudaDeviceProp deviceProp;
     int gpuDevice = 0;
@@ -157,6 +136,12 @@ glm::ivec3 playerMovement = glm::ivec3(0);
 glm::vec3 playerMovementSensitivity = glm::vec3(10.0f, 8.0f, 10.0f);
 float playerMovementMultiplier = 1.f;
 
+#if DEBUG_START_IN_FREE_CAM_MODE
+bool freeCam = true;
+#else
+bool freeCam = false;
+#endif
+
 int actionToInt(int action)
 {
     switch (action)
@@ -259,6 +244,11 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
             terrain->debugPrintCurrentColumnLayers(vec2(playerPos.x, playerPos.z));
         }
         break;
+    case GLFW_KEY_F:
+        if (action == GLFW_RELEASE)
+        {
+            freeCam = !freeCam;
+        }
     }
 }
 
@@ -311,7 +301,10 @@ void tick(float deltaTime)
     bool viewMatChanged;
     player->tick(&viewMatChanged);
 
-    terrain->setCurrentChunkPos(Utils::worldPosToChunkPos(player->getPos()));
+    if (!freeCam)
+    {
+        terrain->setCurrentChunkPos(Utils::worldPosToChunkPos(player->getPos()));
+    }
     terrain->tick();
 
     renderer->draw(deltaTime, viewMatChanged, windowSizeChanged);

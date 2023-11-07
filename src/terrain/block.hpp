@@ -28,10 +28,17 @@ enum class Block : unsigned char
     CLAY,
     RED_SAND,
     RED_SANDSTONE,
-    MUD
+    MUD,
+    JUNGLE_GRASS,
+    RAFFLESIA_PETAL,
+    RAFFLESIA_CENTER,
+    RAFFLESIA_SPIKES,
+    RAFFLESIA_STEM,
+    JUNGLE_LOG,
+    JUNGLE_LEAVES
 };
 
-static constexpr int numBlocks = (int)Block::MUD + 1;
+static constexpr int numBlocks = (int)Block::JUNGLE_LEAVES + 1;
 
 struct SideUv
 {
@@ -83,10 +90,18 @@ struct BlockUvs
     }
 };
 
+enum class TransparencyType : unsigned char
+{
+    OPAQUE,
+    SEMI_TRANSPARENT, // e.g. leaves
+    TRANSPARENT, // e.g. glass
+    X_SHAPED // e.g. flowers, tall grass
+};
+
 struct BlockData
 {
     BlockUvs uvs;
-    // will later include things like transparent, x-shaped, etc.
+    TransparencyType transparency{ TransparencyType::OPAQUE };
 };
 
 namespace BlockUtils

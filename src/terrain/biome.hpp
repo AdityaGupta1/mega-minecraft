@@ -6,19 +6,14 @@
 
 enum class Biome : unsigned char
 {
-    PLAINS,
-    DESERT,
+    JUNGLE,
+    RED_DESERT,
     PURPLE_MUSHROOMS,
+    CRYSTALS,
+    OASIS,
+    DESERT,
+    PLAINS,
     MOUNTAINS
-
-    //JUNGLE,
-    //RED_DESERT,
-    //PURPLE_MUSHROOMS,
-    //CRYSTALS,
-    //OASIS,
-    //DESERT,
-    //PLAINS,
-    //MOUNTAINS
 };
 
 static constexpr int numBiomes = (int)Biome::MOUNTAINS + 1;
@@ -42,11 +37,15 @@ enum class Material : unsigned char
     ANDESITE,
     
     // stratified but placed backwards
+    RED_SANDSTONE,
     SANDSTONE,
 
     // eroded
     GRAVEL,
+    CLAY,
+    MUD,
     DIRT,
+    RED_SAND,
     SAND
 };
 
@@ -67,7 +66,13 @@ enum class Feature : unsigned char
 {
     NONE,
     SPHERE,
-    PURPLE_MUSHROOM
+    PURPLE_MUSHROOM,
+    RAFFLESIA
+    // JUNGLE_TREE
+    // PALM_TREE
+    // POND (not sure if this should go here or somewhere else)
+    // CACTUS
+    // CRYSTAL
 };
 
 static constexpr int numFeatures = (int)Feature::PURPLE_MUSHROOM + 1;

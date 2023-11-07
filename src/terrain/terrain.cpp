@@ -7,8 +7,7 @@
 #include <iomanip>
 #include <chrono>
 #include <glm/gtx/string_cast.hpp>
-
-#define DEBUG_TIME_CHUNK_FILL 0
+#include "defines.hpp"
 
 // ================================================================================================================================================================
 // theoretical padding needed:
@@ -664,6 +663,11 @@ void Terrain::draw(const ShaderProgram& prog, const Player* player)
         prog.setModelMat(modelMat);
         prog.draw(*chunkPtr);
     }
+}
+
+ivec2 Terrain::getCurrentChunkPos() const
+{
+    return this->currentChunkPos;
 }
 
 void Terrain::setCurrentChunkPos(ivec2 newCurrentChunk)

@@ -6,10 +6,7 @@
 #include "biomeFuncs.hpp"
 #include "featurePlacement.hpp"
 #include "util/rng.hpp"
-
-//#define BIOME_OVERRIDE Biome::MOUNTAINS
-
-#define DO_EROSION 1
+#include "defines.hpp"
 
 Chunk::Chunk(ivec2 worldChunkPos)
     : worldChunkPos(worldChunkPos), worldBlockPos(worldChunkPos.x * 16, 0, worldChunkPos.y * 16)
@@ -360,7 +357,7 @@ __global__ void kernGenerateLayers(
 
     height = 0;
     #pragma unroll
-    for (int layerIdx = numForwardMaterials; layerIdx < numStratifiedMaterials; ++layerIdx)
+    for (int layerIdx = numStratifiedMaterials - 1; layerIdx >= numForwardMaterials; --layerIdx)
     {
         height += getStratifiedMaterialThickness(layerIdx, totalMaterialWeights[layerIdx], worldPos);
         columnLayers[layerIdx] = height; // actual height is calculated by in kernFill by subtracting this value from start height of eroded layers
@@ -962,7 +959,14 @@ void Chunk::createVBOs()
 
                         neighborBlock = neighborPosChunk->blocks[posTo3dIndex(neighborPos)];
 
-                        if (neighborBlock != Block::AIR) // TODO: this will get more complicated with transparent and non-cube blocks
+                        const auto thisTrans = thisBlockData.transparency;
+                        const auto neighborTrans = BlockUtils::getBlockData(neighborBlock).transparency;
+
+                        // OPAQUE displays unless neighbor is OPAQUE
+                        // SEMI_TRANSPARENT displays no matter what
+                        // TRANSPARENT (except AIR) displays unless neighbor is TRANSPARENT (may need to revise this if two different transparent blocks are adjacent)
+                        // X_SHAPED displays no matter what
+                        if (thisTrans == neighborTrans && (thisTrans == TransparencyType::OPAQUE || thisTrans == TransparencyType::TRANSPARENT))
                         {
                             continue;
                         }

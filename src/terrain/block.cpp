@@ -5,10 +5,11 @@
 
 using namespace glm;
 
-std::array<BlockData, numBlocks> blockDatas;
+static std::array<BlockData, numBlocks> blockDatas;
 
 void BlockUtils::init()
 {
+    blockDatas[(int)Block::AIR] = { BlockUvs(), TransparencyType::TRANSPARENT };
     blockDatas[(int)Block::STONE] = { BlockUvs(ivec2(3, 0)).setRandomFlip() };
     blockDatas[(int)Block::DIRT] = { BlockUvs(ivec2(0, 0)).setRandomRotation() };
     blockDatas[(int)Block::GRASS] = { BlockUvs(ivec2(1, 0), ivec2(2, 0), ivec2(0, 0)).setRandomRotation(false, true, true) };
@@ -33,6 +34,14 @@ void BlockUtils::init()
     blockDatas[(int)Block::RED_SAND] = { BlockUvs(ivec2(11, 1)).setRandomRotation() };
     blockDatas[(int)Block::RED_SANDSTONE] = { BlockUvs(ivec2(12, 1), ivec2(13, 1), ivec2(14, 1)) };
     blockDatas[(int)Block::MUD] = { BlockUvs(ivec2(15, 1)) };
+    blockDatas[(int)Block::JUNGLE_GRASS] = { BlockUvs(ivec2(0, 2), ivec2(1, 2), ivec2(0, 0)).setRandomRotation(false, true, true) };
+    blockDatas[(int)Block::RAFFLESIA_PETAL] = { BlockUvs(ivec2(2, 2)) };
+    blockDatas[(int)Block::RAFFLESIA_CENTER] = { BlockUvs(ivec2(3, 2)) };
+    blockDatas[(int)Block::RAFFLESIA_SPIKES] = { BlockUvs(ivec2(4, 2)) };
+    blockDatas[(int)Block::RAFFLESIA_STEM] = { BlockUvs(ivec2(5, 2)) };
+    //blockDatas[(int)Block::JUNGLE_LOG] = { BlockUvs(ivec2(7, 2), ivec2(8, 2)) };
+    blockDatas[(int)Block::JUNGLE_LOG] = { BlockUvs(ivec2(7, 2)) };
+    blockDatas[(int)Block::JUNGLE_LEAVES] = { BlockUvs(ivec2(6, 2)), TransparencyType::SEMI_TRANSPARENT };
 }
 
 BlockData BlockUtils::getBlockData(Block block)
