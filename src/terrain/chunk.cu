@@ -814,7 +814,7 @@ __global__ void kernFill(
 
     __syncthreads();
 
-    const float height = heightfield[idx2d];
+    const float height = shared_layersAndHeight[numMaterials];
 
     const ivec3 worldBlockPos = chunkWorldBlockPos + ivec3(x, y, z);
     auto rng = makeSeededRandomEngine(worldBlockPos.x, worldBlockPos.y, worldBlockPos.z);
@@ -850,8 +850,7 @@ __global__ void kernFill(
             }
         }
 
-        const float airLayerStart = shared_layersAndHeight[numMaterials];
-        if (airLayerStart < y + 0.5f)
+        if (height < y + 0.5f)
         {
             block = Block::AIR;
         }
@@ -859,7 +858,7 @@ __global__ void kernFill(
         {
             block = dev_materialInfos[maxLayerIdx].block;
 
-            bool isTopBlock = airLayerStart < y + 1.5f;
+            bool isTopBlock = height < y + 1.5f;
             if (isTopBlock)
             {
                 if (block == Block::DIRT)
@@ -870,38 +869,29 @@ __global__ void kernFill(
             }
         }
 #else
-        const float airLayerStart = shared_layersAndHeight[numMaterials];
+        int thisLayerIdx = -1;
+        #pragma unroll
+        for (int layerIdx = layerIdxStart; layerIdx < numMaterials; ++layerIdx)
+        {
+            float layerStart = shared_layersAndHeight[layerIdx];
+            float layerEnd = shared_layersAndHeight[layerIdx + 1];
 
-        if (y >= airLayerStart)
-        {
-            block = Block::AIR;
-        }
-        else
-        {
-            int thisLayerIdx = -1;
-            #pragma unroll
-            for (int layerIdx = numMaterials - 1; layerIdx >= 0; --layerIdx)
+            if (layerStart <= y && y < layerEnd)
             {
-                float layerStart = shared_layersAndHeight[layerIdx];
-                float layerEnd = shared_layersAndHeight[layerIdx + 1];
-
-                if (layerStart <= y && y < layerEnd)
-                {
-                    thisLayerIdx = layerIdx;
-                    break;
-                }
+                thisLayerIdx = layerIdx;
+                break;
             }
+        }
 
-            block = dev_materialInfos[thisLayerIdx].block;
+        block = dev_materialInfos[thisLayerIdx].block;
 
-            bool isTopBlock = y >= airLayerStart - 1.f;
-            if (isTopBlock)
+        bool isTopBlock = y >= height - 1.f;
+        if (isTopBlock)
+        {
+            if (block == Block::DIRT)
             {
-                if (block == Block::DIRT)
-                {
-                    const Biome randBiome = getRandomBiome(shared_biomeWeights, u01(rng));
-                    block = dev_biomeBlocks[(int)randBiome].grassBlock;
-                }
+                const Biome randBiome = getRandomBiome(shared_biomeWeights, u01(rng));
+                block = dev_biomeBlocks[(int)randBiome].grassBlock;
             }
         }
 #endif
