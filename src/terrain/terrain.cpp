@@ -9,16 +9,9 @@
 #include <glm/gtx/string_cast.hpp>
 #include "defines.hpp"
 
-// ================================================================================================================================================================
-// theoretical padding needed:
-// [+1] gather heightfields of 3x3 chunks and place material layers
-// [+5] gather chunks to do zone erosion (for a corner chunk, 3 more in zone and 2 for padding; may not be super accurate but whatever)
-//     [+2] gather feature placements of 5x5 chunks for filling chunk (this is independent of erosion so it can be contained in the +5 for erosion)
-// ================================================================================================================================================================
-// in practice, I give it way more padding so the user doesn't see any lag at borders of render distance
-// ================================================================================================================================================================
-static constexpr int chunkVbosGenRadius = 20;
-static constexpr int chunkMaxGenRadius = chunkVbosGenRadius + ((ZONE_SIZE * 5) / 2);
+
+static constexpr int chunkVbosGenRadius = 12;
+static constexpr int chunkMaxGenRadius = chunkVbosGenRadius + (ZONE_SIZE * 3 / 2) + 4;
 
 // TODO: get better estimates for these
 // ================================================================================
@@ -27,16 +20,17 @@ static constexpr int totalActionTime = 500;
 static constexpr int actionTimeGenerateHeightfield        = 5;
 static constexpr int actionTimeGatherHeightfield          = 2;
 static constexpr int actionTimeGenerateLayers             = 10;
-static constexpr int actionTimeErodeZone                  = totalActionTime;
+static constexpr int actionTimeErodeZone                  = 500;
 static constexpr int actionTimeGenerateFeaturePlacements  = 2;
 static constexpr int actionTimeGatherFeaturePlacements    = 4;
 static constexpr int actionTimeFill                       = 5;
-static constexpr int actionTimeCreateAndBufferVbos        = totalActionTime / 4;
+static constexpr int actionTimeCreateAndBufferVbos        = 100;
 // ================================================================================
 
 Terrain::Terrain()
 {
     initCuda();
+    generateSpiral();
 }
 
 Terrain::~Terrain()
@@ -138,6 +132,40 @@ void Terrain::freeCuda()
     }
 
     CudaUtils::checkCUDAError("cudaStreamDestroy failed");
+}
+
+void Terrain::generateSpiral()
+{
+    int spiralSideLength = chunkVbosGenRadius * 2 + 1;
+    spiral.reserve(spiralSideLength * spiralSideLength);
+
+    int x = 0;
+    int z = 0;
+    int d = 1;
+    int m = 1;
+
+    while (true)
+    {
+        while (2 * x * d < m)
+        {
+            spiral.push_back(ivec2(x, z));
+            x += d;
+        }
+
+        if (m > chunkMaxGenRadius * 2)
+        {
+            return;
+        }
+
+        while (2 * z * d < m)
+        {
+            spiral.push_back(ivec2(x, z));
+            z += d;
+        }
+
+        d = -d;
+        m++;
+    }
 }
 
 ivec2 chunkPosFromPlayerPos(vec2 playerPos)
@@ -250,6 +278,9 @@ void Terrain::updateChunk(int dx, int dz)
         return;
     }
 
+    const ivec2 distVec = abs(chunkPtr->worldChunkPos - this->currentChunkPos);
+    int dist = max(distVec.x, distVec.y);
+
     switch (chunkPtr->getState())
     {
     case ChunkState::EMPTY:
@@ -278,8 +309,7 @@ void Terrain::updateChunk(int dx, int dz)
         return;
     }
 
-    const ivec2 dist = abs(chunkPtr->worldChunkPos - this->currentChunkPos);
-    if (max(dist.x, dist.y) > chunkVbosGenRadius)
+    if (dist > chunkVbosGenRadius)
     {
         return;
     }
@@ -295,12 +325,9 @@ void Terrain::updateChunk(int dx, int dz)
 
 void Terrain::updateChunks()
 {
-    for (int dz = -chunkMaxGenRadius; dz <= chunkMaxGenRadius; ++dz)
+    for (const auto& dxz : spiral)
     {
-        for (int dx = -chunkMaxGenRadius; dx <= chunkMaxGenRadius; ++dx)
-        {
-            updateChunk(dx, dz);
-        }
+        updateChunk(dxz.x, dxz.y);
     }
 }
 

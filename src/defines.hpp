@@ -3,7 +3,7 @@
 // ============================================================
 // DEBUG FLAGS
 // ============================================================
-#define DEBUG_TIME_CHUNK_FILL 0
+#define DEBUG_TIME_CHUNK_FILL 1
 #define DEBUG_START_IN_FREE_CAM_MODE 1
 
 #define DEBUG_CREATE_PASSTHROUGH_SHADERS 0

@@ -36,7 +36,7 @@ struct Zone
 
 class Terrain {
 private:
-    std::mutex mutex;
+    std::vector<ivec2> spiral;
 
     std::unordered_map<ivec2, std::unique_ptr<Zone>, Utils::PosHash> zones;
 
@@ -59,6 +59,8 @@ private:
 
     void initCuda();
     void freeCuda();
+
+    void generateSpiral();
 
     Zone* createZone(ivec2 zoneWorldChunkPos);
 
