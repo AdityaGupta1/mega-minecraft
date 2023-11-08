@@ -376,6 +376,10 @@ vec4 sunDir3To4(const vec3& sunDirXYZ)
 
 void Renderer::draw(float deltaTime, bool viewMatChanged, bool windowSizeChanged)
 {
+#if DEBUG_DISABLE_RENDERING
+    return;
+#endif
+
     if (windowSizeChanged)
     {
         setProjMat();

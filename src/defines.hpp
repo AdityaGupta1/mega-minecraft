@@ -3,6 +3,8 @@
 // ============================================================
 // DEBUG FLAGS
 // ============================================================
+#define DEBUG_DISABLE_RENDERING 1
+
 #define DEBUG_TIME_CHUNK_FILL 1
 #define DEBUG_START_IN_FREE_CAM_MODE 1
 
