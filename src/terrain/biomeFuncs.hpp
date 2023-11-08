@@ -292,6 +292,7 @@ void BiomeUtils::init()
     // feature, gridCellSize, gridCellPadding, chancePerGridCell, possibleTopLayers
     biomeFeatureGens[(int)Biome::JUNGLE] = { 
         { Feature::RAFFLESIA, 54, 6, 0.5f, { {Material::DIRT, 0.5f} } },
+        { Feature::TINY_JUNGLE_TREE, 6, 1, 0.1f, { {Material::DIRT, 0.5f} } },
         { Feature::SMALL_JUNGLE_TREE, 9, 2, 0.4f, { {Material::DIRT, 0.5f} } }
     };
 

@@ -4,6 +4,16 @@
 #include "biome.hpp"
 #include "util/rng.hpp"
 #include "util/utils.hpp"
+#include <glm/gtx/component_wise.hpp>
+
+#pragma region utility functions
+
+__device__ int manhattanDistance(ivec3 a, ivec3 b)
+{
+    return compAdd(abs(a - b));
+}
+
+#pragma endregion
 
 #pragma region SDFs
 
@@ -239,6 +249,25 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
 
         return false;
     }
+    case Feature::TINY_JUNGLE_TREE:
+    {
+        ivec3 floorPos = ivec3(floor(pos));
+
+        int height = (int)(0.5f + 2.5f * u01(rng));
+        if (floorPos.x == 0 && floorPos.y < height && floorPos.z == 0)
+        {
+            *block = Block::JUNGLE_LOG;
+            return true;
+        }
+
+        if (manhattanDistance(floorPos, vec3(0, height, 0)) == 1)
+        {
+            *block = Block::JUNGLE_LEAVES;
+            return true;
+        }
+
+        return false;
+    }
     case Feature::SMALL_JUNGLE_TREE:
     {
         float height = 8.f + 4.f * u01(rng);
@@ -264,4 +293,7 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
         return false;
     }
     }
+
+    printf("placeFeature() reached an unreachable section");
+    return false;
 }

@@ -68,6 +68,7 @@ enum class Feature : unsigned char
     SPHERE,
     PURPLE_MUSHROOM,
     RAFFLESIA,
+    TINY_JUNGLE_TREE,
     SMALL_JUNGLE_TREE
     //LARGE_JUNGLE_TREE
     //PALM_TREE
