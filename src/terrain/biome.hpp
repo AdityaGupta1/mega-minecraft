@@ -87,7 +87,9 @@ struct FeatureGenTopLayer
 struct FeatureGen
 {
     Feature feature;
-    float chancePerBlock;
+    int gridCellSize;
+    int gridCellPadding;
+    float chancePerGridCell;
     std::vector<FeatureGenTopLayer> possibleTopLayers;
 };
 

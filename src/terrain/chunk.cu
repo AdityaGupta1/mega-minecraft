@@ -661,10 +661,10 @@ void Chunk::generateFeaturePlacements()
             const auto& columnBiomeWeights = biomeWeights[idx2d];
 
             const ivec3 worldBlockPos = this->worldBlockPos + ivec3(localX, heightfield[idx2d], localZ);
-            auto rng = makeSeededRandomEngine(worldBlockPos.x, worldBlockPos.y, worldBlockPos.z, 7); // arbitrary w so this rng is different than heightfield rng
+            auto blockRng = makeSeededRandomEngine(worldBlockPos.x, worldBlockPos.y, worldBlockPos.z, 7); // arbitrary w so this rng is different than heightfield rng
             thrust::uniform_real_distribution<float> u01(0, 1);
 
-            Biome biome = getRandomBiome(columnBiomeWeights, u01(rng));
+            Biome biome = getRandomBiome(columnBiomeWeights, u01(blockRng));
             const auto& featureGens = BiomeUtils::getBiomeFeatureGens(biome);
 
             const auto columnLayers = this->layers[idx2d];
@@ -691,8 +691,11 @@ void Chunk::generateFeaturePlacements()
                 }
             }
 
+            const ivec2 localPos2d = ivec2(localX, localZ);
+            const ivec2 worldPos2d = localPos2d + ivec2(this->worldBlockPos.x, this->worldBlockPos.z);
+
             Feature feature = Feature::NONE;
-            float rand = u01(rng);
+            //float rand = u01(rng);
             for (int i = 0; i < featureGens.size(); ++i)
             {
                 const auto& featureGen = featureGens[i];
@@ -712,8 +715,14 @@ void Chunk::generateFeaturePlacements()
                     continue;
                 }
 
-                rand -= featureGen.chancePerBlock;
-                if (rand <= 0.f)
+                const ivec2 gridCornerWorldPos = ivec2(floor(vec2(worldPos2d) / (float)featureGen.gridCellSize) * (float)featureGen.gridCellSize);
+                const int gridCellInternalSideLength = featureGen.gridCellSize - (2 * featureGen.gridCellPadding);
+                vec2 randPos = rand2From3(vec3(gridCornerWorldPos, (int)featureGen.feature * 59321));
+                const ivec2 gridPlaceWorldPos = gridCornerWorldPos + ivec2(featureGen.gridCellPadding)
+                    + ivec2(floor(randPos * (float)gridCellInternalSideLength));
+                const ivec2 gridPlaceLocalPos = gridPlaceWorldPos - ivec2(this->worldBlockPos.x, this->worldBlockPos.z);
+
+                if (localPos2d == gridPlaceLocalPos && u01(blockRng) < featureGen.chancePerGridCell)
                 {
                     feature = featureGen.feature;
                     break;
