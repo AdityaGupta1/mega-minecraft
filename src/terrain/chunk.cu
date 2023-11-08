@@ -178,8 +178,8 @@ void Chunk::generateHeightfield(
     float* dev_biomeWeights, 
     cudaStream_t stream)
 {
-    const dim3 blockSize2d(8, 8);
-    const dim3 blocksPerGrid2d(2, 2);
+    const dim3 blockSize2d(16, 4);
+    const dim3 blocksPerGrid2d(1, 4);
     kernGenerateHeightfield<<<blocksPerGrid2d, blockSize2d, 0, stream>>>(
         dev_heightfield,
         dev_biomeWeights,
