@@ -9,7 +9,6 @@ void Player::tick(bool* viewMatChanged)
 {
     if (camChanged)
     {
-        // TODO recalculate forward/right/up
         float sinTheta = sin(theta);
         float cosTheta = cos(theta);
         float sinPhi = sin(phi);

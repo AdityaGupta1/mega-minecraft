@@ -221,14 +221,23 @@ void Terrain::updateChunk(int dx, int dz)
     ivec2 newZoneWorldChunkPos = zonePosFromChunkPos(newChunkWorldChunkPos);
 
     auto zoneIt = zones.find(newZoneWorldChunkPos);
-    Zone* zonePtr; // TODO maybe cache this and reuse if next chunk has same zone (which should be a common occurrence)
-    if (zoneIt == zones.end())
+    Zone* zonePtr;
+    if (newZoneWorldChunkPos == lastUpdateZonePtr->worldChunkPos)
     {
-        zonePtr = createZone(newZoneWorldChunkPos);
+        zonePtr = lastUpdateZonePtr;
     }
     else
     {
-        zonePtr = zoneIt->second.get();
+        if (zoneIt == zones.end())
+        {
+            zonePtr = createZone(newZoneWorldChunkPos);
+        }
+        else
+        {
+            zonePtr = zoneIt->second.get();
+        }
+
+        this->lastUpdateZonePtr = zonePtr;
     }
 
     ivec2 newChunkLocalChunkPos = newChunkWorldChunkPos - newZoneWorldChunkPos;
