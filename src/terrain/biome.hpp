@@ -66,11 +66,16 @@ enum class Feature : unsigned char
 {
     NONE,
     SPHERE,
+
+    // TINY_PURPLE_MUSHROOM
+    // SMALL_PURPLE_MUSHROOM
     PURPLE_MUSHROOM,
+
     RAFFLESIA,
-    TINY_JUNGLE_TREE,
-    SMALL_JUNGLE_TREE
-    //LARGE_JUNGLE_TREE
+    LARGE_JUNGLE_TREE,
+    SMALL_JUNGLE_TREE,
+    TINY_JUNGLE_TREE
+
     //PALM_TREE
     //POND (not sure if this should go here or somewhere else)
     //CACTUS

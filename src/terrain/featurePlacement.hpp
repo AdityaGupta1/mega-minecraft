@@ -70,7 +70,7 @@ __device__ void deCasteljau(vec3* ctrlPts, vec3* spline)
     }
 }
 
-__device__ void calculateLineParams(const vec3& pos, const vec3& linePos1, const vec3& linePos2, float* ratio, float* distFromLine)
+__device__ bool calculateLineParams(const vec3& pos, const vec3& linePos1, const vec3& linePos2, float* ratio, float* distFromLine)
 {
     vec3 vecLine = linePos2 - linePos1;
 
@@ -79,6 +79,24 @@ __device__ void calculateLineParams(const vec3& pos, const vec3& linePos1, const
 
     vec3 pointLine = vecLine * (*ratio);
     *distFromLine = distance(pointPos, pointLine);
+
+    return *ratio >= 0 && *ratio <= 1;
+}
+
+#pragma endregion
+
+#pragma region feature-specific functions
+
+__device__ bool jungleLeaves(vec3 pos, float maxHeight, float minRadius, float maxRadius, float rand)
+{
+    float leavesRadiusMultiplier = 0.8f + 0.4f * rand;
+    if (pos.y > 0 && pos.y < maxHeight)
+    {
+        float leavesRadius = mix(maxRadius, minRadius, pos.y / maxHeight) * leavesRadiusMultiplier;
+        return length(vec2(pos.x, pos.z)) < leavesRadius;
+    }
+
+    return false;
 }
 
 #pragma endregion
@@ -162,7 +180,7 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
 
             float ratio;
             float distFromLine;
-            calculateLineParams(pos, pos1, pos2, &ratio, &distFromLine);
+            bool inRatio = calculateLineParams(pos, pos1, pos2, &ratio, &distFromLine);
 
             float radius;
             Block potentialBlock;
@@ -187,7 +205,7 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
                 }
             }
 
-            if ((ratio >= 0 && ratio <= 1 && distFromLine <= radius) // actually in the line
+            if ((inRatio && distFromLine <= radius) // actually in the line
                 || (i < lastSplineIndex && ratio < 0 && distance(pos, pos1) < radius) // start cap
                 || (i < (splineSize - 2) && ratio > 1 && distance(pos, pos2) < radius)) // end cap
             {
@@ -249,9 +267,98 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
 
         return false;
     }
+    case Feature::LARGE_JUNGLE_TREE:
+    {
+        float height = 18.f + 10.f * u01(rng);
+        if (pos.y > height + 6.f || length(vec2(pos.x, pos.z)) > 15.f)
+        {
+            return false;
+        }
+
+        ivec2 trunkPos = ivec2(floor(vec2(pos.x, pos.z)));
+        if (pos.y < height && trunkPos.x >= 0 && trunkPos.x <= 1 && trunkPos.y >= 0 && trunkPos.y <= 1)
+        {
+            *block = Block::JUNGLE_LOG;
+            return true;
+        }
+
+        pos -= vec3(0.5f, 0, 0.5f);
+
+        vec3 leavesPos = pos;
+        leavesPos.y -= (height - 2.f);
+        if (jungleLeaves(leavesPos, 4.f, 4.f, 7.f, u01(rng)))
+        {
+            *block = Block::JUNGLE_LEAVES;
+            return true;
+        }
+
+        float numBranches = 0.5f + 2.5f * u01(rng);
+        float branchHeight = height;
+        for (int i = 0; i < numBranches; ++i)
+        {
+            branchHeight -= (8.f + u01(rng) * 3.f) * (height / 30.f);
+            float branchAngle = TWO_PI * u01(rng);
+
+            vec3 branchStart = vec3(0, branchHeight, 0);
+
+            vec3 branchEnd = vec3(0);
+            sincosf(-branchAngle, &branchEnd.z, &branchEnd.x);
+            branchEnd = ((3.f + 1.5f * u01(rng)) * branchEnd) + branchStart;
+            branchEnd.y += 1.f + 1.5f * u01(rng);
+
+            float ratio;
+            float distFromLine;
+            bool inRatio = calculateLineParams(pos, branchStart, branchEnd, &ratio, &distFromLine);
+
+            float branchRadius = 1.2f - (0.4f * ratio);
+            if (inRatio && distFromLine < branchRadius)
+            {
+                *block = Block::JUNGLE_LOG;
+                return true;
+            }
+
+            leavesPos = pos - branchEnd + vec3(0, 0.2f, 0);
+            if (jungleLeaves(leavesPos, 2.f, 2.5f, 3.5f, u01(rng)))
+            {
+                *block = Block::JUNGLE_LEAVES;
+                return true;
+            }
+        }
+
+        return false;
+    }
+    case Feature::SMALL_JUNGLE_TREE:
+    {
+        float height = 8.f + 4.f * u01(rng);
+        float maxDist = pos.y < height - 2.f ? 2.f : 8.f;
+        if (pos.y > height + 4.f || length(vec2(pos.x, pos.z)) > maxDist)
+        {
+            return false;
+        }
+
+        if (pos.y < height && ivec2(floor(vec2(pos.x, pos.z))) == ivec2(0))
+        {
+            *block = Block::JUNGLE_LOG;
+            return true;
+        }
+
+        vec3 leavesPos = pos - vec3(0, height - 1.f, 0);
+        if (jungleLeaves(leavesPos, 3.f, 2.f, 4.f, u01(rng)))
+        {
+            *block = Block::JUNGLE_LEAVES;
+            return true;
+        }
+
+        return false;
+    }
     case Feature::TINY_JUNGLE_TREE:
     {
         ivec3 floorPos = ivec3(floor(pos));
+
+        if (compAdd(floorPos) > 8)
+        {
+            return false;
+        }
 
         int height = (int)(0.5f + 2.5f * u01(rng));
         if (floorPos.x == 0 && floorPos.y < height && floorPos.z == 0)
@@ -264,30 +371,6 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
         {
             *block = Block::JUNGLE_LEAVES;
             return true;
-        }
-
-        return false;
-    }
-    case Feature::SMALL_JUNGLE_TREE:
-    {
-        float height = 8.f + 4.f * u01(rng);
-
-        if (pos.y < height && ivec2(floor(vec2(pos.x, pos.z))) == ivec2(0))
-        {
-            *block = Block::JUNGLE_LOG;
-            return true;
-        }
-
-        float leavesY = pos.y - (height - 1.f);
-        float leavesRadiusMultiplier = 0.8f + 0.4f * u01(rng);
-        if (leavesY > 0.f && leavesY < 3.f)
-        {
-            float leavesRadius = mix(4.0f, 2.0f, leavesY / 3.f) * leavesRadiusMultiplier;
-            if (length(vec2(pos.x, pos.z)) < leavesRadius)
-            {
-                *block = Block::JUNGLE_LEAVES;
-                return true;
-            }
         }
 
         return false;

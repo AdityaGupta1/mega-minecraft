@@ -291,9 +291,10 @@ void BiomeUtils::init()
 
     // feature, gridCellSize, gridCellPadding, chancePerGridCell, possibleTopLayers
     biomeFeatureGens[(int)Biome::JUNGLE] = { 
-        { Feature::RAFFLESIA, 54, 6, 0.5f, { {Material::DIRT, 0.5f} } },
-        { Feature::TINY_JUNGLE_TREE, 6, 1, 0.1f, { {Material::DIRT, 0.5f} } },
-        { Feature::SMALL_JUNGLE_TREE, 9, 2, 0.4f, { {Material::DIRT, 0.5f} } }
+        { Feature::RAFFLESIA, 54, 6, 0.50f, { {Material::DIRT, 0.5f} } },
+        { Feature::LARGE_JUNGLE_TREE, 32, 3, 0.70f, { {Material::DIRT, 0.5f} } },
+        { Feature::SMALL_JUNGLE_TREE, 10, 2, 0.75f, { {Material::DIRT, 0.5f} } },
+        { Feature::TINY_JUNGLE_TREE, 6, 1, 0.18f, { {Material::DIRT, 0.5f} } }
     };
 
     biomeFeatureGens[(int)Biome::PURPLE_MUSHROOMS] = {
@@ -306,7 +307,9 @@ void BiomeUtils::init()
     setFeatureHeightBounds(SPHERE, -6, 6);
     setFeatureHeightBounds(PURPLE_MUSHROOM, -2, 80);
     setFeatureHeightBounds(RAFFLESIA, -2, 10);
+    setFeatureHeightBounds(TINY_JUNGLE_TREE, -2, 5);
     setFeatureHeightBounds(SMALL_JUNGLE_TREE, -2, 17);
+    setFeatureHeightBounds(LARGE_JUNGLE_TREE, -2, 38);
 
 #undef setFeatureHeightBounds
 }
