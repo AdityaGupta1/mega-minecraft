@@ -9,8 +9,7 @@
 #include <glm/gtx/string_cast.hpp>
 #include "defines.hpp"
 
-
-static constexpr int chunkVbosGenRadius = 24;
+static constexpr int chunkVbosGenRadius = 20;
 static constexpr int chunkMaxGenRadius = chunkVbosGenRadius + (ZONE_SIZE * 2);
 
 // TODO: get better estimates for these

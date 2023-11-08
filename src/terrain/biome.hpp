@@ -82,7 +82,7 @@ enum class Feature : unsigned char
     //CRYSTAL
 };
 
-static constexpr int numFeatures = (int)Feature::PURPLE_MUSHROOM + 1;
+static constexpr int numFeatures = (int)Feature::TINY_JUNGLE_TREE + 1;
 
 struct FeatureGenTopLayer
 {
