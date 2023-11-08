@@ -7,6 +7,8 @@
 #include "featurePlacement.hpp"
 #include "util/rng.hpp"
 #include "defines.hpp"
+#include <thrust/device_ptr.h>
+#include <thrust/fill.h>
 
 Chunk::Chunk(ivec2 worldChunkPos)
     : worldChunkPos(worldChunkPos), worldBlockPos(worldChunkPos.x * 16, 0, worldChunkPos.y * 16)
@@ -579,12 +581,12 @@ void Chunk::erodeZone(Zone* zonePtr, float* dev_gatheredLayers, float* dev_accum
     float* dev_flagDidChange = dev_gatheredLayers + gatheredLayersBaseSize;
 
     const dim3 blockSize2d(32, 32);
-    const int blocksPerGrid = (ZONE_SIZE * 2 * 16) / 32; // = ZONE_SIZE but writing it out for clarity
+    constexpr int blocksPerGrid = (ZONE_SIZE * 2 * 16) / 32; // = ZONE_SIZE but writing it out for clarity
     const dim3 blocksPerGrid2d(blocksPerGrid, blocksPerGrid);
 
-    cudaMemset(dev_accumulatedHeights, 0, COLS_PER_EROSION_KERNEL * sizeof(float));
+    thrust::device_ptr<float> dev_ptr(dev_accumulatedHeights);
+    thrust::fill(dev_ptr, dev_ptr + COLS_PER_EROSION_KERNEL, 0.f);
 
-    //for (int layerIdx = 0; layerIdx < numErodedMaterials; ++layerIdx)
     for (int layerIdx = numErodedMaterials - 1; layerIdx >= 0; --layerIdx)
     {
         bool isFirst = true;
