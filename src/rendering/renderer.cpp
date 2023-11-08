@@ -9,10 +9,7 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 
-#define DEBUG_CREATE_PASSTHROUGH_SHADERS 0
-
 #define SHADOW_MAP_SIZE 8192
-#define DEBUG_DISPLAY_SHADOW_MAP 0
 
 Renderer::Renderer(GLFWwindow* window, ivec2* windowSize, Terrain* terrain, Player* player)
     : window(window), windowSize(windowSize), terrain(terrain), player(player), vao(-1),
