@@ -221,7 +221,7 @@ void Terrain::updateChunk(int dx, int dz)
 
     auto zoneIt = zones.find(newZoneWorldChunkPos);
     Zone* zonePtr;
-    if (newZoneWorldChunkPos == lastUpdateZonePtr->worldChunkPos)
+    if (lastUpdateZonePtr != nullptr && newZoneWorldChunkPos == lastUpdateZonePtr->worldChunkPos)
     {
         zonePtr = lastUpdateZonePtr;
     }

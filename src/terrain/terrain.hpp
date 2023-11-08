@@ -57,7 +57,7 @@ private:
     ivec2 lastChunkPos{ 0, 0 };
     bool needsUpdateChunks{ true };
 
-    Zone* lastUpdateZonePtr;
+    Zone* lastUpdateZonePtr{ nullptr };
 
     void initCuda();
     void freeCuda();

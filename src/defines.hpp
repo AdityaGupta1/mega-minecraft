@@ -4,7 +4,7 @@
 // DEBUG FLAGS
 // ============================================================
 #define DEBUG_TIME_CHUNK_FILL 1
-#define DEBUG_START_IN_FREE_CAM_MODE 1
+#define DEBUG_START_IN_FREE_CAM_MODE 0
 
 #define DEBUG_SKIP_EROSION 0
 #define DEBUG_USE_CONTRIBUTION_FILL_METHOD 0
