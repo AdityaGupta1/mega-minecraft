@@ -83,7 +83,7 @@ public:
     ivec2 getCurrentChunkPos() const;
     void setCurrentChunkPos(ivec2 newCurrentChunkPos);
 
-    Chunk* debugGetCurrentChunk(vec2 playerPos);
+    void debugGetCurrentChunkAndZone(vec2 playerPos, Chunk** chunkPtr, Zone** zonePtr);
     void debugPrintCurrentChunkState(vec2 playerPos);
     void debugPrintCurrentColumnLayers(vec2 playerPos);
 };

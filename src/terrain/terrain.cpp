@@ -734,27 +734,45 @@ void Terrain::setCurrentChunkPos(ivec2 newCurrentChunkPos)
     this->currentChunkPos = newCurrentChunkPos;
 }
 
-Chunk* Terrain::debugGetCurrentChunk(vec2 playerPos)
+void Terrain::debugGetCurrentChunkAndZone(vec2 playerPos, Chunk** chunkPtr, Zone** zonePtr)
 {
     ivec2 chunkPos = chunkPosFromPlayerPos(playerPos);
     ivec2 zonePos = zonePosFromChunkPos(chunkPos);
-    const auto& zonePtr = zones[zonePos];
-    return zonePtr->chunks[localChunkPosToIdx(chunkPos - zonePtr->worldChunkPos)].get();
+
+    const auto& zoneUptr = zones[zonePos];
+    const auto& chunkUptr = zoneUptr->chunks[localChunkPosToIdx(chunkPos - zoneUptr->worldChunkPos)];
+
+    *chunkPtr = chunkUptr.get();
+    *zonePtr = zoneUptr.get();
 }
 
 void Terrain::debugPrintCurrentChunkState(vec2 playerPos)
 {
-    const auto chunkPtr = debugGetCurrentChunk(playerPos);
+    Chunk* chunkPtr;
+    Zone* zonePtr;
+    debugGetCurrentChunkAndZone(playerPos, &chunkPtr, &zonePtr);
     bool isInDrawableChunks = drawableChunks.find(chunkPtr) != drawableChunks.end();
 
-    printf("chunk (%d, %d) state: %d\n", currentChunkPos.x, currentChunkPos.y, (int)chunkPtr->getState());
-    printf("is in drawable chunks: %s\n", isInDrawableChunks ? "yes" : "no");
-    printf("idx count: %d\n", chunkPtr->getIdxCount());
+    printf("===========================================================\n");
+    printf("chunk (%d, %d)\n", chunkPtr->worldChunkPos.x, chunkPtr->worldChunkPos.y);
+    printf("-----------------------------------------------------------\n");
+    printf("chunk state: %d\n", (int)chunkPtr->getState());
+    printf("chunk ready for queue: %s\n", chunkPtr->isReadyForQueue() ? "yes" : "no");
+    printf("chunk in drawable chunks: %s\n", isInDrawableChunks ? "yes" : "no");
+    printf("chunk idx count: %d\n", chunkPtr->getIdxCount());
+    printf("===========================================================\n");
+    printf("zone (%d, %d)\n", zonePtr->worldChunkPos.x, zonePtr->worldChunkPos.y);
+    printf("-----------------------------------------------------------\n");
+    printf("zone has been queued for erosion: %s\n", zonePtr->hasBeenQueuedForErosion ? "yes" : "no");
+    printf("===========================================================\n");
+    printf("\n");
 }
 
 void Terrain::debugPrintCurrentColumnLayers(vec2 playerPos)
 {
-    const auto chunkPtr = debugGetCurrentChunk(playerPos);
+    Chunk* chunkPtr;
+    Zone* zonePtr;
+    debugGetCurrentChunkAndZone(playerPos, &chunkPtr, &zonePtr);
     ivec2 blockPos = ivec2(floor(playerPos)) - ivec2(chunkPtr->worldBlockPos.x, chunkPtr->worldBlockPos.z);
     int idx = blockPos.x + 16 * blockPos.y;
     const auto& layers = chunkPtr->layers[idx];
