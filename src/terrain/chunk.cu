@@ -582,7 +582,7 @@ void Chunk::erodeZone(Zone* zonePtr, float* dev_gatheredLayers, float* dev_accum
     const int blocksPerGrid = (ZONE_SIZE * 2 * 16) / 32; // = ZONE_SIZE but writing it out for clarity
     const dim3 blocksPerGrid2d(blocksPerGrid, blocksPerGrid);
 
-    cudaMemset(dev_accumulatedHeights, 0, BLOCKS_PER_EROSION_KERNEL * sizeof(float));
+    cudaMemset(dev_accumulatedHeights, 0, COLS_PER_EROSION_KERNEL * sizeof(float));
 
     //for (int layerIdx = 0; layerIdx < numErodedMaterials; ++layerIdx)
     for (int layerIdx = numErodedMaterials - 1; layerIdx >= 0; --layerIdx)

@@ -49,44 +49,39 @@ static constexpr int numDevLayers = totalActionTime / min(actionTimeGenerateLaye
 static constexpr int numDevGatheredLayers = totalActionTime / actionTimeErodeZone;
 static constexpr int numStreams = max(max(numDevBlocks, numDevHeightfields), max(numDevLayers, numDevGatheredLayers));
 
-static std::array<Block*, numDevBlocks> dev_blocks;
-static std::array<FeaturePlacement*, numDevBlocks> dev_featurePlacements;
+static constexpr int devBlocksSize = 16 * 384 * 16;
+static Block* dev_blocks;
+static constexpr int devFeatuerPlacementsSize = MAX_GATHERED_FEATURES_PER_CHUNK;
+static FeaturePlacement* dev_featurePlacements;
 
-static std::array<float*, numDevHeightfields> dev_heightfields;
-static std::array<float*, numDevHeightfields> dev_biomeWeights; // TODO: may need to set numDevBiomeWeights = max(numDevHeightfields, numDevLayers)
-                                                                // probably fine for now since biome weights are always used in tandem with heightfield
+static constexpr int devHeightfieldSize = 18 * 18;
+static float* dev_heightfields;
+static constexpr int devBiomeWeightsSize = 256 * numBiomes;
+static float* dev_biomeWeights; // TODO: may need to set numDevBiomeWeights = max(numDevHeightfields, numDevLayers)
+                                // probably fine for now since biome weights are always used in tandem with heightfield
 
-static std::array<float*, numDevLayers> dev_layers;
+static constexpr int devLayersSize = 256 * numMaterials;
+static float* dev_layers;
 
-static std::array<float*, numDevGatheredLayers> dev_gatheredLayers;
-static std::array<float*, numDevGatheredLayers> dev_accumulatedHeights;
+static constexpr int devGatheredLayersSize = COLS_PER_EROSION_KERNEL * (numErodedMaterials + 1) + 1;
+static float* dev_gatheredLayers;
+static constexpr int devAccumulatedHeightsSize = COLS_PER_EROSION_KERNEL;
+static float* dev_accumulatedHeights;
 
 static std::array<cudaStream_t, numStreams> streams;
 
 void Terrain::initCuda()
 {
-    for (int i = 0; i < numDevBlocks; ++i)
-    {
-        cudaMalloc((void**)&dev_blocks[i], 98304 * sizeof(Block));
-        cudaMalloc((void**)&dev_featurePlacements[i], MAX_GATHERED_FEATURES_PER_CHUNK * sizeof(FeaturePlacement));
-    }
+    cudaMalloc((void**)&dev_blocks, numDevBlocks * devBlocksSize * sizeof(Block));
+    cudaMalloc((void**)&dev_featurePlacements, numDevBlocks * devFeatuerPlacementsSize * sizeof(FeaturePlacement));
 
-    for (int i = 0; i < numDevHeightfields; ++i)
-    {
-        cudaMalloc((void**)&dev_heightfields[i], 18 * 18 * sizeof(float));
-        cudaMalloc((void**)&dev_biomeWeights[i], 256 * numBiomes * sizeof(float));
-    }
+    cudaMalloc((void**)&dev_heightfields, numDevHeightfields * devHeightfieldSize * sizeof(float));
+    cudaMalloc((void**)&dev_biomeWeights, numDevHeightfields * devBiomeWeightsSize * sizeof(float));
 
-    for (int i = 0; i < numDevLayers; ++i)
-    {
-        cudaMalloc((void**)&dev_layers[i], 256 * numMaterials * sizeof(float));
-    }
+    cudaMalloc((void**)&dev_layers, numDevLayers * devLayersSize * sizeof(float));
 
-    for (int i = 0; i < numDevGatheredLayers; ++i)
-    {
-        cudaMalloc((void**)&dev_gatheredLayers[i], (BLOCKS_PER_EROSION_KERNEL * (numErodedMaterials + 1) + 1) * sizeof(float));
-        cudaMalloc((void**)&dev_accumulatedHeights[i], BLOCKS_PER_EROSION_KERNEL * sizeof(float));
-    }
+    cudaMalloc((void**)&dev_gatheredLayers, numDevGatheredLayers * devGatheredLayersSize * sizeof(float));
+    cudaMalloc((void**)&dev_accumulatedHeights, numDevGatheredLayers * devAccumulatedHeightsSize * sizeof(float));
 
     CudaUtils::checkCUDAError("cudaMalloc failed");
 
@@ -100,28 +95,16 @@ void Terrain::initCuda()
 
 void Terrain::freeCuda()
 {
-    for (int i = 0; i < numDevBlocks; ++i)
-    {
-        cudaFree(dev_blocks[i]);
-        cudaFree(dev_featurePlacements[i]);
-    }
+    cudaFree(dev_blocks);
+    cudaFree(dev_featurePlacements);
 
-    for (int i = 0; i < numDevHeightfields; ++i)
-    {
-        cudaFree(dev_heightfields[i]);
-        cudaFree(dev_biomeWeights[i]);
-    }
+    cudaFree(dev_heightfields);
+    cudaFree(dev_biomeWeights);
 
-    for (int i = 0; i < numDevLayers; ++i)
-    {
-        cudaFree(dev_layers[i]);
-    }
+    cudaFree(dev_layers);
 
-    for (int i = 0; i < numDevGatheredLayers; ++i)
-    {
-        cudaFree(dev_gatheredLayers[i]);
-        cudaFree(dev_accumulatedHeights[i]);
-    }
+    cudaFree(dev_gatheredLayers);
+    cudaFree(dev_accumulatedHeights);
 
     CudaUtils::checkCUDAError("cudaFree failed");
 
@@ -525,11 +508,11 @@ void Terrain::tick()
         chunksToFill.pop();
 
         chunkPtr->fill(
-            dev_blocks[blocksIdx],
-            dev_heightfields[heightfieldIdx],
-            dev_layers[layersIdx],
-            dev_biomeWeights[heightfieldIdx],
-            dev_featurePlacements[blocksIdx],
+            dev_blocks + (blocksIdx * devBlocksSize),
+            dev_heightfields + (heightfieldIdx * devHeightfieldSize),
+            dev_layers + (layersIdx * devLayersSize),
+            dev_biomeWeights + (heightfieldIdx * devBiomeWeightsSize),
+            dev_featurePlacements + (blocksIdx * devFeatuerPlacementsSize),
             streams[streamIdx]
         );
         ++blocksIdx;
@@ -583,8 +566,8 @@ void Terrain::tick()
 
         Chunk::erodeZone(
             zonePtr,
-            dev_gatheredLayers[gatheredLayersIdx],
-            dev_accumulatedHeights[gatheredLayersIdx],
+            dev_gatheredLayers + (gatheredLayersIdx * devGatheredLayersSize),
+            dev_accumulatedHeights + (gatheredLayersIdx * devAccumulatedHeightsSize),
             streams[streamIdx]
         );
         ++gatheredLayersIdx;
@@ -601,9 +584,9 @@ void Terrain::tick()
         chunksToGenerateLayers.pop();
 
         chunkPtr->generateLayers(
-            dev_heightfields[heightfieldIdx],
-            dev_layers[layersIdx],
-            dev_biomeWeights[heightfieldIdx],
+            dev_heightfields + (heightfieldIdx * devHeightfieldSize),
+            dev_layers + (layersIdx * devLayersSize),
+            dev_biomeWeights + (heightfieldIdx * devBiomeWeightsSize),
             streams[streamIdx]
         );
         ++heightfieldIdx;
@@ -637,8 +620,8 @@ void Terrain::tick()
         chunksToGenerateHeightfield.pop();
 
         chunkPtr->generateHeightfield(
-            dev_heightfields[heightfieldIdx],
-            dev_biomeWeights[heightfieldIdx],
+            dev_heightfields + (heightfieldIdx * devHeightfieldSize),
+            dev_biomeWeights + (heightfieldIdx * devBiomeWeightsSize),
             streams[streamIdx]
         );
         ++heightfieldIdx;
