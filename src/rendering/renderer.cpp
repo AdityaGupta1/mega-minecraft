@@ -11,6 +11,11 @@
 
 #define SHADOW_MAP_SIZE 8192
 
+#define DEBUG_DISABLE_RENDERING 0
+
+#define DEBUG_CREATE_PASSTHROUGH_SHADERS 0
+#define DEBUG_DISPLAY_SHADOW_MAP 0
+
 Renderer::Renderer(GLFWwindow* window, ivec2* windowSize, Terrain* terrain, Player* player)
     : window(window), windowSize(windowSize), terrain(terrain), player(player), vao(-1),
       fbo_main(-1), rbo_main(-1), fbo_shadow(-1), fbo_postprocess1(-1), fbo_bloom1(-1), fbo_bloom2(-1),
