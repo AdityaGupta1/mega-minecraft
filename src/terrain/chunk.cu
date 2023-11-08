@@ -790,23 +790,26 @@ __global__ void kernFill(
     const int idx = posTo3dIndex(x, y, z);
     const int idx2d = posTo2dIndex(x, z);
 
-    if (y < numMaterials)
+    float* loadLocation = nullptr;
+    float* storeLocation = nullptr;
+    if (threadIdx.y <= numMaterials)
     {
-        const float* columnLayers = layers + numMaterials * idx2d;
-        shared_layersAndHeight[y] = columnLayers[y];
-    }
-    else if (y == numMaterials)
-    {
-        shared_layersAndHeight[y] = heightfield[idx2d];
+        loadLocation = shared_layersAndHeight + threadIdx.y;
+        storeLocation = threadIdx.y == numMaterials ? (heightfield + idx2d) : (layers + numMaterials * idx2d + threadIdx.y);
     }
     else
     {
-        const int biomeWeightIdx = y - numMaterials - 1;
+        const int biomeWeightIdx = threadIdx.y - numMaterials - 1;
         if (biomeWeightIdx < numBiomes)
         {
-            const float* columnBiomeWeights = biomeWeights + numBiomes * idx2d;
-            shared_biomeWeights[biomeWeightIdx] = columnBiomeWeights[biomeWeightIdx];
+            loadLocation = shared_biomeWeights + biomeWeightIdx;
+            storeLocation = biomeWeights + numBiomes * idx2d + biomeWeightIdx;
         }
+    }
+
+    if (loadLocation != nullptr)
+    {
+        *loadLocation = *storeLocation;
     }
 
     __syncthreads();
@@ -917,8 +920,8 @@ void Chunk::fill(
     cudaMemcpyAsync(dev_layers, this->layers.data(), 256 * numMaterials * sizeof(float), cudaMemcpyHostToDevice, stream);
     cudaMemcpyAsync(dev_biomeWeights, this->biomeWeights.data(), 256 * numBiomes * sizeof(float), cudaMemcpyHostToDevice, stream);
 
-    const dim3 blockSize3d(1, 384, 1);
-    const dim3 blocksPerGrid3d(16, 1, 16);
+    const dim3 blockSize3d(1, 128, 1);
+    const dim3 blocksPerGrid3d(16, 3, 16);
     kernFill<<<blocksPerGrid3d, blockSize3d, 0, stream>>>(
         dev_blocks, 
         dev_heightfield,

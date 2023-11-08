@@ -24,13 +24,13 @@ static constexpr int chunkMaxGenRadius = chunkVbosGenRadius + ((ZONE_SIZE * 5) /
 // ================================================================================
 static constexpr int totalActionTime = 500;
 // ================================================================================
-static constexpr int actionTimeGenerateHeightfield        = 6;
+static constexpr int actionTimeGenerateHeightfield        = 5;
 static constexpr int actionTimeGatherHeightfield          = 2;
-static constexpr int actionTimeGenerateLayers             = 6;
+static constexpr int actionTimeGenerateLayers             = 10;
 static constexpr int actionTimeErodeZone                  = totalActionTime;
 static constexpr int actionTimeGenerateFeaturePlacements  = 2;
 static constexpr int actionTimeGatherFeaturePlacements    = 4;
-static constexpr int actionTimeFill                       = 10;
+static constexpr int actionTimeFill                       = 5;
 static constexpr int actionTimeCreateAndBufferVbos        = totalActionTime / 4;
 // ================================================================================
 
