@@ -833,6 +833,7 @@ __global__ void kernFill(
             layerIdxStart = 0;
         }
 
+#if DEBUG_USE_CONTRIBUTION_FILL_METHOD
         float maxContribution = 0.f;
         int maxLayerIdx = -1;
         #pragma unroll
@@ -868,6 +869,42 @@ __global__ void kernFill(
                 }
             }
         }
+#else
+        const float airLayerStart = shared_layersAndHeight[numMaterials];
+
+        if (y >= airLayerStart)
+        {
+            block = Block::AIR;
+        }
+        else
+        {
+            int thisLayerIdx = -1;
+            #pragma unroll
+            for (int layerIdx = numMaterials - 1; layerIdx >= 0; --layerIdx)
+            {
+                float layerStart = shared_layersAndHeight[layerIdx];
+                float layerEnd = shared_layersAndHeight[layerIdx + 1];
+
+                if (layerStart <= y && y < layerEnd)
+                {
+                    thisLayerIdx = layerIdx;
+                    break;
+                }
+            }
+
+            block = dev_materialInfos[thisLayerIdx].block;
+
+            bool isTopBlock = y >= airLayerStart - 1.f;
+            if (isTopBlock)
+            {
+                if (block == Block::DIRT)
+                {
+                    const Biome randBiome = getRandomBiome(shared_biomeWeights, u01(rng));
+                    block = dev_biomeBlocks[(int)randBiome].grassBlock;
+                }
+            }
+        }
+#endif
     }
 
     if (y < featureHeightBounds[0] || y > featureHeightBounds[1])
