@@ -13,7 +13,7 @@
 class OptixRenderer
 {
 public:
-	OptixRenderer();
+    OptixRenderer();
 
 protected:
     CUcontext          cudaContext;
@@ -28,6 +28,18 @@ protected:
     OptixModule                 module;
     OptixModuleCompileOptions   moduleCompileOptions = {};
 
+    struct {
+        OptixTraversableHandle handle;
+        CUBuffer outputBuffer;
+        CUBuffer tempBuffer;
+        OptixBuildInput buildInput;
+        OptixAccelBuildOptions buildOptions;
+        OptixAccelBufferSizes bufferSizes;
+    } rootIAS;
+
+    CUBuffer chunkInstancesBuffer;
+    std::vector<OptixInstance> chunkInstances;
+
     std::vector<OptixProgramGroup> raygenProgramGroups;
     std::vector<OptixProgramGroup> missProgramGroups;
     std::vector<OptixProgramGroup> hitProgramGroups;
@@ -36,9 +48,9 @@ protected:
 
     void createContext();
     void buildAccel();
+    void buildRootAccel();
     void createModule();
     void createProgramGroups();
     void createPipeline();
     void buildSBT();
 };
-

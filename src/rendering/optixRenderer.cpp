@@ -19,6 +19,33 @@ void OptixRenderer::createContext()
     createProgramGroups();
 }
 
+void OptixRenderer::buildRootAccel()
+{
+    chunkInstancesBuffer.initFromVector(chunkInstances);
+    
+    rootIAS.buildInput = {};
+    rootIAS.buildInput.type = OPTIX_BUILD_INPUT_TYPE_INSTANCES;
+    rootIAS.buildInput.instanceArray.instances = chunkInstancesBuffer.dev_ptr();
+    rootIAS.buildInput.instanceArray.numInstances = static_cast<unsigned int>(chunkInstances.size());
+
+    rootIAS.buildOptions = {};
+    rootIAS.buildOptions.buildFlags = OPTIX_BUILD_FLAG_ALLOW_UPDATE;
+    rootIAS.buildOptions.operation = OPTIX_BUILD_OPERATION_BUILD;
+
+    rootIAS.bufferSizes = {};
+    OPTIX_CHECK(optixAccelComputeMemoryUsage(optixContext, &rootIAS.buildOptions, &rootIAS.buildInput, 1, &rootIAS.bufferSizes));
+
+    rootIAS.outputBuffer.alloc(rootIAS.bufferSizes.outputSizeInBytes);
+    rootIAS.tempBuffer.alloc(rootIAS.bufferSizes.tempSizeInBytes);
+    
+    OPTIX_CHECK(optixAccelBuild(optixContext, stream, &rootIAS.buildOptions, &rootIAS.buildInput, 1, 
+        rootIAS.tempBuffer.dev_ptr(), rootIAS.bufferSizes.tempSizeInBytes, 
+        rootIAS.outputBuffer.dev_ptr(), rootIAS.bufferSizes.outputSizeInBytes, 
+        &rootIAS.handle, nullptr, 0));
+
+    cudaStreamSynchronize(stream);
+}
+
 void OptixRenderer::buildAccel()
 {
 }

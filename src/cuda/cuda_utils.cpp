@@ -15,3 +15,12 @@ void CudaUtils::checkCUDAError(const char* msg, int line)
         exit(EXIT_FAILURE);
     }
 }
+
+inline void CudaUtils::cudaCheck(cudaError_t error, const char* call, const char* file, unsigned int line)
+{
+    if (error != cudaSuccess)
+    {
+        fprintf(stderr, "CUDA call (%s) failed with error: '%s' (%s:%u)\n", call, cudaGetErrorString(error), file, line);
+        exit(EXIT_FAILURE);
+    }
+}
