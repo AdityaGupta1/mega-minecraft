@@ -11,6 +11,7 @@
 #include "rendering/shaderProgram.hpp"
 #include <mutex>
 #include "player/player.hpp"
+#include "biome.hpp"
 
 #define ZONE_SIZE 12 // changing this may have disastrous consequences
 #define EROSION_GRID_SIDE_LENGTH_BLOCKS (ZONE_SIZE * 2 * 16)
@@ -33,6 +34,17 @@ struct Zone
     std::vector<Chunk*> gatheredChunks;
     bool hasBeenQueuedForErosion{ false };
 };
+
+static constexpr int devBlocksSize = 16 * 384 * 16;
+static constexpr int devFeaturePlacementsSize = MAX_GATHERED_FEATURES_PER_CHUNK;
+
+static constexpr int devHeightfieldSize = 18 * 18;
+static constexpr int devBiomeWeightsSize = 256 * numBiomes;
+
+static constexpr int devLayersSize = 256 * numMaterials;
+
+static constexpr int devGatheredLayersSize = COLS_PER_EROSION_KERNEL * (numErodedMaterials + 1) + 1;
+static constexpr int devAccumulatedHeightsSize = COLS_PER_EROSION_KERNEL;
 
 class Terrain {
 private:

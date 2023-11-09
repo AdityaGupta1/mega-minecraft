@@ -140,19 +140,19 @@ void Chunk::floodFillAndIterateNeighbors(ChunkState currentState, ChunkState nex
 __global__ void kernGenerateHeightfield(
     float* heightfield,
     float* biomeWeights,
-    ivec3 chunkWorldBlockPos)
+    ivec2* chunkWorldBlockPositions)
 {
-    const int x = (blockIdx.x * blockDim.x) + threadIdx.x;
-    const int z = (blockIdx.y * blockDim.y) + threadIdx.y;
+    const int chunkIdx = blockIdx.x * blockDim.x;
+
+    const int x = (blockIdx.y * blockDim.y) + threadIdx.y;
+    const int z = (blockIdx.z * blockDim.z) + threadIdx.z;
 
     const int idx = posTo2dIndex(x, z);
 
-    const vec2 worldPos = vec2(chunkWorldBlockPos.x + x, chunkWorldBlockPos.z + z);
-
+    const vec2 worldPos = chunkWorldBlockPositions[chunkIdx] + ivec2(x, z);
     const auto biomeNoise = getBiomeNoise(worldPos);
 
-    float* columnBiomeWeights = biomeWeights + numBiomes * idx;
-
+    float* columnBiomeWeights = biomeWeights + (devBiomeWeightsSize * chunkIdx) + (numBiomes * idx);
     float height = 0.f;
     for (int i = 0; i < numBiomes; ++i) 
     {
@@ -170,24 +170,56 @@ __global__ void kernGenerateHeightfield(
 
         columnBiomeWeights[i] = weight;
     }
-    heightfield[idx] = height;
+    heightfield[(256 * chunkIdx) + idx] = height;
 }
 
-void Chunk::generateHeightfield(
-    float* dev_heightfield, 
+void Chunk::generateHeightfields(
+    std::vector<Chunk*>& chunks, 
+    float* dev_heightfields, 
     float* dev_biomeWeights, 
+    ivec2* dev_chunkWorldBlockPositions,
     cudaStream_t stream)
 {
-    const dim3 blockSize2d(16, 4);
-    const dim3 blocksPerGrid2d(1, 4);
-    kernGenerateHeightfield<<<blocksPerGrid2d, blockSize2d, 0, stream>>>(
-        dev_heightfield,
+    const int numChunks = chunks.size();
+
+    ivec2* host_chunkWorldBlockPositions = new ivec2[numChunks];
+    for (int i = 0; i < numChunks; ++i)
+    {
+        ivec3 worldBlockPos = chunks[i]->worldBlockPos;
+        host_chunkWorldBlockPositions[i] = ivec2(worldBlockPos.x, worldBlockPos.z);
+    }
+
+    cudaMemcpyAsync(dev_chunkWorldBlockPositions, host_chunkWorldBlockPositions, numChunks * sizeof(ivec2), cudaMemcpyHostToDevice, stream);
+
+    const dim3 blockSize3d(1, 16, 16);
+    const dim3 blocksPerGrid3d(numChunks, 1, 1);
+    kernGenerateHeightfield<<<blocksPerGrid3d, blockSize3d, 0, stream>>>(
+        dev_heightfields,
         dev_biomeWeights,
-        this->worldBlockPos
+        dev_chunkWorldBlockPositions
     );
 
-    cudaMemcpyAsync(this->heightfield.data(), dev_heightfield, 256 * sizeof(float), cudaMemcpyDeviceToHost, stream);
-    cudaMemcpyAsync(this->biomeWeights.data(), dev_biomeWeights, 256 * numBiomes * sizeof(float), cudaMemcpyDeviceToHost, stream);
+    float* host_heightfields = new float[numChunks * 256];
+    float* host_biomeWeights = new float[numChunks * devBiomeWeightsSize];
+
+    cudaMemcpyAsync(host_heightfields, dev_heightfields, numChunks * 256 * sizeof(float), cudaMemcpyDeviceToHost, stream);
+    cudaMemcpyAsync(host_biomeWeights, dev_biomeWeights, numChunks * devBiomeWeightsSize * sizeof(float), cudaMemcpyDeviceToHost, stream);
+  
+    cudaStreamSynchronize(stream);
+
+    for (int i = 0; i < numChunks; ++i)
+    {
+        Chunk* chunkPtr = chunks[i];
+
+        std::memcpy(chunkPtr->heightfield.data(), host_heightfields + (256 * i), 256 * sizeof(float));
+        std::memcpy(chunkPtr->biomeWeights.data(), host_biomeWeights + (devBiomeWeightsSize * i), devBiomeWeightsSize * sizeof(float));
+
+        chunkPtr->setState(ChunkState::HAS_HEIGHTFIELD);
+    }
+
+    delete[] host_chunkWorldBlockPositions;
+    delete[] host_heightfields;
+    delete[] host_biomeWeights;
 
     CudaUtils::checkCUDAError("Chunk::generateHeightfield() failed");
 }

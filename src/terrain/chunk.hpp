@@ -78,8 +78,6 @@ public:
     bool isReadyForQueue();
     void setNotReadyForQueue();
 
-    void generateHeightfield(float* dev_heightfield, float* dev_biomeWeights, cudaStream_t stream);
-
 private:
     template<std::size_t diameter>
     void floodFill(Chunk* (&neighborChunks)[diameter][diameter], ChunkState minState);
@@ -95,6 +93,13 @@ private:
     static void otherChunkGatherFeaturePlacements(Chunk* chunkPtr, Chunk* const (&neighborChunks)[9][9], int centerX, int centerZ);
 
 public:
+    static void generateHeightfields(
+        std::vector<Chunk*>& chunks, 
+        float* dev_heightfields, 
+        float* dev_biomeWeights,
+        ivec2* dev_chunkWorldBlockPositions,
+        cudaStream_t stream);
+
     void gatherHeightfield();
 
     void generateLayers(float* dev_heightfield, float* dev_layers, float* dev_biomeWeights, cudaStream_t stream);

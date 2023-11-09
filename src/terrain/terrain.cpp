@@ -14,7 +14,7 @@ static constexpr int chunkMaxGenRadius = chunkVbosGenRadius + (ZONE_SIZE * 2);
 
 // TODO: get better estimates for these
 // ================================================================================
-static constexpr int totalActionTime = 10000;
+static constexpr int totalActionTime = 500;
 // ================================================================================
 static constexpr int actionTimeGenerateHeightfield        = 5;
 static constexpr int actionTimeGatherHeightfield          = 2;
@@ -45,27 +45,22 @@ std::chrono::system_clock::time_point start;
 
 static constexpr int numDevBlocks = totalActionTime / actionTimeFill;
 static constexpr int numDevHeightfields = totalActionTime / min(actionTimeGenerateHeightfield, min(actionTimeGenerateLayers, actionTimeFill));
+static constexpr int numDevChunkWorldBlockPositions = numDevHeightfields; // TODO: revisit
 static constexpr int numDevLayers = totalActionTime / min(actionTimeGenerateLayers, actionTimeFill);
 static constexpr int numDevGatheredLayers = totalActionTime / actionTimeErodeZone;
 static constexpr int numStreams = max(max(numDevBlocks, numDevHeightfields), max(numDevLayers, numDevGatheredLayers));
 
-static constexpr int devBlocksSize = 16 * 384 * 16;
 static Block* dev_blocks;
-static constexpr int devFeatuerPlacementsSize = MAX_GATHERED_FEATURES_PER_CHUNK;
 static FeaturePlacement* dev_featurePlacements;
 
-static constexpr int devHeightfieldSize = 18 * 18;
 static float* dev_heightfields;
-static constexpr int devBiomeWeightsSize = 256 * numBiomes;
 static float* dev_biomeWeights; // TODO: may need to set numDevBiomeWeights = max(numDevHeightfields, numDevLayers)
                                 // probably fine for now since biome weights are always used in tandem with heightfield
+static ivec2* dev_chunkWorldBlockPositions;
 
-static constexpr int devLayersSize = 256 * numMaterials;
 static float* dev_layers;
 
-static constexpr int devGatheredLayersSize = COLS_PER_EROSION_KERNEL * (numErodedMaterials + 1) + 1;
 static float* dev_gatheredLayers;
-static constexpr int devAccumulatedHeightsSize = COLS_PER_EROSION_KERNEL;
 static float* dev_accumulatedHeights;
 
 static std::array<cudaStream_t, numStreams> streams;
@@ -73,10 +68,11 @@ static std::array<cudaStream_t, numStreams> streams;
 void Terrain::initCuda()
 {
     cudaMalloc((void**)&dev_blocks, numDevBlocks * devBlocksSize * sizeof(Block));
-    cudaMalloc((void**)&dev_featurePlacements, numDevBlocks * devFeatuerPlacementsSize * sizeof(FeaturePlacement));
+    cudaMalloc((void**)&dev_featurePlacements, numDevBlocks * devFeaturePlacementsSize * sizeof(FeaturePlacement));
 
     cudaMalloc((void**)&dev_heightfields, numDevHeightfields * devHeightfieldSize * sizeof(float));
     cudaMalloc((void**)&dev_biomeWeights, numDevHeightfields * devBiomeWeightsSize * sizeof(float));
+    cudaMalloc((void**)&dev_chunkWorldBlockPositions, numDevChunkWorldBlockPositions * sizeof(ivec2));
 
     cudaMalloc((void**)&dev_layers, numDevLayers * devLayersSize * sizeof(float));
 
@@ -100,6 +96,7 @@ void Terrain::freeCuda()
 
     cudaFree(dev_heightfields);
     cudaFree(dev_biomeWeights);
+    cudaFree(dev_chunkWorldBlockPositions);
 
     cudaFree(dev_layers);
 
@@ -480,6 +477,7 @@ void Terrain::tick()
 
     int blocksIdx = 0;
     int heightfieldIdx = 0;
+    int chunkWorldBlockPositionIdx = 0;
     int layersIdx = 0;
     int gatheredLayersIdx = 0;
     int streamIdx = 0;
@@ -512,7 +510,7 @@ void Terrain::tick()
             dev_heightfields + (heightfieldIdx * devHeightfieldSize),
             dev_layers + (layersIdx * devLayersSize),
             dev_biomeWeights + (heightfieldIdx * devBiomeWeightsSize),
-            dev_featurePlacements + (blocksIdx * devFeatuerPlacementsSize),
+            dev_featurePlacements + (blocksIdx * devFeaturePlacementsSize),
             streams[streamIdx]
         );
         ++blocksIdx;
@@ -612,6 +610,7 @@ void Terrain::tick()
         actionTimeLeft -= actionTimeGatherHeightfield;
     }
 
+    std::vector<Chunk*> chunks;
     while (!chunksToGenerateHeightfield.empty() && actionTimeLeft >= actionTimeGenerateHeightfield)
     {
         needsUpdateChunks = true;
@@ -619,17 +618,25 @@ void Terrain::tick()
         auto chunkPtr = chunksToGenerateHeightfield.front();
         chunksToGenerateHeightfield.pop();
 
-        chunkPtr->generateHeightfield(
-            dev_heightfields + (heightfieldIdx * devHeightfieldSize),
-            dev_biomeWeights + (heightfieldIdx * devBiomeWeightsSize),
-            streams[streamIdx]
-        );
-        ++heightfieldIdx;
-        ++streamIdx;
-
-        chunkPtr->setState(ChunkState::HAS_HEIGHTFIELD);
+        chunks.push_back(chunkPtr);
 
         actionTimeLeft -= actionTimeGenerateHeightfield;
+    }
+
+    int numChunks = chunks.size();
+    if (numChunks > 0)
+    {
+        Chunk::generateHeightfields(
+            chunks,
+            dev_heightfields + (heightfieldIdx * devHeightfieldSize),
+            dev_biomeWeights + (heightfieldIdx * devBiomeWeightsSize),
+            dev_chunkWorldBlockPositions + (chunkWorldBlockPositionIdx),
+            streams[streamIdx]
+        );
+
+        heightfieldIdx += numChunks;
+        chunkWorldBlockPositionIdx += numChunks;
+        streamIdx += numChunks;
     }
 
     if (streamIdx > 0)
