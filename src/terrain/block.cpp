@@ -39,9 +39,9 @@ void BlockUtils::init()
     blockDatas[(int)Block::RAFFLESIA_CENTER] = { BlockUvs(ivec2(3, 2)) };
     blockDatas[(int)Block::RAFFLESIA_SPIKES] = { BlockUvs(ivec2(4, 2)) };
     blockDatas[(int)Block::RAFFLESIA_STEM] = { BlockUvs(ivec2(5, 2)) };
-    //blockDatas[(int)Block::JUNGLE_LOG] = { BlockUvs(ivec2(7, 2), ivec2(8, 2)) };
-    blockDatas[(int)Block::JUNGLE_LOG] = { BlockUvs(ivec2(7, 2)) };
-    blockDatas[(int)Block::JUNGLE_LEAVES] = { BlockUvs(ivec2(6, 2)), TransparencyType::SEMI_TRANSPARENT };
+    blockDatas[(int)Block::JUNGLE_WOOD] = { BlockUvs(ivec2(8, 2)) };
+    blockDatas[(int)Block::JUNGLE_LEAVES_PLAIN] = { BlockUvs(ivec2(6, 2)), TransparencyType::SEMI_TRANSPARENT };
+    blockDatas[(int)Block::JUNGLE_LEAVES_FRUITS] = { BlockUvs(ivec2(7, 2)), TransparencyType::SEMI_TRANSPARENT };
 }
 
 BlockData BlockUtils::getBlockData(Block block)

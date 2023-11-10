@@ -107,12 +107,17 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
     const ivec3& featurePos = featurePlacement.pos;
     vec3 pos = worldBlockPos - featurePos;
 
-    auto rng = makeSeededRandomEngine(featurePos.x, featurePos.y, featurePos.z, 8);
+    auto featureRng = makeSeededRandomEngine(featurePos.x, featurePos.y, featurePos.z, 8);
+    auto blockRng = makeSeededRandomEngine(worldBlockPos.x, worldBlockPos.y, worldBlockPos.z, 9);
     thrust::uniform_real_distribution<float> u01(0, 1);
     thrust::uniform_real_distribution<float> u11(-1, 1);
 
     switch (featurePlacement.feature)
     {
+    case Feature::NONE:
+    {
+        return false;
+    }
     case Feature::SPHERE:
     {
         glm::vec3 diff = worldBlockPos - featurePos;
@@ -127,10 +132,10 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
     }
     case Feature::PURPLE_MUSHROOM: 
     {
-        float universalScale = 1.f + u01(rng) * 1.2f;
+        float universalScale = 1.f + u01(featureRng) * 1.2f;
         pos *= universalScale;
 
-        float height = 25.f + u01(rng) * 30.f;
+        float height = 25.f + u01(featureRng) * 30.f;
 
         if (pos.y < -1 || pos.y > height + 12 || (length(vec2(pos.x, pos.z)) > 8 && (pos.y < height - 12 || length(pos - vec3(0, height, 0)) > 35)))
         {
@@ -147,7 +152,7 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
         #pragma unroll
         for (int i = 1; i < numCtrlPts; ++i)
         {
-            vec3 offset = vec3(u11(rng), u11(rng), u11(rng)) * vec3(6, 2, 6);
+            vec3 offset = vec3(u11(featureRng), u11(featureRng), u11(featureRng)) * vec3(6, 2, 6);
             if (i == numCtrlPts - 1)
             {
                 offset *= 0.6f;
@@ -175,7 +180,7 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
             }
             else
             {
-                pos2 = pos1 + normalize(pos1 - spline[i - 1]) * (3.f + u01(rng) * 1.5f);
+                pos2 = pos1 + normalize(pos1 - spline[i - 1]) * (3.f + u01(featureRng) * 1.5f);
             }
 
             float ratio;
@@ -193,7 +198,7 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
             }
             else
             {
-                radius = (7.f * u01(rng) + 12.f) * mix(0.8f, 1.2f, (height - 33.f) / 40.f);
+                radius = (7.f * u01(featureRng) + 12.f) * mix(0.8f, 1.2f, (height - 33.f) / 40.f);
 
                 if (distFromLine < radius - 1.8f && ratio < 0.5f && universalScale < 1.4f)
                 {
@@ -245,7 +250,7 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
             return true;
         }
 
-        const float petalStartAngle = u01(rng) * TWO_PI;
+        const float petalStartAngle = u01(featureRng) * TWO_PI;
         for (int i = 0; i < 5; ++i)
         {
             const float petalAngle = petalStartAngle + (i * TWO_PI * 0.2f);
@@ -269,7 +274,7 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
     }
     case Feature::LARGE_JUNGLE_TREE:
     {
-        float height = 18.f + 10.f * u01(rng);
+        float height = 18.f + 10.f * u01(featureRng);
         if (pos.y > height + 6.f || length(vec2(pos.x, pos.z)) > 15.f)
         {
             return false;
@@ -278,7 +283,7 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
         ivec2 trunkPos = ivec2(floor(vec2(pos.x, pos.z)));
         if (pos.y < height && trunkPos.x >= 0 && trunkPos.x <= 1 && trunkPos.y >= 0 && trunkPos.y <= 1)
         {
-            *block = Block::JUNGLE_LOG;
+            *block = Block::JUNGLE_WOOD;
             return true;
         }
 
@@ -286,25 +291,25 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
 
         vec3 leavesPos = pos;
         leavesPos.y -= (height - 2.f);
-        if (jungleLeaves(leavesPos, 4.f, 4.f, 7.f, u01(rng)))
+        if (jungleLeaves(leavesPos, 4.f, 4.f, 7.f, u01(featureRng)))
         {
-            *block = Block::JUNGLE_LEAVES;
+            *block = u01(blockRng) < 0.5f ? Block::JUNGLE_LEAVES_FRUITS : Block::JUNGLE_LEAVES_PLAIN;
             return true;
         }
 
-        float numBranches = 0.5f + 2.5f * u01(rng);
+        float numBranches = 0.5f + 2.5f * u01(featureRng);
         float branchHeight = height;
         for (int i = 0; i < numBranches; ++i)
         {
-            branchHeight -= (8.f + u01(rng) * 3.f) * (height / 30.f);
-            float branchAngle = TWO_PI * u01(rng);
+            branchHeight -= (8.f + u01(featureRng) * 3.f) * (height / 30.f);
+            float branchAngle = TWO_PI * u01(featureRng);
 
             vec3 branchStart = vec3(0, branchHeight, 0);
 
             vec3 branchEnd = vec3(0);
             sincosf(-branchAngle, &branchEnd.z, &branchEnd.x);
-            branchEnd = ((3.f + 1.5f * u01(rng)) * branchEnd) + branchStart;
-            branchEnd.y += 1.f + 1.5f * u01(rng);
+            branchEnd = ((3.f + 1.5f * u01(featureRng)) * branchEnd) + branchStart;
+            branchEnd.y += 1.f + 1.5f * u01(featureRng);
 
             float ratio;
             float distFromLine;
@@ -313,14 +318,14 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
             float branchRadius = 1.2f - (0.4f * ratio);
             if (inRatio && distFromLine < branchRadius)
             {
-                *block = Block::JUNGLE_LOG;
+                *block = Block::JUNGLE_WOOD;
                 return true;
             }
 
             leavesPos = pos - branchEnd + vec3(0, 0.2f, 0);
-            if (jungleLeaves(leavesPos, 2.f, 2.5f, 3.5f, u01(rng)))
+            if (jungleLeaves(leavesPos, 2.f, 2.5f, 3.5f, u01(featureRng)))
             {
-                *block = Block::JUNGLE_LEAVES;
+                *block = u01(blockRng) < 0.25f ? Block::JUNGLE_LEAVES_FRUITS : Block::JUNGLE_LEAVES_PLAIN;
                 return true;
             }
         }
@@ -329,7 +334,7 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
     }
     case Feature::SMALL_JUNGLE_TREE:
     {
-        float height = 8.f + 4.f * u01(rng);
+        float height = 8.f + 4.f * u01(featureRng);
         float maxDist = pos.y < height - 2.f ? 2.f : 8.f;
         if (pos.y > height + 4.f || length(vec2(pos.x, pos.z)) > maxDist)
         {
@@ -338,14 +343,14 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
 
         if (pos.y < height && ivec2(floor(vec2(pos.x, pos.z))) == ivec2(0))
         {
-            *block = Block::JUNGLE_LOG;
+            *block = Block::JUNGLE_WOOD;
             return true;
         }
 
         vec3 leavesPos = pos - vec3(0, height - 1.f, 0);
-        if (jungleLeaves(leavesPos, 3.f, 2.f, 4.f, u01(rng)))
+        if (jungleLeaves(leavesPos, 3.f, 2.f, 4.f, u01(featureRng)))
         {
-            *block = Block::JUNGLE_LEAVES;
+            *block = u01(blockRng) < 0.25f ? Block::JUNGLE_LEAVES_FRUITS : Block::JUNGLE_LEAVES_PLAIN;
             return true;
         }
 
@@ -360,16 +365,16 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
             return false;
         }
 
-        int height = (int)(0.5f + 2.5f * u01(rng));
+        int height = (int)(0.5f + 2.5f * u01(featureRng));
         if (floorPos.x == 0 && floorPos.y < height && floorPos.z == 0)
         {
-            *block = Block::JUNGLE_LOG;
+            *block = Block::JUNGLE_WOOD;
             return true;
         }
 
         if (manhattanDistance(floorPos, vec3(0, height, 0)) == 1)
         {
-            *block = Block::JUNGLE_LEAVES;
+            *block = Block::JUNGLE_LEAVES_PLAIN;
             return true;
         }
 

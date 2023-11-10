@@ -151,7 +151,7 @@ __device__ float getHeight(Biome biome, vec2 pos)
     }
     case Biome::MOUNTAINS:
     {
-        float noise = pow(abs(fbm(pos * 0.0035f)) + 0.05f, 2.f);
+        float noise = powf(abs(fbm(pos * 0.0035f)) + 0.05f, 2.f);
         noise += ((fbm(pos * 0.0050f) - 0.5f) * 2.f) * 0.05f;
         return 165.f + (140.f * (noise - 0.15f)) + (noise * (20.f * fbm(pos * 0.0350f)));
     }
