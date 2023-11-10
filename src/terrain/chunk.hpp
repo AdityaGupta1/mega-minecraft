@@ -102,8 +102,9 @@ public:
 
     void gatherHeightfield();
 
-    void generateLayers(
-        float* dev_heightfield,
+    static void generateLayers(
+        std::vector<Chunk*>& chunks,
+        float* dev_heightfields,
         float* dev_biomeWeights,
         float* dev_layers,
         cudaStream_t stream);

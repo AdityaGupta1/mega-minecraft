@@ -406,25 +406,33 @@ __global__ void kernGenerateLayers(
 }
 
 void Chunk::generateLayers(
-    float* dev_heightfield,
+    std::vector<Chunk*>& chunks,
+    float* dev_heightfields,
     float* dev_biomeWeights,
     float* dev_layers,
     cudaStream_t stream)
 {
-    cudaMemcpyAsync(dev_heightfield, this->gatheredHeightfield.data(), 18 * 18 * sizeof(float), cudaMemcpyHostToDevice, stream);
-    this->gatheredHeightfield.clear();
-    cudaMemcpyAsync(dev_biomeWeights, this->biomeWeights.data(), 256 * numBiomes * sizeof(float), cudaMemcpyHostToDevice, stream);
+    const int numChunks = chunks.size();
 
-    const dim3 blockSize2d(16, 16);
-    const dim3 blocksPerGrid2d(1, 1);
-    kernGenerateLayers<<<blocksPerGrid2d, blockSize2d, 0, stream>>>(
-        dev_heightfield,
-        dev_biomeWeights,
-        dev_layers,
-        this->worldBlockPos
-    );
+    for (int i = 0; i < numChunks; ++i)
+    {
+        Chunk* chunkPtr = chunks[i];
 
-    cudaMemcpyAsync(this->layers.data(), dev_layers, 256 * numMaterials * sizeof(float), cudaMemcpyDeviceToHost, stream);
+        cudaMemcpyAsync(dev_heightfields + (i * devHeightfieldSize), chunkPtr->gatheredHeightfield.data(), devHeightfieldSize * sizeof(float), cudaMemcpyHostToDevice, stream);
+        chunkPtr->gatheredHeightfield.clear();
+        cudaMemcpyAsync(dev_biomeWeights + (i * devBiomeWeightsSize), chunkPtr->biomeWeights.data(), devBiomeWeightsSize * sizeof(float), cudaMemcpyHostToDevice, stream);
+
+        const dim3 blockSize2d(16, 16);
+        const dim3 blocksPerGrid2d(1, 1);
+        kernGenerateLayers<<<blocksPerGrid2d, blockSize2d, 0, stream>>>(
+            dev_heightfields + (i * devHeightfieldSize),
+            dev_biomeWeights + (i * devBiomeWeightsSize),
+            dev_layers + (i * devLayersSize),
+            chunkPtr->worldBlockPos
+        );
+
+        cudaMemcpyAsync(chunkPtr->layers.data(), dev_layers + (i * devLayersSize), devLayersSize * sizeof(float), cudaMemcpyDeviceToHost, stream);
+    }
 
     CudaUtils::checkCUDAError("Chunk::generateLayers() failed");
 }

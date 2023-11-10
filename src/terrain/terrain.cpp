@@ -600,18 +600,17 @@ void Terrain::tick()
         int numChunks = chunks.size();
         if (numChunks > 0)
         {
-            for (const auto& chunkPtr : chunks)
-            {
-                chunkPtr->generateLayers(
-                    dev_heightfields + (heightfieldIdx * devHeightfieldSize),
-                    dev_biomeWeights + (heightfieldIdx * devBiomeWeightsSize),
-                    dev_layers + (layersIdx * devLayersSize),
-                    streams[streamIdx]
-                );
-                ++heightfieldIdx;
-                ++layersIdx;
-                ++streamIdx;
-            }
+            Chunk::generateLayers(
+                chunks,
+                dev_heightfields,
+                dev_biomeWeights,
+                dev_layers,
+                streams[streamIdx]
+            );
+
+            heightfieldIdx += numChunks;
+            layersIdx += numChunks;
+            ++streamIdx;
         }
     }
 
