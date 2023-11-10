@@ -45,10 +45,10 @@ std::chrono::system_clock::time_point start;
 
 static constexpr int numDevBlocks = totalActionTime / actionTimeFill;
 static constexpr int numDevHeightfields = totalActionTime / min(actionTimeGenerateHeightfield, min(actionTimeGenerateLayers, actionTimeFill));
-static constexpr int numDevChunkWorldBlockPositions = numDevHeightfields; // TODO: revisit
+static constexpr int numDevChunkWorldBlockPositions = totalActionTime / min(actionTimeGenerateHeightfield, actionTimeGenerateLayers);
 static constexpr int numDevLayers = totalActionTime / min(actionTimeGenerateLayers, actionTimeFill);
 static constexpr int numDevGatheredLayers = totalActionTime / actionTimeErodeZone;
-static constexpr int numStreams = max(max(numDevBlocks, numDevHeightfields), max(numDevLayers, numDevGatheredLayers));
+static constexpr int numStreams = max(max(numDevBlocks, numDevHeightfields), max(numDevLayers, numDevGatheredLayers)); // TODO: revisit
 
 static Block* dev_blocks;
 static FeaturePlacement* dev_featurePlacements;
@@ -571,31 +571,48 @@ void Terrain::tick()
         ++gatheredLayersIdx;
         ++streamIdx;
 
+        for (const auto& chunkPtr : zonePtr->chunks)
+        {
+            chunkPtr->setState(ChunkState::NEEDS_FEATURE_PLACEMENTS);
+        }
+
         actionTimeLeft -= actionTimeErodeZone;
     }
 
-    while (!chunksToGenerateLayers.empty() && actionTimeLeft >= actionTimeGenerateLayers)
     {
-        needsUpdateChunks = true;
+        std::vector<Chunk*> chunks;
+        while (!chunksToGenerateLayers.empty() && actionTimeLeft >= actionTimeGenerateLayers)
+        {
+            needsUpdateChunks = true;
 
-        auto chunkPtr = chunksToGenerateLayers.front();
-        chunksToGenerateLayers.pop();
+            auto chunkPtr = chunksToGenerateLayers.front();
+            chunksToGenerateLayers.pop();
 
-        chunkPtr->generateLayers(
-            dev_heightfields + (heightfieldIdx * devHeightfieldSize),
-            dev_layers + (layersIdx * devLayersSize),
-            dev_biomeWeights + (heightfieldIdx * devBiomeWeightsSize),
-            streams[streamIdx]
-        );
-        ++heightfieldIdx;
-        ++layersIdx;
-        ++streamIdx;
+            chunks.push_back(chunkPtr);
 
-        addZonesToTryErosionSet(chunkPtr);
+            addZonesToTryErosionSet(chunkPtr);
 
-        chunkPtr->setState(ChunkState::HAS_LAYERS);
+            chunkPtr->setState(ChunkState::HAS_LAYERS);
 
-        actionTimeLeft -= actionTimeGenerateLayers;
+            actionTimeLeft -= actionTimeGenerateLayers;
+        }
+
+        int numChunks = chunks.size();
+        if (numChunks > 0)
+        {
+            for (const auto& chunkPtr : chunks)
+            {
+                chunkPtr->generateLayers(
+                    dev_heightfields + (heightfieldIdx * devHeightfieldSize),
+                    dev_layers + (layersIdx * devLayersSize),
+                    dev_biomeWeights + (heightfieldIdx * devBiomeWeightsSize),
+                    streams[streamIdx]
+                );
+                ++heightfieldIdx;
+                ++layersIdx;
+                ++streamIdx;
+            }
+        }
     }
 
     while (!chunksToGatherHeightfield.empty() && actionTimeLeft >= actionTimeGatherHeightfield)
@@ -610,33 +627,37 @@ void Terrain::tick()
         actionTimeLeft -= actionTimeGatherHeightfield;
     }
 
-    std::vector<Chunk*> chunks;
-    while (!chunksToGenerateHeightfield.empty() && actionTimeLeft >= actionTimeGenerateHeightfield)
     {
-        needsUpdateChunks = true;
+        std::vector<Chunk*> chunks;
+        while (!chunksToGenerateHeightfield.empty() && actionTimeLeft >= actionTimeGenerateHeightfield)
+        {
+            needsUpdateChunks = true;
 
-        auto chunkPtr = chunksToGenerateHeightfield.front();
-        chunksToGenerateHeightfield.pop();
+            auto chunkPtr = chunksToGenerateHeightfield.front();
+            chunksToGenerateHeightfield.pop();
 
-        chunks.push_back(chunkPtr);
+            chunks.push_back(chunkPtr);
 
-        actionTimeLeft -= actionTimeGenerateHeightfield;
-    }
+            chunkPtr->setState(ChunkState::HAS_HEIGHTFIELD);
 
-    int numChunks = chunks.size();
-    if (numChunks > 0)
-    {
-        Chunk::generateHeightfields(
-            chunks,
-            dev_heightfields + (heightfieldIdx * devHeightfieldSize),
-            dev_biomeWeights + (heightfieldIdx * devBiomeWeightsSize),
-            dev_chunkWorldBlockPositions + (chunkWorldBlockPositionIdx),
-            streams[streamIdx]
-        );
+            actionTimeLeft -= actionTimeGenerateHeightfield;
+        }
 
-        heightfieldIdx += numChunks;
-        chunkWorldBlockPositionIdx += numChunks;
-        streamIdx += numChunks;
+        int numChunks = chunks.size();
+        if (numChunks > 0)
+        {
+            Chunk::generateHeightfields(
+                chunks,
+                dev_heightfields + (heightfieldIdx * devHeightfieldSize),
+                dev_biomeWeights + (heightfieldIdx * devBiomeWeightsSize),
+                dev_chunkWorldBlockPositions + (chunkWorldBlockPositionIdx),
+                streams[streamIdx]
+            );
+
+            heightfieldIdx += numChunks;
+            chunkWorldBlockPositionIdx += numChunks;
+            ++streamIdx;
+        }
     }
 
     if (streamIdx > 0)

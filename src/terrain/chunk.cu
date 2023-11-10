@@ -174,9 +174,9 @@ __global__ void kernGenerateHeightfield(
 }
 
 void Chunk::generateHeightfields(
-    std::vector<Chunk*>& chunks, 
-    float* dev_heightfields, 
-    float* dev_biomeWeights, 
+    std::vector<Chunk*>& chunks,
+    float* dev_heightfields,
+    float* dev_biomeWeights,
     ivec2* dev_chunkWorldBlockPositions,
     cudaStream_t stream)
 {
@@ -213,8 +213,6 @@ void Chunk::generateHeightfields(
 
         std::memcpy(chunkPtr->heightfield.data(), host_heightfields + (256 * i), 256 * sizeof(float));
         std::memcpy(chunkPtr->biomeWeights.data(), host_biomeWeights + (devBiomeWeightsSize * i), devBiomeWeightsSize * sizeof(float));
-
-        chunkPtr->setState(ChunkState::HAS_HEIGHTFIELD);
     }
 
     delete[] host_chunkWorldBlockPositions;
@@ -658,7 +656,6 @@ void Chunk::erodeZone(Zone* zonePtr, float* dev_gatheredLayers, float* dev_accum
     for (const auto& chunkPtr : zonePtr->chunks)
     {
         chunkPtr->fixBackwardStratifiedLayers();
-        chunkPtr->setState(ChunkState::NEEDS_FEATURE_PLACEMENTS);
     }
 
     CudaUtils::checkCUDAError("Chunk::erodeZone() failed");
