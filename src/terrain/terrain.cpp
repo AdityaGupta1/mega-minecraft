@@ -665,6 +665,11 @@ void Terrain::draw(const ShaderProgram& prog, const Player* player)
     }
 }
 
+std::unordered_set<Chunk*> Terrain::getDrawableChunks()
+{
+    return drawableChunks;
+}
+
 ivec2 Terrain::getCurrentChunkPos() const
 {
     return this->currentChunkPos;
