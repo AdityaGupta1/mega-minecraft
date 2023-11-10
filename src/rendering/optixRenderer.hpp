@@ -21,10 +21,10 @@ protected:
     GLFWwindow* window{ nullptr };
     Terrain* terrain{ nullptr };
 
-    CUcontext          cudaContext;
+    CUcontext          cudaContext = {};
     CUstream           stream;
 
-    OptixDeviceContext optixContext;
+    OptixDeviceContext optixContext = {};
 
     OptixPipeline               pipeline;
     OptixPipelineCompileOptions pipelineCompileOptions = {};

@@ -15,13 +15,13 @@ void OptixRenderer::createContext()
     OPTIX_CHECK(optixInit());
     OptixDeviceContextOptions options = {};
     OPTIX_CHECK(optixDeviceContextCreate(cudaContext, &options, &optixContext));
-    //createModule();
-    //createProgramGroups();
+    createModule();
+    createProgramGroups();
     for (const Chunk* c : terrain->getDrawableChunks()) {
-        //buildChunkAccel(c);
+        buildChunkAccel(c);
     }
-    //buildRootAccel();
-    //createPipeline();
+    buildRootAccel();
+    createPipeline();
 }
 
 void OptixRenderer::buildRootAccel()
