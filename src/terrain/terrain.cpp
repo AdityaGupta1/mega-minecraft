@@ -649,9 +649,9 @@ void Terrain::tick()
         {
             Chunk::generateHeightfields(
                 chunks,
+                dev_chunkWorldBlockPositions + (chunkWorldBlockPositionIdx),
                 dev_heightfields + (heightfieldIdx * devHeightfieldSize),
                 dev_biomeWeights + (heightfieldIdx * devBiomeWeightsSize),
-                dev_chunkWorldBlockPositions + (chunkWorldBlockPositionIdx),
                 streams[streamIdx]
             );
 

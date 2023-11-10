@@ -138,9 +138,9 @@ void Chunk::floodFillAndIterateNeighbors(ChunkState currentState, ChunkState nex
 #pragma region heightfield
 
 __global__ void kernGenerateHeightfield(
+    ivec2* chunkWorldBlockPositions,
     float* heightfield,
-    float* biomeWeights,
-    ivec2* chunkWorldBlockPositions)
+    float* biomeWeights)
 {
     const int chunkIdx = blockIdx.x * blockDim.x;
 
@@ -175,9 +175,9 @@ __global__ void kernGenerateHeightfield(
 
 void Chunk::generateHeightfields(
     std::vector<Chunk*>& chunks,
+    ivec2* dev_chunkWorldBlockPositions,
     float* dev_heightfields,
     float* dev_biomeWeights,
-    ivec2* dev_chunkWorldBlockPositions,
     cudaStream_t stream)
 {
     const int numChunks = chunks.size();
@@ -194,9 +194,9 @@ void Chunk::generateHeightfields(
     const dim3 blockSize3d(1, 16, 16);
     const dim3 blocksPerGrid3d(numChunks, 1, 1);
     kernGenerateHeightfield<<<blocksPerGrid3d, blockSize3d, 0, stream>>>(
+        dev_chunkWorldBlockPositions,
         dev_heightfields,
-        dev_biomeWeights,
-        dev_chunkWorldBlockPositions
+        dev_biomeWeights
     );
 
     float* host_heightfields = new float[numChunks * 256];
@@ -315,23 +315,25 @@ __device__ float getStratifiedMaterialThickness(int layerIdx, float materialWeig
 __global__ void kernGenerateLayers(
     float* heightfield,
     float* biomeWeights,
-    float* layers,
-    ivec3 chunkWorldBlockPos)
+    ivec2* chunkWorldBlockPositions,
+    float* layers)
 {
     __shared__ float shared_heightfield[18 * 18];
 
-    const int x = (blockIdx.x * blockDim.x) + threadIdx.x;
-    const int z = (blockIdx.y * blockDim.y) + threadIdx.y;
+    const int chunkIdx = blockIdx.x * blockDim.x;
+
+    const int x = (blockIdx.y * blockDim.y) + threadIdx.y;
+    const int z = (blockIdx.z * blockDim.z) + threadIdx.z;
 
     const int idx = posTo2dIndex(x, z);
 
-    const vec2 worldPos = vec2(chunkWorldBlockPos.x + x, chunkWorldBlockPos.z + z);
+    const vec2 worldPos = chunkWorldBlockPositions[chunkIdx] + ivec2(x, z);
 
-    shared_heightfield[idx] = heightfield[idx];
+    shared_heightfield[idx] = heightfield[(devHeightfieldSize * chunkIdx) + idx];
     const int idx2 = idx + 256;
     if (idx2 < 18 * 18)
     {
-        shared_heightfield[idx2] = heightfield[idx2];
+        shared_heightfield[idx2] = heightfield[(devHeightfieldSize * chunkIdx) + idx2];
     }
 
     __syncthreads();
@@ -343,7 +345,7 @@ __global__ void kernGenerateLayers(
         totalMaterialWeights[materialIdx] = 0;
     }
 
-    const float* columnBiomeWeights = biomeWeights + numBiomes * idx;
+    const float* columnBiomeWeights = biomeWeights + (devBiomeWeightsSize * chunkIdx) + numBiomes * idx;
     #pragma unroll
     for (int biomeIdx = 0; biomeIdx < numBiomes; ++biomeIdx)
     {
@@ -367,7 +369,7 @@ __global__ void kernGenerateLayers(
         slope = max(slope, abs(neighborHeight - maxHeight) * (i % 2 == 1 ? SQRT_2 : 1));
     }
 
-    float* columnLayers = layers + numMaterials * idx;
+    float* columnLayers = layers + (devLayersSize * chunkIdx) + numMaterials * idx;
 
     float height = 0;
     #pragma unroll
@@ -435,19 +437,14 @@ void Chunk::generateLayers(
     cudaMemcpyAsync(dev_biomeWeights, host_biomeWeights, numChunks * devBiomeWeightsSize * sizeof(float), cudaMemcpyHostToDevice, stream);
     cudaMemcpyAsync(dev_chunkWorldBlockPositions, host_chunkWorldBlockPositions, numChunks * sizeof(ivec2), cudaMemcpyHostToDevice, stream);
 
-    for (int i = 0; i < numChunks; ++i)
-    {
-        Chunk* chunkPtr = chunks[i];
-
-        const dim3 blockSize2d(16, 16);
-        const dim3 blocksPerGrid2d(1, 1);
-        kernGenerateLayers<<<blocksPerGrid2d, blockSize2d, 0, stream>>>(
-            dev_heightfields + (i * devHeightfieldSize),
-            dev_biomeWeights + (i * devBiomeWeightsSize),
-            dev_layers + (i * devLayersSize),
-            chunkPtr->worldBlockPos
-        );
-    }
+    const dim3 blockSize3d(1, 16, 16);
+    const dim3 blocksPerGrid3d(numChunks, 1, 1);
+    kernGenerateLayers<<<blocksPerGrid3d, blockSize3d, 0, stream>>>(
+        dev_heightfields,
+        dev_biomeWeights,
+        dev_chunkWorldBlockPositions,
+        dev_layers
+    );
 
     float* host_layers = new float[numChunks * devLayersSize];
 

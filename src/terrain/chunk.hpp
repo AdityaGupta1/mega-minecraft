@@ -95,9 +95,9 @@ private:
 public:
     static void generateHeightfields(
         std::vector<Chunk*>& chunks,
+        ivec2* dev_chunkWorldBlockPositions,
         float* dev_heightfields,
         float* dev_biomeWeights,
-        ivec2* dev_chunkWorldBlockPositions,
         cudaStream_t stream);
 
     void gatherHeightfield();
