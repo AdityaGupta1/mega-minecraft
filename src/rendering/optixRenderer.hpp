@@ -1,5 +1,7 @@
 #pragma once
 
+#include <GL/glew.h>
+#include <GLFW/glfw3.h>
 #include <optix.h>
 #include <optix_stubs.h>
 
@@ -13,9 +15,12 @@
 class OptixRenderer
 {
 public:
-    OptixRenderer();
+    OptixRenderer(Terrain* terrain);
 
 protected:
+    GLFWwindow* window{ nullptr };
+    Terrain* terrain{ nullptr };
+
     CUcontext          cudaContext;
     CUstream           stream;
 
@@ -47,10 +52,11 @@ protected:
     OptixShaderBindingTable sbt = {};
 
     void createContext();
-    void buildAccel();
+    void buildChunkAccel(const Chunk* c);
     void buildRootAccel();
     void createModule();
     void createProgramGroups();
     void createPipeline();
     void buildSBT();
+    void optixRenderFrame();
 };

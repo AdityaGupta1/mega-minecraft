@@ -75,6 +75,8 @@ public:
 
     void draw(const ShaderProgram& prog, const Player* player);
 
+    std::unordered_set<Chunk*> getDrawableChunks();
+
     ivec2 getCurrentChunkPos() const;
     void setCurrentChunkPos(ivec2 newCurrentChunkPos);
 
