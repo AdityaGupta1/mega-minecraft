@@ -152,11 +152,11 @@ __global__ void kernGenerateHeightfield(
     const vec2 worldPos = chunkWorldBlockPositions[chunkIdx] + ivec2(x, z);
     const auto biomeNoise = getBiomeNoise(worldPos);
 
-    float* columnBiomeWeights = biomeWeights + (devBiomeWeightsSize * chunkIdx) + (numBiomes * idx);
+    float* columnBiomeWeights = biomeWeights + (devBiomeWeightsSize * chunkIdx) + (idx);
     float height = 0.f;
-    for (int i = 0; i < numBiomes; ++i) 
+    for (int biomeIdx = 0; biomeIdx < numBiomes; ++biomeIdx)
     {
-        Biome biome = (Biome)i;
+        Biome biome = (Biome)biomeIdx;
 
 #ifdef DEBUG_BIOME_OVERRIDE
         float weight = (biome == DEBUG_BIOME_OVERRIDE) ? 1.f : 0.f;
@@ -165,11 +165,12 @@ __global__ void kernGenerateHeightfield(
 #endif
         if (weight > 0.f)
         {
-            height += weight * getHeight((Biome)i, worldPos);
+            height += weight * getHeight(biome, worldPos);
         }
 
-        columnBiomeWeights[i] = weight;
+        columnBiomeWeights[256 * biomeIdx] = weight;
     }
+
     heightfield[(256 * chunkIdx) + idx] = height;
 }
 
@@ -345,11 +346,11 @@ __global__ void kernGenerateLayers(
         totalMaterialWeights[materialIdx] = 0;
     }
 
-    const float* columnBiomeWeights = biomeWeights + (devBiomeWeightsSize * chunkIdx) + numBiomes * idx;
+    const float* columnBiomeWeights = biomeWeights + (devBiomeWeightsSize * chunkIdx) + (idx);
     #pragma unroll
     for (int biomeIdx = 0; biomeIdx < numBiomes; ++biomeIdx)
     {
-        const float biomeWeight = columnBiomeWeights[biomeIdx];
+        const float biomeWeight = columnBiomeWeights[256 * biomeIdx];
 
         #pragma unroll
         for (int materialIdx = 0; materialIdx < numMaterials; ++materialIdx)
@@ -731,13 +732,13 @@ void Chunk::generateFeaturePlacements()
         {
             const int idx2d = posTo2dIndex(localX, localZ);
 
-            const auto& columnBiomeWeights = biomeWeights[idx2d];
+            const auto& columnBiomeWeights = biomeWeights.data() + idx2d;
 
             const ivec3 worldBlockPos = this->worldBlockPos + ivec3(localX, heightfield[idx2d], localZ);
             auto blockRng = makeSeededRandomEngine(worldBlockPos.x, worldBlockPos.y, worldBlockPos.z, 7); // arbitrary w so this rng is different than heightfield rng
             thrust::uniform_real_distribution<float> u01(0, 1);
 
-            Biome biome = getRandomBiome(columnBiomeWeights, u01(blockRng));
+            Biome biome = getRandomBiome<256>(columnBiomeWeights, u01(blockRng));
             const auto& featureGens = BiomeUtils::getBiomeFeatureGens(biome);
 
             const auto columnLayers = this->layers[idx2d];
@@ -867,22 +868,22 @@ __global__ void kernFill(
     float* storeLocation = nullptr;
     if (threadIdx.y <= numMaterials)
     {
-        loadLocation = shared_layersAndHeight + threadIdx.y;
-        storeLocation = threadIdx.y == numMaterials ? (heightfield + idx2d) : (layers + numMaterials * idx2d + threadIdx.y);
+        loadLocation = threadIdx.y == numMaterials ? (heightfield + idx2d) : (layers + numMaterials * idx2d + threadIdx.y);
+        storeLocation = shared_layersAndHeight + threadIdx.y;
     }
     else
     {
-        const int biomeWeightIdx = threadIdx.y - numMaterials - 1;
-        if (biomeWeightIdx < numBiomes)
+        const int biomeIdx = threadIdx.y - numMaterials - 1;
+        if (biomeIdx < numBiomes)
         {
-            loadLocation = shared_biomeWeights + biomeWeightIdx;
-            storeLocation = biomeWeights + numBiomes * idx2d + biomeWeightIdx;
+            loadLocation = biomeWeights + (idx2d) + (256 * biomeIdx);
+            storeLocation = shared_biomeWeights + biomeIdx;
         }
     }
 
-    if (loadLocation != nullptr)
+    if (storeLocation != nullptr)
     {
-        *loadLocation = *storeLocation;
+        *storeLocation = *loadLocation;
     }
 
     __syncthreads();

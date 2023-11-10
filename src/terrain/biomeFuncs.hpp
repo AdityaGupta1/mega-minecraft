@@ -36,11 +36,13 @@ int posTo3dIndex(const ivec3 pos)
     return posTo3dIndex<xSize, ySize>(pos.x, pos.y, pos.z);
 }
 
-__host__ __device__ Biome getRandomBiome(const float* columnBiomeWeights, float rand)
+template<int stride = 1>
+__host__ __device__
+Biome getRandomBiome(const float* columnBiomeWeights, float rand)
 {
     for (int i = 0; i < numBiomes; ++i)
     {
-        rand -= columnBiomeWeights[i];
+        rand -= columnBiomeWeights[stride * i];
         if (rand <= 0.f)
         {
             return (Biome)i;

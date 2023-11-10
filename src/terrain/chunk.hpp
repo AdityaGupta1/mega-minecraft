@@ -61,8 +61,8 @@ public:
     // stored value is starting height of terrain layer (inclusive, so next layer's starting height is exclusive)
     std::array<float[numMaterials], 256> layers;
 
-    // iteration order = z, x
-    std::array<float[numBiomes], 256> biomeWeights;
+    // iteration order = y, z, x
+    std::array<float, 256 * numBiomes> biomeWeights;
 
     // iteration order = z, x, y
     std::array<Block, 98304> blocks;
