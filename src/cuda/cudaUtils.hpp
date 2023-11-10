@@ -14,7 +14,14 @@ namespace CudaUtils
 {
 
     void checkCUDAError(const char* msg, int line = -1);
-    void cudaCheck(cudaError_t error, const char* call, const char* file, unsigned int line);
+    inline void CudaUtils::cudaCheck(cudaError_t error, const char* call, const char* file, unsigned int line)
+    {
+        if (error != cudaSuccess)
+        {
+            fprintf(stderr, "CUDA call (%s) failed with error: '%s' (%s:%u)\n", call, cudaGetErrorString(error), file, line);
+            exit(EXIT_FAILURE);
+        }
+    }
 
 }
 
