@@ -5,12 +5,28 @@
 #include "util/rng.hpp"
 #include "util/utils.hpp"
 #include <glm/gtx/component_wise.hpp>
+#include "biomeFuncs.hpp"
 
 #pragma region utility functions
 
 __device__ int manhattanDistance(ivec3 a, ivec3 b)
 {
     return compAdd(abs(a - b));
+}
+
+template<class T>
+__device__ bool isInRange(T v, T min, T max)
+{
+    return v >= min && v <= max;
+}
+
+__device__ bool isPosInRange(ivec3 pos, ivec3 corner1, ivec3 corner2)
+{
+    ivec3 minPos = min(corner1, corner2);
+    ivec3 maxPos = max(corner1, corner2);
+    return pos.x >= minPos.x && pos.x <= maxPos.x 
+        && pos.y >= minPos.y && pos.y <= maxPos.y
+        && pos.z >= minPos.z && pos.z <= maxPos.z;
 }
 
 #pragma endregion
@@ -281,7 +297,7 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
         }
 
         ivec2 trunkPos = ivec2(floor(vec2(pos.x, pos.z)));
-        if (pos.y < height && trunkPos.x >= 0 && trunkPos.x <= 1 && trunkPos.y >= 0 && trunkPos.y <= 1)
+        if (isInRange(pos.y, 0.f, height) && trunkPos.x >= 0 && trunkPos.x <= 1 && trunkPos.y >= 0 && trunkPos.y <= 1)
         {
             *block = Block::JUNGLE_WOOD;
             return true;
@@ -341,7 +357,7 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
             return false;
         }
 
-        if (pos.y < height && ivec2(floor(vec2(pos.x, pos.z))) == ivec2(0))
+        if (isInRange(pos.y, 0.f, height) && ivec2(floor(vec2(pos.x, pos.z))) == ivec2(0))
         {
             *block = Block::JUNGLE_WOOD;
             return true;
@@ -366,7 +382,7 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
         }
 
         int height = (int)(0.5f + 2.5f * u01(featureRng));
-        if (floorPos.x == 0 && floorPos.y < height && floorPos.z == 0)
+        if (floorPos.x == 0 && isInRange(floorPos.y, 0, height) && floorPos.z == 0)
         {
             *block = Block::JUNGLE_WOOD;
             return true;
@@ -376,6 +392,44 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
         {
             *block = Block::JUNGLE_LEAVES_PLAIN;
             return true;
+        }
+
+        return false;
+    }
+    case Feature::CACTUS:
+    {
+        ivec3 floorPos = ivec3(floor(pos));
+
+        int height = (int)(8.5f + u01(featureRng) * 6.5f);
+
+        if (floorPos.x == 0 && isInRange(floorPos.y, 0, height) && floorPos.z == 0)
+        {
+            *block = Block::CACTUS;
+            return true;
+        }
+
+        for (int armIdx = 0; armIdx < 4; ++armIdx)
+        {
+            if (u01(featureRng) >= 0.35f)
+            {
+                continue;
+            }
+
+            int armStartHeight = (int)(4.f + u01(featureRng) * (height - 10));
+            int armLength = (int)(2.f + u01(featureRng) * 1.f);
+            int armHeight = (int)(3.f + u01(featureRng) * 3.f);
+            armHeight = min(height - armStartHeight - 1, armHeight);
+
+            ivec3 armPos1 = ivec3(0, armStartHeight, 0);
+            const ivec2 armDirection = dev_dirVecs2d[armIdx * 2];
+            ivec3 armPos2 = armPos1 + (ivec3(armDirection.x, 0, armDirection.y) * armLength);
+            ivec3 armPos3 = armPos2 + ivec3(0, armHeight, 0);
+
+            if (isPosInRange(floorPos, armPos1, armPos2) || isPosInRange(floorPos, armPos2, armPos3))
+            {
+                *block = Block::CACTUS;
+                return true;
+            }
         }
 
         return false;

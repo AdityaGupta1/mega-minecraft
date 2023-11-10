@@ -3,7 +3,6 @@
 #include "rendering/structs.hpp"
 #include "rendering/renderingUtils.hpp"
 #include "util/enums.hpp"
-#include "biomeFuncs.hpp"
 #include "featurePlacement.hpp"
 #include "util/rng.hpp"
 #include "defines.hpp"
@@ -12,6 +11,8 @@
 
 #define DEBUG_SKIP_EROSION 0
 #define DEBUG_USE_CONTRIBUTION_FILL_METHOD 0
+
+#define DEBUG_BIOME_OVERRIDE Biome::DESERT
 
 Chunk::Chunk(ivec2 worldChunkPos)
     : worldChunkPos(worldChunkPos), worldBlockPos(worldChunkPos.x * 16, 0, worldChunkPos.y * 16)
@@ -761,7 +762,7 @@ void Chunk::generateFeaturePlacements()
 
             const auto& columnBiomeWeights = biomeWeights.data() + idx2d;
 
-            const ivec3 worldBlockPos = this->worldBlockPos + ivec3(localX, heightfield[idx2d], localZ);
+            const ivec3 worldBlockPos = this->worldBlockPos + ivec3(localX, ((int)heightfield[idx2d]) + 1, localZ);
             auto blockRng = makeSeededRandomEngine(worldBlockPos.x, worldBlockPos.y, worldBlockPos.z, 7); // arbitrary w so this rng is different than heightfield rng
             thrust::uniform_real_distribution<float> u01(0, 1);
 
@@ -796,7 +797,6 @@ void Chunk::generateFeaturePlacements()
             const ivec2 worldPos2d = localPos2d + ivec2(this->worldBlockPos.x, this->worldBlockPos.z);
 
             Feature feature = Feature::NONE;
-            //float rand = u01(rng);
             for (int i = 0; i < featureGens.size(); ++i)
             {
                 const auto& featureGen = featureGens[i];

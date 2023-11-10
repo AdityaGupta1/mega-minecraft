@@ -303,15 +303,23 @@ void BiomeUtils::init()
         { Feature::PURPLE_MUSHROOM, 11, 3, 0.45f, { {Material::DIRT, 0.5f} } }
     };
 
+    biomeFeatureGens[(int)Biome::DESERT] = {
+        { Feature::CACTUS, 16, 2, 0.7f, { {Material::SAND, 0.5f} } }
+    };
+
 #define setFeatureHeightBounds(feature, yMin, yMax) featureHeightBounds[(int)Feature::feature] = ivec2(yMin, yMax)
 
     setFeatureHeightBounds(NONE, 0, 0);
     setFeatureHeightBounds(SPHERE, -6, 6);
+
     setFeatureHeightBounds(PURPLE_MUSHROOM, -2, 80);
+
     setFeatureHeightBounds(RAFFLESIA, -2, 10);
     setFeatureHeightBounds(TINY_JUNGLE_TREE, -2, 5);
     setFeatureHeightBounds(SMALL_JUNGLE_TREE, -2, 17);
     setFeatureHeightBounds(LARGE_JUNGLE_TREE, -2, 38);
+
+    setFeatureHeightBounds(CACTUS, -2, 10); // TODO: revisit
 
 #undef setFeatureHeightBounds
 }

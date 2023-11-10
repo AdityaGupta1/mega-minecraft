@@ -74,15 +74,17 @@ enum class Feature : unsigned char
     RAFFLESIA,
     LARGE_JUNGLE_TREE,
     SMALL_JUNGLE_TREE,
-    TINY_JUNGLE_TREE
+    TINY_JUNGLE_TREE,
 
     //PALM_TREE
+    
+    CACTUS
+    
     //POND (not sure if this should go here or somewhere else)
-    //CACTUS
     //CRYSTAL
 };
 
-static constexpr int numFeatures = (int)Feature::TINY_JUNGLE_TREE + 1;
+static constexpr int numFeatures = (int)Feature::CACTUS + 1;
 
 struct FeatureGenTopLayer
 {
@@ -109,7 +111,8 @@ namespace BiomeUtils
 {
     using namespace glm;
 
-    void init(); // implemented in biomeFuncs.hpp (included only by chunk.cu) so constant memory can live there
+    void init(); // implemented in biomeFuncs.hpp so constant memory can live there
+                 // biomeFuncs.hpp included only by featurePlacement.hpp which is included only by chunk.cu
 
     std::vector<FeatureGen>& getBiomeFeatureGens(Biome biome);
 

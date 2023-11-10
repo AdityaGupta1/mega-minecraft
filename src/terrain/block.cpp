@@ -42,6 +42,7 @@ void BlockUtils::init()
     blockDatas[(int)Block::JUNGLE_WOOD] = { BlockUvs(ivec2(8, 2)) };
     blockDatas[(int)Block::JUNGLE_LEAVES_PLAIN] = { BlockUvs(ivec2(6, 2)), TransparencyType::SEMI_TRANSPARENT };
     blockDatas[(int)Block::JUNGLE_LEAVES_FRUITS] = { BlockUvs(ivec2(7, 2)), TransparencyType::SEMI_TRANSPARENT };
+    blockDatas[(int)Block::CACTUS] = { BlockUvs(ivec2(10, 2)) };
 }
 
 BlockData BlockUtils::getBlockData(Block block)

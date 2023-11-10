@@ -36,10 +36,11 @@ enum class Block : unsigned char
     RAFFLESIA_STEM,
     JUNGLE_WOOD,
     JUNGLE_LEAVES_PLAIN,
-    JUNGLE_LEAVES_FRUITS
+    JUNGLE_LEAVES_FRUITS,
+    CACTUS
 };
 
-static constexpr int numBlocks = (int)Block::JUNGLE_LEAVES_FRUITS + 1;
+static constexpr int numBlocks = (int)Block::CACTUS + 1;
 
 struct SideUv
 {
