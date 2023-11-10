@@ -299,8 +299,17 @@ void BiomeUtils::init()
         { Feature::TINY_JUNGLE_TREE, 6, 1, 0.18f, { {Material::DIRT, 0.5f} } }
     };
 
+    biomeFeatureGens[(int)Biome::RED_DESERT] = {
+        { Feature::CACTUS, 16, 2, 0.6f, { {Material::RED_SAND, 0.5f} } }
+    };
+
     biomeFeatureGens[(int)Biome::PURPLE_MUSHROOMS] = {
         { Feature::PURPLE_MUSHROOM, 11, 3, 0.45f, { {Material::DIRT, 0.5f} } }
+    };
+
+    biomeFeatureGens[(int)Biome::OASIS] = {
+        { Feature::PALM_TREE, 24, 3, 0.2f, { {Material::SAND, 0.3f} } },
+        { Feature::CACTUS, 16, 2, 0.55f, { {Material::SAND, 0.5f} } }
     };
 
     biomeFeatureGens[(int)Biome::DESERT] = {
@@ -319,7 +328,9 @@ void BiomeUtils::init()
     setFeatureHeightBounds(SMALL_JUNGLE_TREE, -2, 17);
     setFeatureHeightBounds(LARGE_JUNGLE_TREE, -2, 38);
 
-    setFeatureHeightBounds(CACTUS, -2, 10); // TODO: revisit
+    setFeatureHeightBounds(PALM_TREE, -2, 25); // TODO: revisit
+
+    setFeatureHeightBounds(CACTUS, -2, 15);
 
 #undef setFeatureHeightBounds
 }

@@ -20,10 +20,11 @@ __device__ bool isInRange(T v, T min, T max)
     return v >= min && v <= max;
 }
 
-__device__ bool isPosInRange(ivec3 pos, ivec3 corner1, ivec3 corner2)
+template<class T>
+__device__ bool isPosInRange(T pos, T corner1, T corner2)
 {
-    ivec3 minPos = min(corner1, corner2);
-    ivec3 maxPos = max(corner1, corner2);
+    T minPos = min(corner1, corner2);
+    T maxPos = max(corner1, corner2);
     return pos.x >= minPos.x && pos.x <= maxPos.x 
         && pos.y >= minPos.y && pos.y <= maxPos.y
         && pos.z >= minPos.z && pos.z <= maxPos.z;
@@ -121,7 +122,8 @@ __device__ bool jungleLeaves(vec3 pos, float maxHeight, float minRadius, float m
 __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlockPos, Block* block)
 {
     const ivec3& featurePos = featurePlacement.pos;
-    vec3 pos = worldBlockPos - featurePos;
+    ivec3 floorPos = worldBlockPos - featurePos;
+    vec3 pos = floorPos;
 
     auto featureRng = makeSeededRandomEngine(featurePos.x, featurePos.y, featurePos.z, 8);
     auto blockRng = makeSeededRandomEngine(worldBlockPos.x, worldBlockPos.y, worldBlockPos.z, 9);
@@ -374,8 +376,6 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
     }
     case Feature::TINY_JUNGLE_TREE:
     {
-        ivec3 floorPos = ivec3(floor(pos));
-
         if (compAdd(floorPos) > 8)
         {
             return false;
@@ -398,9 +398,17 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
     }
     case Feature::CACTUS:
     {
-        ivec3 floorPos = ivec3(floor(pos));
+        if (abs(floorPos.x) > 5 || abs(floorPos.z) > 5)
+        {
+            return false;
+        }
 
-        int height = (int)(8.5f + u01(featureRng) * 6.5f);
+        int height = (int)(7.5f + u01(featureRng) * 6.0f);
+
+        if (pos.y > height + 2.f)
+        {
+            return false;
+        }
 
         if (floorPos.x == 0 && isInRange(floorPos.y, 0, height) && floorPos.z == 0)
         {
@@ -428,6 +436,63 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
             if (isPosInRange(floorPos, armPos1, armPos2) || isPosInRange(floorPos, armPos2, armPos3))
             {
                 *block = Block::CACTUS;
+                return true;
+            }
+        }
+
+        return false;
+    }
+    case Feature::PALM_TREE:
+    {
+        if (floorPos.y < -2 || floorPos.y > 25)
+        {
+            return false;
+        }
+
+        constexpr int numCtrlPts = 4;
+        constexpr int splineSize = 2;
+
+        vec3 minPos = vec3(0);
+        vec3 maxPos = vec3(0);
+
+        vec3 ctrlPts[numCtrlPts];
+        vec3 currentPoint = vec3(0);
+        ctrlPts[0] = currentPoint;
+        for (int i = 1; i < numCtrlPts; ++i)
+        {
+            float randomWalkScale = 1.f + ((float)i / numCtrlPts) * 5.f;
+            currentPoint += vec3(randomWalkScale * u11(featureRng), 3.f + 5.f * u01(featureRng), randomWalkScale * u11(featureRng));
+            ctrlPts[i] = currentPoint;
+
+            minPos = min(minPos, currentPoint);
+            maxPos = max(maxPos, currentPoint);
+        }
+
+        if (!isPosInRange(pos, minPos - vec3(1), maxPos + vec3(1, 6, 1)))
+        {
+            return false;
+        }
+
+        vec3 spline[splineSize];
+        deCasteljau<numCtrlPts, splineSize>(ctrlPts, spline);
+
+        for (int i = 0; i < splineSize - 1; ++i)
+        {
+            const vec3 pos1 = spline[i];
+            const vec3 pos2 = spline[i + 1];
+
+            float ratio;
+            float distFromLine;
+            bool inLine = calculateLineParams(pos + vec3(0.5f), pos1, pos2, &ratio, &distFromLine);
+            if (!inLine || distFromLine > 2.f)
+            {
+                continue;
+            }
+
+            const ivec3 actualPos = ivec3(floor(mix(pos1, pos2, ratio)));
+            if (floorPos == actualPos)
+            {
+                *block = Block::PALM_WOOD;
                 return true;
             }
         }

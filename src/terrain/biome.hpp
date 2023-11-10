@@ -76,7 +76,7 @@ enum class Feature : unsigned char
     SMALL_JUNGLE_TREE,
     TINY_JUNGLE_TREE,
 
-    //PALM_TREE
+    PALM_TREE,
     
     CACTUS
     
