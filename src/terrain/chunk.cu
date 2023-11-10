@@ -10,6 +10,9 @@
 #include <thrust/device_ptr.h>
 #include <thrust/fill.h>
 
+#define DEBUG_SKIP_EROSION 0
+#define DEBUG_USE_CONTRIBUTION_FILL_METHOD 0
+
 Chunk::Chunk(ivec2 worldChunkPos)
     : worldChunkPos(worldChunkPos), worldBlockPos(worldChunkPos.x * 16, 0, worldChunkPos.y * 16)
 {}
@@ -370,13 +373,13 @@ __global__ void kernGenerateLayers(
         slope = max(slope, abs(neighborHeight - maxHeight) * (i % 2 == 1 ? SQRT_2 : 1));
     }
 
-    float* columnLayers = layers + (devLayersSize * chunkIdx) + numMaterials * idx;
+    float* columnLayers = layers + (devLayersSize * chunkIdx) + (idx);
 
     float height = 0;
     #pragma unroll
     for (int layerIdx = 0; layerIdx < numForwardMaterials; ++layerIdx)
     {
-        columnLayers[layerIdx] = height;
+        columnLayers[256 * layerIdx] = height;
 
         if (height > maxHeight || layerIdx == numForwardMaterials - 1)
         {
@@ -391,7 +394,7 @@ __global__ void kernGenerateLayers(
     for (int layerIdx = numStratifiedMaterials - 1; layerIdx >= numForwardMaterials; --layerIdx)
     {
         height += getStratifiedMaterialThickness(layerIdx, totalMaterialWeights[layerIdx], worldPos);
-        columnLayers[layerIdx] = height; // actual height is calculated by in Chunk::fixBackwardStratifiedLayers() subtracting this value from start height of eroded layers
+        columnLayers[256 * layerIdx] = height; // actual height is calculated by in Chunk::fixBackwardStratifiedLayers() subtracting this value from start height of eroded layers
     }
 
     height = maxHeight;
@@ -404,7 +407,7 @@ __global__ void kernGenerateLayers(
         float layerHeight = max(0.f, materialInfo.thickness * ((materialInfo.noiseScaleOrMaxSlope - slope) / materialInfo.noiseScaleOrMaxSlope)) * materialWeight;
 
         height -= layerHeight;
-        columnLayers[layerIdx] = height;
+        columnLayers[256 * layerIdx] = height;
     }
 }
 
@@ -472,7 +475,7 @@ void Chunk::generateLayers(
 
 #pragma region erosion
 
-static constexpr int gatheredLayersBaseSize = ZONE_SIZE * ZONE_SIZE * 4 * 256 * (numErodedMaterials + 1); // +1 for heightfield
+static constexpr int gatheredLayersBaseSize = EROSION_GRID_NUM_COLS * (numErodedMaterials + 1); // +1 for heightfield
 
 __global__ void kernDoErosion(
     float* gatheredLayers, 
@@ -486,40 +489,43 @@ __global__ void kernDoErosion(
 
     const int localX = threadIdx.x;
     const int localZ = threadIdx.y;
-    const int localIdx = posTo2dIndex<32>(localX, localZ);
+    const int localIdx2d = posTo2dIndex<32>(localX, localZ);
+
     const int blockStartX = (blockIdx.x * blockDim.x);
     const int blockStartZ = (blockIdx.y * blockDim.y);
+
     const int globalX = blockStartX + localX;
     const int globalZ = blockStartZ + localZ;
+    const int globalIdx2d = posTo2dIndex<EROSION_GRID_SIDE_LENGTH_BLOCKS>(globalX, globalZ);
 
-    if (localIdx == 0)
+    if (localIdx2d == 0)
     {
         shared_didChange = false;
     }
 
     const ivec2 sharedLayerPos = ivec2(localX + 1, localZ + 1);
     const int sharedLayerIdx = posTo2dIndex<34>(sharedLayerPos);
-    const int gatheredLayersIdx = posTo3dIndex<EROSION_GRID_SIDE_LENGTH_BLOCKS, numErodedMaterials + 1>(globalX, layerIdx, globalZ);
+    const int gatheredLayersIdx = globalIdx2d + (EROSION_GRID_NUM_COLS * layerIdx);
 
-    float thisAccumulatedHeight = isFirst ? accumulatedHeights[posTo2dIndex<EROSION_GRID_SIDE_LENGTH_BLOCKS>(globalX, globalZ)] : 0;
+    float thisAccumulatedHeight = isFirst ? accumulatedHeights[globalIdx2d] : 0;
 
     const float thisLayerStart = gatheredLayers[gatheredLayersIdx] + thisAccumulatedHeight;
-    const float thisLayerEnd = gatheredLayers[posTo3dIndex<EROSION_GRID_SIDE_LENGTH_BLOCKS, numErodedMaterials + 1>(globalX, layerIdx + 1, globalZ)] + thisAccumulatedHeight;
+    const float thisLayerEnd = gatheredLayers[gatheredLayersIdx + EROSION_GRID_NUM_COLS] + thisAccumulatedHeight;
     shared_layerStart[sharedLayerIdx] = thisLayerStart;
     shared_layerEnd[sharedLayerIdx] = thisLayerEnd;
 
     ivec2 storePos = ivec2(-1);
-    if (localIdx < 64)
+    if (localIdx2d < 64)
     {
-        storePos = ivec2((localIdx % 32) + 1, localIdx < 32 ? 0 : 33);
+        storePos = ivec2((localIdx2d % 32) + 1, localIdx2d < 32 ? 0 : 33);
     }
-    else if (localIdx < 128)
+    else if (localIdx2d < 128)
     {
-        storePos = ivec2(localIdx < 96 ? 0 : 33, (localIdx % 32) + 1);
+        storePos = ivec2(localIdx2d < 96 ? 0 : 33, (localIdx2d % 32) + 1);
     }
     else
     {
-        switch (localIdx)
+        switch (localIdx2d)
         {
         case 128:
             storePos = ivec2(0, 0);
@@ -541,13 +547,14 @@ __global__ void kernDoErosion(
         ivec2 loadPos = ivec2(blockStartX - 1, blockStartZ - 1) + storePos;
         loadPos = clamp(loadPos, 0, EROSION_GRID_SIDE_LENGTH_BLOCKS - 1); // values outside the grid (i.e. not in gatheredLayers) extend existing border values
 
-        const int loadIdx = posTo3dIndex<EROSION_GRID_SIDE_LENGTH_BLOCKS, numErodedMaterials + 1>(loadPos.x, layerIdx, loadPos.y);
+        const int loadIdx2d = posTo2dIndex<EROSION_GRID_SIDE_LENGTH_BLOCKS>(loadPos);
+        const int loadIdx = loadIdx2d + (EROSION_GRID_NUM_COLS * layerIdx);
         const int storeIdx = posTo2dIndex<34>(storePos);
 
-        thisAccumulatedHeight = isFirst ? accumulatedHeights[posTo2dIndex<EROSION_GRID_SIDE_LENGTH_BLOCKS>(loadPos.x, loadPos.y)] : 0;
+        thisAccumulatedHeight = isFirst ? accumulatedHeights[loadIdx2d] : 0;
 
         shared_layerStart[storeIdx] = gatheredLayers[loadIdx] + thisAccumulatedHeight;
-        shared_layerEnd[storeIdx] = gatheredLayers[posTo3dIndex<EROSION_GRID_SIDE_LENGTH_BLOCKS, numErodedMaterials + 1>(loadPos.x, layerIdx + 1, loadPos.y)] + thisAccumulatedHeight;
+        shared_layerEnd[storeIdx] = gatheredLayers[loadIdx + EROSION_GRID_NUM_COLS] + thisAccumulatedHeight;
     }
 
     __syncthreads();
@@ -576,13 +583,13 @@ __global__ void kernDoErosion(
             shared_didChange = true; // not atomic since any thread that writes to shared_didChange will write the same value
                                      // plus I think this gets serialized anyway since they're all writing to the same bank
 
-            accumulatedHeights[posTo2dIndex<EROSION_GRID_SIDE_LENGTH_BLOCKS>(globalX, globalZ)] += newLayerStart - thisLayerStart;
+            accumulatedHeights[globalIdx2d] += newLayerStart - thisLayerStart;
         }
     }
 
     __syncthreads();
 
-    if (localIdx != 0)
+    if (localIdx2d != 0)
     {
         return;
     }
@@ -596,7 +603,8 @@ __global__ void kernDoErosion(
 
 void copyLayers(Zone* zonePtr, float* gatheredLayers, bool toGatheredLayers)
 {
-    int maxDim = toGatheredLayers ? ZONE_SIZE * 2 : ZONE_SIZE;
+    const int maxDim = toGatheredLayers ? ZONE_SIZE * 2 : ZONE_SIZE;
+    const int maxLayerIdx = toGatheredLayers ? numMaterials + 1 : numMaterials;
 
     for (int chunkZ = 0; chunkZ < maxDim; ++chunkZ)
     {
@@ -615,25 +623,33 @@ void copyLayers(Zone* zonePtr, float* gatheredLayers, bool toGatheredLayers)
                 chunkBlockPos = (ivec2(chunkX, chunkZ) + ivec2(ZONE_SIZE / 2)) * 16;
             }
 
-            for (int blockZ = 0; blockZ < 16; ++blockZ)
+            for (int layerIdx = numStratifiedMaterials; layerIdx < maxLayerIdx; ++layerIdx)
             {
-                for (int blockX = 0; blockX < 16; ++blockX)
+                for (int blockZ = 0; blockZ < 16; ++blockZ)
                 {
-                    int idx2d = posTo2dIndex(blockX, blockZ);
-                    auto srcLayers = &chunkPtr->layers[idx2d][numStratifiedMaterials];
-                    auto dstLayers = gatheredLayers + posTo3dIndex<ZONE_SIZE * 2 * 16, numErodedMaterials + 1>(chunkBlockPos.x + blockX, 0, chunkBlockPos.y + blockZ);
+                    const int globalBlockZ = chunkBlockPos.y + blockZ;
+
+                    float* srcLayers;
+                    if (toGatheredLayers && layerIdx == maxLayerIdx - 1)
+                    {
+                        srcLayers = chunkPtr->heightfield.data() + (16 * blockZ);
+                    }
+                    else
+                    {
+                        srcLayers = chunkPtr->layers.data() + (16 * blockZ) + (256 * layerIdx);
+                    }
+
+                    float* dstLayers = gatheredLayers
+                        + (chunkBlockPos.x)
+                        + (EROSION_GRID_SIDE_LENGTH_BLOCKS * globalBlockZ)
+                        + (EROSION_GRID_NUM_COLS * (layerIdx - numStratifiedMaterials));
 
                     if (!toGatheredLayers)
                     {
                         std::swap(srcLayers, dstLayers);
                     }
 
-                    std::memcpy(dstLayers, srcLayers, numErodedMaterials * sizeof(float));
-
-                    if (toGatheredLayers)
-                    {
-                        dstLayers[numErodedMaterials] = chunkPtr->heightfield[idx2d];
-                    }
+                    std::memcpy(dstLayers, srcLayers, 16 * sizeof(float));
                 }
             }
         }
@@ -658,7 +674,7 @@ void Chunk::erodeZone(Zone* zonePtr, float* dev_gatheredLayers, float* dev_accum
     const dim3 blocksPerGrid2d(blocksPerGrid, blocksPerGrid);
 
     thrust::device_ptr<float> dev_ptr(dev_accumulatedHeights);
-    thrust::fill(dev_ptr, dev_ptr + COLS_PER_EROSION_KERNEL, 0.f);
+    thrust::fill(dev_ptr, dev_ptr + EROSION_GRID_NUM_COLS, 0.f);
 
     for (int layerIdx = numErodedMaterials - 1; layerIdx >= 0; --layerIdx)
     {
@@ -706,15 +722,25 @@ void Chunk::erodeZone(Zone* zonePtr, float* dev_gatheredLayers, float* dev_accum
 
 void Chunk::fixBackwardStratifiedLayers()
 {
-    for (int localZ = 0; localZ < 16; ++localZ)
+    std::array<float, 256> erodedStartHeights;
+
+    for (int layerIdx = numForwardMaterials; layerIdx < numStratifiedMaterials; ++layerIdx)
     {
-        for (int localX = 0; localX < 16; ++localX)
+        const int layerIdx256 = 256 * layerIdx;
+
+        for (int localZ = 0; localZ < 16; ++localZ)
         {
-            auto columnLayers = this->layers[posTo2dIndex(localX, localZ)];
-            const float erodedStartHeight = columnLayers[numStratifiedMaterials];
-            for (int layerIdx = numForwardMaterials; layerIdx < numStratifiedMaterials; ++layerIdx)
+            for (int localX = 0; localX < 16; ++localX)
             {
-                columnLayers[layerIdx] = erodedStartHeight - columnLayers[layerIdx];
+                const int idx2d = posTo2dIndex(localX, localZ);
+                float* columnLayers = this->layers.data() + idx2d;
+
+                if (layerIdx == numForwardMaterials)
+                {
+                    erodedStartHeights[idx2d] = columnLayers[256 * numStratifiedMaterials];
+                }
+
+                columnLayers[layerIdx256] = erodedStartHeights[idx2d] - columnLayers[layerIdx256];
             }
         }
     }
@@ -724,6 +750,7 @@ void Chunk::fixBackwardStratifiedLayers()
 
 #pragma region feature placements
 
+// TODO: maybe revisit and try to optimize this by calculating thicknesses in a separate pass with better memory access patterns
 void Chunk::generateFeaturePlacements()
 {
     for (int localZ = 0; localZ < 16; ++localZ)
@@ -741,11 +768,11 @@ void Chunk::generateFeaturePlacements()
             Biome biome = getRandomBiome<256>(columnBiomeWeights, u01(blockRng));
             const auto& featureGens = BiomeUtils::getBiomeFeatureGens(biome);
 
-            const auto columnLayers = this->layers[idx2d];
+            const float* columnLayers = this->layers.data() + idx2d;
             Material topLayerMaterial;
             float topLayerThickness;
 
-            const float lastLayerThickness = this->heightfield[idx2d] - columnLayers[numMaterials - 1];
+            const float lastLayerThickness = this->heightfield[idx2d] - columnLayers[256 * (numMaterials - 1)];
             if (lastLayerThickness > 0)
             {
                 topLayerMaterial = (Material)(numMaterials - 1);
@@ -755,7 +782,7 @@ void Chunk::generateFeaturePlacements()
             {
                 for (int layerIdx = numMaterials - 2; layerIdx >= 0; --layerIdx)
                 {
-                    const float thickness = columnLayers[layerIdx + 1] - columnLayers[layerIdx];
+                    const float thickness = columnLayers[256 * (layerIdx + 1)] - columnLayers[256 * (layerIdx)];
                     if (thickness > 0)
                     {
                         topLayerMaterial = (Material)layerIdx;
@@ -868,7 +895,7 @@ __global__ void kernFill(
     float* storeLocation = nullptr;
     if (threadIdx.y <= numMaterials)
     {
-        loadLocation = threadIdx.y == numMaterials ? (heightfield + idx2d) : (layers + numMaterials * idx2d + threadIdx.y);
+        loadLocation = threadIdx.y == numMaterials ? (heightfield + idx2d) : (layers + (idx2d) + (256 * threadIdx.y));
         storeLocation = shared_layersAndHeight + threadIdx.y;
     }
     else

@@ -786,12 +786,17 @@ void Terrain::debugPrintCurrentColumnLayers(vec2 playerPos)
     Zone* zonePtr;
     debugGetCurrentChunkAndZone(playerPos, &chunkPtr, &zonePtr);
     ivec2 blockPos = ivec2(floor(playerPos)) - ivec2(chunkPtr->worldBlockPos.x, chunkPtr->worldBlockPos.z);
-    int idx = blockPos.x + 16 * blockPos.y;
-    const auto& layers = chunkPtr->layers[idx];
-    for (int i = 0; i < numMaterials; ++i)
+    int idx2d = blockPos.x + 16 * blockPos.y;
+    for (int layerIdx = 0; layerIdx < numMaterials; ++layerIdx)
     {
-        printf("%s_%s_%02d: %7.3f\n", i < numStratifiedMaterials ? "s" : "e", i < numForwardMaterials ? "F" : "B", i, layers[i]);
+        printf(
+            "%s_%s_%02d: %7.3f\n",
+            layerIdx < numStratifiedMaterials ? "s" : "e",
+            layerIdx < numForwardMaterials ? "F" : "B",
+            layerIdx,
+            chunkPtr->layers[idx2d + (256 * layerIdx)]
+        );
     }
     printf("------------\n");
-    printf("hgt: %7.3f\n\n", chunkPtr->heightfield[idx]);
+    printf("hgt: %7.3f\n\n", chunkPtr->heightfield[idx2d]);
 }

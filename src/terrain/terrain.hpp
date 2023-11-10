@@ -15,7 +15,7 @@
 
 #define ZONE_SIZE 12 // changing this may have disastrous consequences
 #define EROSION_GRID_SIDE_LENGTH_BLOCKS (ZONE_SIZE * 2 * 16)
-#define COLS_PER_EROSION_KERNEL (EROSION_GRID_SIDE_LENGTH_BLOCKS * EROSION_GRID_SIDE_LENGTH_BLOCKS)
+#define EROSION_GRID_NUM_COLS (EROSION_GRID_SIDE_LENGTH_BLOCKS * EROSION_GRID_SIDE_LENGTH_BLOCKS)
 
 using namespace glm;
 
@@ -43,8 +43,8 @@ static constexpr int devBiomeWeightsSize = 256 * numBiomes;
 
 static constexpr int devLayersSize = 256 * numMaterials;
 
-static constexpr int devGatheredLayersSize = COLS_PER_EROSION_KERNEL * (numErodedMaterials + 1) + 1;
-static constexpr int devAccumulatedHeightsSize = COLS_PER_EROSION_KERNEL;
+static constexpr int devGatheredLayersSize = EROSION_GRID_NUM_COLS * (numErodedMaterials + 1) + 1;
+static constexpr int devAccumulatedHeightsSize = EROSION_GRID_NUM_COLS;
 
 class Terrain {
 private:
