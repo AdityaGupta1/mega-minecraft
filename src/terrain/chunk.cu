@@ -500,7 +500,7 @@ __global__ void kernDoErosion(
     const int sharedLayerIdx = posTo2dIndex<34>(sharedLayerPos);
     const int gatheredLayersIdx = posTo3dIndex<EROSION_GRID_SIDE_LENGTH_BLOCKS, numErodedMaterials + 1>(globalX, layerIdx, globalZ);
 
-    const float thisAccumulatedHeight = isFirst ? accumulatedHeights[posTo2dIndex<EROSION_GRID_SIDE_LENGTH_BLOCKS>(globalX, globalZ)] : 0;
+    float thisAccumulatedHeight = isFirst ? accumulatedHeights[posTo2dIndex<EROSION_GRID_SIDE_LENGTH_BLOCKS>(globalX, globalZ)] : 0;
 
     const float thisLayerStart = gatheredLayers[gatheredLayersIdx] + thisAccumulatedHeight;
     const float thisLayerEnd = gatheredLayers[posTo3dIndex<EROSION_GRID_SIDE_LENGTH_BLOCKS, numErodedMaterials + 1>(globalX, layerIdx + 1, globalZ)] + thisAccumulatedHeight;
@@ -543,7 +543,7 @@ __global__ void kernDoErosion(
         const int loadIdx = posTo3dIndex<EROSION_GRID_SIDE_LENGTH_BLOCKS, numErodedMaterials + 1>(loadPos.x, layerIdx, loadPos.y);
         const int storeIdx = posTo2dIndex<34>(storePos);
 
-        const float thisAccumulatedHeight = isFirst ? accumulatedHeights[posTo2dIndex<EROSION_GRID_SIDE_LENGTH_BLOCKS>(loadPos.x, loadPos.y)] : 0;
+        thisAccumulatedHeight = isFirst ? accumulatedHeights[posTo2dIndex<EROSION_GRID_SIDE_LENGTH_BLOCKS>(loadPos.x, loadPos.y)] : 0;
 
         shared_layerStart[storeIdx] = gatheredLayers[loadIdx] + thisAccumulatedHeight;
         shared_layerEnd[storeIdx] = gatheredLayers[posTo3dIndex<EROSION_GRID_SIDE_LENGTH_BLOCKS, numErodedMaterials + 1>(loadPos.x, layerIdx + 1, loadPos.y)] + thisAccumulatedHeight;
