@@ -48,7 +48,7 @@ static constexpr int numDevHeightfields = totalActionTime / min(actionTimeGenera
 static constexpr int numDevChunkWorldBlockPositions = totalActionTime / min(actionTimeGenerateHeightfield, actionTimeGenerateLayers);
 static constexpr int numDevLayers = totalActionTime / min(actionTimeGenerateLayers, actionTimeFill);
 static constexpr int numDevGatheredLayers = totalActionTime / actionTimeErodeZone;
-static constexpr int numStreams = max(max(numDevBlocks, numDevHeightfields), max(numDevLayers, numDevGatheredLayers)); // TODO: revisit
+static constexpr int numStreams = max(max(numDevBlocks, numDevHeightfields), max(numDevLayers, numDevGatheredLayers)); // TODO: revisit (probably only if I decide to make kernFill operate on multiple chunks at once)
 
 static Block* dev_blocks;
 static FeaturePlacement* dev_featurePlacements;
