@@ -409,18 +409,35 @@ void Chunk::generateLayers(
     std::vector<Chunk*>& chunks,
     float* dev_heightfields,
     float* dev_biomeWeights,
+    ivec2* dev_chunkWorldBlockPositions,
     float* dev_layers,
     cudaStream_t stream)
 {
     const int numChunks = chunks.size();
 
+    float* host_heightfields = new float[numChunks * devHeightfieldSize];
+    float* host_biomeWeights = new float[numChunks * devBiomeWeightsSize];
+    ivec2* host_chunkWorldBlockPositions = new ivec2[numChunks];
     for (int i = 0; i < numChunks; ++i)
     {
         Chunk* chunkPtr = chunks[i];
 
-        cudaMemcpyAsync(dev_heightfields + (i * devHeightfieldSize), chunkPtr->gatheredHeightfield.data(), devHeightfieldSize * sizeof(float), cudaMemcpyHostToDevice, stream);
+        std::memcpy(host_heightfields + (i * devHeightfieldSize), chunkPtr->gatheredHeightfield.data(), devHeightfieldSize * sizeof(float));
         chunkPtr->gatheredHeightfield.clear();
-        cudaMemcpyAsync(dev_biomeWeights + (i * devBiomeWeightsSize), chunkPtr->biomeWeights.data(), devBiomeWeightsSize * sizeof(float), cudaMemcpyHostToDevice, stream);
+
+        std::memcpy(host_biomeWeights + (i * devBiomeWeightsSize), chunkPtr->biomeWeights.data(), devBiomeWeightsSize * sizeof(float));
+
+        ivec3 worldBlockPos = chunkPtr->worldBlockPos;
+        host_chunkWorldBlockPositions[i] = ivec2(worldBlockPos.x, worldBlockPos.z);
+    }
+
+    cudaMemcpyAsync(dev_heightfields, host_heightfields, numChunks * devHeightfieldSize * sizeof(float), cudaMemcpyHostToDevice, stream);
+    cudaMemcpyAsync(dev_biomeWeights, host_biomeWeights, numChunks * devBiomeWeightsSize * sizeof(float), cudaMemcpyHostToDevice, stream);
+    cudaMemcpyAsync(dev_chunkWorldBlockPositions, host_chunkWorldBlockPositions, numChunks * sizeof(ivec2), cudaMemcpyHostToDevice, stream);
+
+    for (int i = 0; i < numChunks; ++i)
+    {
+        Chunk* chunkPtr = chunks[i];
 
         const dim3 blockSize2d(16, 16);
         const dim3 blocksPerGrid2d(1, 1);
@@ -430,9 +447,25 @@ void Chunk::generateLayers(
             dev_layers + (i * devLayersSize),
             chunkPtr->worldBlockPos
         );
-
-        cudaMemcpyAsync(chunkPtr->layers.data(), dev_layers + (i * devLayersSize), devLayersSize * sizeof(float), cudaMemcpyDeviceToHost, stream);
     }
+
+    float* host_layers = new float[numChunks * devLayersSize];
+
+    cudaMemcpyAsync(host_layers, dev_layers, numChunks * devLayersSize * sizeof(float), cudaMemcpyDeviceToHost, stream);
+
+    cudaStreamSynchronize(stream);
+
+    for (int i = 0; i < numChunks; ++i)
+    {
+        Chunk* chunkPtr = chunks[i];
+
+        std::memcpy(chunkPtr->layers.data(), host_layers + (i * devLayersSize), devLayersSize * sizeof(float));
+    }
+
+    delete[] host_heightfields;
+    delete[] host_biomeWeights;
+    delete[] host_chunkWorldBlockPositions;
+    delete[] host_layers;
 
     CudaUtils::checkCUDAError("Chunk::generateLayers() failed");
 }

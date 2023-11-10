@@ -106,6 +106,7 @@ public:
         std::vector<Chunk*>& chunks,
         float* dev_heightfields,
         float* dev_biomeWeights,
+        ivec2* dev_chunkWorldBlockPositions,
         float* dev_layers,
         cudaStream_t stream);
 

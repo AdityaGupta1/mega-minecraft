@@ -602,13 +602,15 @@ void Terrain::tick()
         {
             Chunk::generateLayers(
                 chunks,
-                dev_heightfields,
-                dev_biomeWeights,
-                dev_layers,
+                dev_heightfields + (heightfieldIdx * devHeightfieldSize),
+                dev_biomeWeights + (heightfieldIdx * devBiomeWeightsSize),
+                dev_chunkWorldBlockPositions + (chunkWorldBlockPositionIdx),
+                dev_layers + (layersIdx * devLayersSize),
                 streams[streamIdx]
             );
 
             heightfieldIdx += numChunks;
+            chunkWorldBlockPositionIdx += numChunks;
             layersIdx += numChunks;
             ++streamIdx;
         }
