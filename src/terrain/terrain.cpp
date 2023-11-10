@@ -508,8 +508,8 @@ void Terrain::tick()
         chunkPtr->fill(
             dev_blocks + (blocksIdx * devBlocksSize),
             dev_heightfields + (heightfieldIdx * devHeightfieldSize),
-            dev_layers + (layersIdx * devLayersSize),
             dev_biomeWeights + (heightfieldIdx * devBiomeWeightsSize),
+            dev_layers + (layersIdx * devLayersSize),
             dev_featurePlacements + (blocksIdx * devFeaturePlacementsSize),
             streams[streamIdx]
         );
@@ -604,8 +604,8 @@ void Terrain::tick()
             {
                 chunkPtr->generateLayers(
                     dev_heightfields + (heightfieldIdx * devHeightfieldSize),
-                    dev_layers + (layersIdx * devLayersSize),
                     dev_biomeWeights + (heightfieldIdx * devBiomeWeightsSize),
+                    dev_layers + (layersIdx * devLayersSize),
                     streams[streamIdx]
                 );
                 ++heightfieldIdx;

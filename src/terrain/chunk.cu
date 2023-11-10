@@ -314,8 +314,8 @@ __device__ float getStratifiedMaterialThickness(int layerIdx, float materialWeig
 
 __global__ void kernGenerateLayers(
     float* heightfield,
-    float* layers,
     float* biomeWeights,
+    float* layers,
     ivec3 chunkWorldBlockPos)
 {
     __shared__ float shared_heightfield[18 * 18];
@@ -405,7 +405,11 @@ __global__ void kernGenerateLayers(
     }
 }
 
-void Chunk::generateLayers(float* dev_heightfield, float* dev_layers, float* dev_biomeWeights, cudaStream_t stream)
+void Chunk::generateLayers(
+    float* dev_heightfield,
+    float* dev_biomeWeights,
+    float* dev_layers,
+    cudaStream_t stream)
 {
     cudaMemcpyAsync(dev_heightfield, this->gatheredHeightfield.data(), 18 * 18 * sizeof(float), cudaMemcpyHostToDevice, stream);
     this->gatheredHeightfield.clear();
@@ -415,8 +419,8 @@ void Chunk::generateLayers(float* dev_heightfield, float* dev_layers, float* dev
     const dim3 blocksPerGrid2d(1, 1);
     kernGenerateLayers<<<blocksPerGrid2d, blockSize2d, 0, stream>>>(
         dev_heightfield,
-        dev_layers,
         dev_biomeWeights,
+        dev_layers,
         this->worldBlockPos
     );
 
@@ -804,8 +808,8 @@ void Chunk::gatherFeaturePlacements()
 __global__ void kernFill(
     Block* blocks,
     float* heightfield,
-    float* layers,
     float* biomeWeights,
+    float* layers,
     FeaturePlacement* dev_featurePlacements,
     int numFeaturePlacements,
     ivec2 featureHeightBounds,
@@ -956,8 +960,8 @@ __global__ void kernFill(
 void Chunk::fill(
     Block* dev_blocks, 
     float* dev_heightfield,
+    float* dev_biomeWeights,
     float* dev_layers,
-    float* dev_biomeWeights, 
     FeaturePlacement* dev_featurePlacements, 
     cudaStream_t stream)
 {
@@ -983,8 +987,8 @@ void Chunk::fill(
     kernFill<<<blocksPerGrid3d, blockSize3d, 0, stream>>>(
         dev_blocks, 
         dev_heightfield,
-        dev_layers,
         dev_biomeWeights,
+        dev_layers,
         dev_featurePlacements,
         numFeaturePlacements,
         allFeaturesHeightBounds,

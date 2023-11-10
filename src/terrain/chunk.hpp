@@ -94,22 +94,32 @@ private:
 
 public:
     static void generateHeightfields(
-        std::vector<Chunk*>& chunks, 
-        float* dev_heightfields, 
+        std::vector<Chunk*>& chunks,
+        float* dev_heightfields,
         float* dev_biomeWeights,
         ivec2* dev_chunkWorldBlockPositions,
         cudaStream_t stream);
 
     void gatherHeightfield();
 
-    void generateLayers(float* dev_heightfield, float* dev_layers, float* dev_biomeWeights, cudaStream_t stream);
+    void generateLayers(
+        float* dev_heightfield,
+        float* dev_biomeWeights,
+        float* dev_layers,
+        cudaStream_t stream);
 
     static void erodeZone(Zone* zonePtr, float* dev_gatheredLayers, float* dev_accumulatedHeights, cudaStream_t stream);
 
     void generateFeaturePlacements();
     void gatherFeaturePlacements();
 
-    void fill(Block* dev_blocks, float* dev_heightfield, float* dev_layers, float* dev_biomeWeights, FeaturePlacement* dev_featurePlacements, cudaStream_t stream);
+    void fill(
+        Block* dev_blocks,
+        float* dev_heightfield,
+        float* dev_biomeWeights,
+        float* dev_layers,
+        FeaturePlacement* dev_featurePlacements,
+        cudaStream_t stream);
 
     void createVBOs();
     void bufferVBOs() override;
