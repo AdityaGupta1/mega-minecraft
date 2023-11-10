@@ -133,7 +133,8 @@ void errorCallback(int error, const char* description) {
 
 glm::ivec3 playerMovement = glm::ivec3(0);
 glm::vec3 playerMovementSensitivity = glm::vec3(10.0f, 8.0f, 10.0f);
-float playerMovementMultiplier = 1.f;
+bool shiftPressed = false;
+bool altPressed = false;
 
 #if DEBUG_START_IN_FREE_CAM_MODE
 bool freeCam = true;
@@ -187,11 +188,21 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
     case GLFW_KEY_LEFT_SHIFT:
         if (action == GLFW_PRESS)
         {
-            playerMovementMultiplier = 8.f;
+            shiftPressed = true;
         }
         else if (action == GLFW_RELEASE)
         {
-            playerMovementMultiplier = 1.f;
+            shiftPressed = false;
+        }
+        break;
+    case GLFW_KEY_LEFT_ALT:
+        if (action == GLFW_PRESS)
+        {
+            altPressed = true;
+        }
+        else if (action == GLFW_RELEASE)
+        {
+            altPressed = false;
         }
         break;
     case GLFW_KEY_C:
@@ -274,6 +285,21 @@ void tick(float deltaTime)
         else
         {
             playerMovementNormalized = playerMovement;
+        }
+
+        float playerMovementMultiplier = 1.f;
+        if (shiftPressed)
+        {
+            playerMovementMultiplier *= 8.f;
+
+            if (altPressed)
+            {
+                playerMovementMultiplier *= 4.f;
+            }
+        }
+        else if (altPressed)
+        {
+            playerMovementMultiplier *= 0.25f;
         }
 
         player->move(glm::vec3(playerMovementNormalized) * playerMovementSensitivity * playerMovementMultiplier * deltaTime);

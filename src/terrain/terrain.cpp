@@ -322,7 +322,7 @@ void Terrain::updateChunks()
 void Terrain::addZonesToTryErosionSet(Chunk* chunkPtr)
 {
     Zone* zonePtr = chunkPtr->zonePtr;
-    zonesToTryErosion.insert(zonePtr);
+    zonesToTryErosion.insert(zonePtr); // not possible for this to already have been queued for erosion since this chunk just became ready
 
     ivec2 localChunkPos = chunkPtr->worldChunkPos - zonePtr->worldChunkPos;
     int startDirIdx;
@@ -374,6 +374,8 @@ bool isChunkReadyForErosion(Chunk* chunkPtr, Zone* zonePtr)
 
 bool isZoneReadyForErosion(Zone* zonePtr)
 {
+    zonePtr->gatheredChunks.resize(ZONE_SIZE * ZONE_SIZE * 4);
+
     for (const auto& chunkPtr : zonePtr->chunks)
     {
         if (!isChunkReadyForErosion(chunkPtr.get(), zonePtr))
@@ -415,7 +417,6 @@ void Terrain::updateZones()
 {
     for (const auto& zonePtr : zonesToTryErosion)
     {
-        zonePtr->gatheredChunks.reserve(ZONE_SIZE * ZONE_SIZE * 4);
         if (isZoneReadyForErosion(zonePtr))
         {
             zonesToErode.push(zonePtr);
@@ -775,6 +776,7 @@ void Terrain::debugPrintCurrentChunkState(vec2 playerPos)
     printf("===========================================================\n");
     printf("zone (%d, %d)\n", zonePtr->worldChunkPos.x, zonePtr->worldChunkPos.y);
     printf("-----------------------------------------------------------\n");
+    printf("zone is ready for erosion: %s\n", isZoneReadyForErosion(zonePtr) ? "yes" : "no");
     printf("zone has been queued for erosion: %s\n", zonePtr->hasBeenQueuedForErosion ? "yes" : "no");
     printf("===========================================================\n");
     printf("\n");
