@@ -300,7 +300,7 @@ void BiomeUtils::init()
     };
 
     biomeFeatureGens[(int)Biome::RED_DESERT] = {
-        { Feature::CACTUS, 16, 2, 0.6f, { {Material::RED_SAND, 0.5f} } }
+        { Feature::CACTUS, 16, 2, 0.60f, { {Material::RED_SAND, 0.5f} } }
     };
 
     biomeFeatureGens[(int)Biome::PURPLE_MUSHROOMS] = {
@@ -308,12 +308,13 @@ void BiomeUtils::init()
     };
 
     biomeFeatureGens[(int)Biome::OASIS] = {
-        { Feature::PALM_TREE, 24, 3, 0.2f, { {Material::SAND, 0.3f} } },
-        { Feature::CACTUS, 16, 2, 0.55f, { {Material::SAND, 0.5f} } }
+        { Feature::PALM_TREE, 24, 3, 0.35f, { {Material::SAND, 0.3f} } },
+        { Feature::CACTUS, 16, 2, 0.40f, { {Material::SAND, 0.5f} } }
     };
 
     biomeFeatureGens[(int)Biome::DESERT] = {
-        { Feature::CACTUS, 16, 2, 0.7f, { {Material::SAND, 0.5f} } }
+        { Feature::PALM_TREE, 56, 3, 0.30f, { {Material::SAND, 0.3f} } },
+        { Feature::CACTUS, 16, 2, 0.70f, { {Material::SAND, 0.5f} } }
     };
 
 #define setFeatureHeightBounds(feature, yMin, yMax) featureHeightBounds[(int)Feature::feature] = ivec2(yMin, yMax)

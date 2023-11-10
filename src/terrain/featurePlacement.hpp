@@ -30,6 +30,11 @@ __device__ bool isPosInRange(T pos, T corner1, T corner2)
         && pos.z >= minPos.z && pos.z <= maxPos.z;
 }
 
+__device__ float saturate(float v)
+{
+    return clamp(v, 0.f, 1.f);
+}
+
 #pragma endregion
 
 #pragma region SDFs
@@ -450,7 +455,7 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
         }
 
         constexpr int numCtrlPts = 4;
-        constexpr int splineSize = 2;
+        constexpr int splineSize = 5;
 
         vec3 minPos = vec3(0);
         vec3 maxPos = vec3(0);
@@ -468,13 +473,28 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
             maxPos = max(maxPos, currentPoint);
         }
 
-        if (!isPosInRange(pos, minPos - vec3(1), maxPos + vec3(1, 6, 1)))
+        if (!isPosInRange(pos, minPos - vec3(5, 1, 5), maxPos + vec3(5, 6, 5)))
         {
             return false;
         }
 
         vec3 spline[splineSize];
         deCasteljau<numCtrlPts, splineSize>(ctrlPts, spline);
+
+        ivec3 trunkTop = ivec3(floor(spline[splineSize - 1]));
+        ivec3 leavesPos = floorPos - trunkTop;
+        float leavesDistance = max(abs(leavesPos.x), abs(leavesPos.z));
+        leavesDistance *= 0.6f + (0.3f * saturate((20 - trunkTop.y) * 0.05f)) + (0.3f * u01(featureRng));
+        if (isInRange(leavesPos.y, -1, 0) && leavesDistance < 4.f
+            && (leavesPos.x == 0 || leavesPos.z == 0 || abs(leavesPos.x) == abs(leavesPos.z)))
+        {
+            int leavesHeight = leavesDistance > 3.f ? -1 : 0;
+            if (leavesPos.y == leavesHeight)
+            {
+                *block = Block::PALM_LEAVES;
+                return true;
+            }
+        }
 
         for (int i = 0; i < splineSize - 1; ++i)
         {
