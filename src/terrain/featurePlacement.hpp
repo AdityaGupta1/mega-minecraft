@@ -473,7 +473,7 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
             maxPos = max(maxPos, currentPoint);
         }
 
-        if (!isPosInRange(pos, minPos - vec3(5, 1, 5), maxPos + vec3(5, 6, 5)))
+        if (!isPosInRange(pos, minPos - vec3(7, 1, 7), maxPos + vec3(7, 6, 7)))
         {
             return false;
         }
@@ -483,9 +483,9 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
 
         ivec3 trunkTop = ivec3(floor(spline[splineSize - 1]));
         ivec3 leavesPos = floorPos - trunkTop;
-        float leavesDistance = max(abs(leavesPos.x), abs(leavesPos.z));
+        float leavesDistance = length(vec2(leavesPos.x, leavesPos.z));
         leavesDistance *= 0.6f + (0.3f * saturate((20 - trunkTop.y) * 0.05f)) + (0.3f * u01(featureRng));
-        if (isInRange(leavesPos.y, -1, 0) && leavesDistance < 4.f
+        if (isInRange(leavesPos.y, -1, 0) && leavesDistance < 3.9f
             && (leavesPos.x == 0 || leavesPos.z == 0 || abs(leavesPos.x) == abs(leavesPos.z)))
         {
             int leavesHeight = leavesDistance > 3.f ? -1 : 0;

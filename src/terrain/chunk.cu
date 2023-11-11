@@ -12,7 +12,7 @@
 #define DEBUG_SKIP_EROSION 0
 #define DEBUG_USE_CONTRIBUTION_FILL_METHOD 0
 
-#define DEBUG_BIOME_OVERRIDE Biome::OASIS
+#define DEBUG_BIOME_OVERRIDE Biome::RED_DESERT
 
 Chunk::Chunk(ivec2 worldChunkPos)
     : worldChunkPos(worldChunkPos), worldBlockPos(worldChunkPos.x * 16, 0, worldChunkPos.y * 16)
@@ -574,6 +574,8 @@ __global__ void kernDoErosion(
 
         maxThickness = max(maxThickness, shared_layerEnd[neighborIdx] - neighborLayerStart);
     }
+
+    newLayerStart = min(newLayerStart, thisLayerEnd);
 
     if (maxThickness > 0)
     {

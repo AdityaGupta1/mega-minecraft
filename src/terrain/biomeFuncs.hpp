@@ -300,7 +300,8 @@ void BiomeUtils::init()
     };
 
     biomeFeatureGens[(int)Biome::RED_DESERT] = {
-        { Feature::CACTUS, 16, 2, 0.60f, { {Material::RED_SAND, 0.5f} } }
+        { Feature::PALM_TREE, 40, 3, 0.20f, { {Material::RED_SAND, 0.3f} } },
+        { Feature::CACTUS, 16, 2, 0.20f, { {Material::RED_SAND, 0.5f} } }
     };
 
     biomeFeatureGens[(int)Biome::PURPLE_MUSHROOMS] = {
@@ -313,7 +314,7 @@ void BiomeUtils::init()
     };
 
     biomeFeatureGens[(int)Biome::DESERT] = {
-        { Feature::PALM_TREE, 56, 3, 0.30f, { {Material::SAND, 0.3f} } },
+        { Feature::PALM_TREE, 64, 3, 0.30f, { {Material::SAND, 0.3f} } },
         { Feature::CACTUS, 16, 2, 0.70f, { {Material::SAND, 0.5f} } }
     };
 
