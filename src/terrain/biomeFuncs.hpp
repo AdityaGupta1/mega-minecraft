@@ -330,7 +330,7 @@ void BiomeUtils::init()
     setFeatureHeightBounds(SMALL_JUNGLE_TREE, -2, 17);
     setFeatureHeightBounds(LARGE_JUNGLE_TREE, -2, 38);
 
-    setFeatureHeightBounds(PALM_TREE, -2, 25); // TODO: revisit
+    setFeatureHeightBounds(PALM_TREE, -2, 28);
 
     setFeatureHeightBounds(CACTUS, -2, 15);
 

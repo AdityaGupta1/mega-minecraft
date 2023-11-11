@@ -449,7 +449,7 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
     }
     case Feature::PALM_TREE:
     {
-        if (floorPos.y < -2 || floorPos.y > 25 || abs(floorPos.x) + abs(floorPos.z) > 24)
+        if (floorPos.y < -2 || floorPos.y > 28 || abs(floorPos.x) + abs(floorPos.z) > 24)
         {
             return false;
         }
