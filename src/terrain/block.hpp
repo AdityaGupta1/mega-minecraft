@@ -5,6 +5,9 @@
 enum class Block : unsigned char
 {
     AIR,
+
+    WATER,
+
     STONE,
     DIRT,
     GRASS,
@@ -42,10 +45,17 @@ enum class Block : unsigned char
     PALM_LEAVES,
     MAGENTA_CRYSTAL,
     CYAN_CRYSTAL,
-    GREEN_CRYSTAL
+    GREEN_CRYSTAL,
+    SMOOTH_SAND,
+    TERRACOTTA,
+    YELLOW_TERRACOTTA,
+    ORANGE_TERRACOTTA,
+    PURPLE_TERRACOTTA,
+    RED_TERRACOTTA,
+    WHITE_TERRACOTTA
 };
 
-static constexpr int numBlocks = (int)Block::GREEN_CRYSTAL + 1;
+static constexpr int numBlocks = (int)Block::WHITE_TERRACOTTA + 1;
 
 struct SideUv
 {

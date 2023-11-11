@@ -31,6 +31,14 @@ __host__ __device__ thrust::default_random_engine makeSeededRandomEngine(int x, 
     return thrust::default_random_engine(h);
 }
 
+__host__ __device__ vec2 rand2From2(vec2 v)
+{
+    return fract(sin(vec2(
+        dot(v, vec2(238.68f, 491.28f)),
+        dot(v, vec2(654.37f, 560.45f))
+    )) * 39021.426f);
+}
+
 __host__ __device__ vec2 rand2From3(vec3 v)
 {
     return fract(sin(vec2(

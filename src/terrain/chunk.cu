@@ -12,7 +12,7 @@
 #define DEBUG_SKIP_EROSION 0
 #define DEBUG_USE_CONTRIBUTION_FILL_METHOD 0
 
-//#define DEBUG_BIOME_OVERRIDE Biome::RED_DESERT
+//#define DEBUG_BIOME_OVERRIDE Biome::OASIS
 
 Chunk::Chunk(ivec2 worldChunkPos)
     : worldChunkPos(worldChunkPos), worldBlockPos(worldChunkPos.x * 16, 0, worldChunkPos.y * 16)
@@ -926,78 +926,89 @@ __global__ void kernFill(
     Block block = Block::AIR;
     if (y < height)
     {
-        int layerIdxStart;
-        if (y >= shared_layersAndHeight[numForwardMaterials])
+        const Biome randBiome = getRandomBiome(shared_biomeWeights, u01(rng));
+        bool wasBlockPreProcessed = biomeBlockPreProcess(&block, randBiome, worldBlockPos);
+
+        if (!wasBlockPreProcessed)
         {
-            layerIdxStart = numForwardMaterials;
-        }
-        else
-        {
-            layerIdxStart = 0;
-        }
+            int layerIdxStart;
+            if (y >= shared_layersAndHeight[numForwardMaterials])
+            {
+                layerIdxStart = numForwardMaterials;
+            }
+            else
+            {
+                layerIdxStart = 0;
+            }
 
 #if DEBUG_USE_CONTRIBUTION_FILL_METHOD
-        float maxContribution = 0.f;
-        int maxLayerIdx = -1;
-        #pragma unroll
-        for (int layerIdx = layerIdxStart; layerIdx < numMaterials; ++layerIdx)
-        {
-            float layerContributionStart = max(shared_layersAndHeight[layerIdx], (float)y);
-            float layerContributionEnd = min(shared_layersAndHeight[layerIdx + 1], (float)y + 1.f);
-            float layerContribution = layerContributionEnd - layerContributionStart;
-
-            if (layerContribution > maxContribution)
+            float maxContribution = 0.f;
+            int maxLayerIdx = -1;
+            #pragma unroll
+            for (int layerIdx = layerIdxStart; layerIdx < numMaterials; ++layerIdx)
             {
-                maxContribution = layerContribution;
-                maxLayerIdx = layerIdx;
+                float layerContributionStart = max(shared_layersAndHeight[layerIdx], (float)y);
+                float layerContributionEnd = min(shared_layersAndHeight[layerIdx + 1], (float)y + 1.f);
+                float layerContribution = layerContributionEnd - layerContributionStart;
+
+                if (layerContribution > maxContribution)
+                {
+                    maxContribution = layerContribution;
+                    maxLayerIdx = layerIdx;
+                }
             }
-        }
 
-        if (height < y + 0.5f)
-        {
-            block = Block::AIR;
-        }
-        else
-        {
-            block = dev_materialInfos[maxLayerIdx].block;
+            if (height < y + 0.5f)
+            {
+                block = Block::AIR;
+            }
+            else
+            {
+                block = dev_materialInfos[maxLayerIdx].block;
 
-            bool isTopBlock = height < y + 1.5f;
+                bool isTopBlock = height < y + 1.5f;
+                if (isTopBlock)
+                {
+                    if (block == Block::DIRT)
+                    {
+                        const Biome randBiome = getRandomBiome(shared_biomeWeights, u01(rng));
+                        block = dev_biomeBlocks[(int)randBiome].grassBlock;
+        }
+    }
+}
+#else
+            int thisLayerIdx = -1;
+            #pragma unroll
+            for (int layerIdx = layerIdxStart; layerIdx < numMaterials; ++layerIdx)
+            {
+                float layerStart = shared_layersAndHeight[layerIdx];
+                float layerEnd = shared_layersAndHeight[layerIdx + 1];
+
+                if (layerStart <= y && y < layerEnd)
+                {
+                    thisLayerIdx = layerIdx;
+                    break;
+                }
+            }
+
+            block = dev_materialInfos[thisLayerIdx].block;
+
+            bool isTopBlock = y >= height - 1.f;
             if (isTopBlock)
             {
                 if (block == Block::DIRT)
                 {
-                    const Biome randBiome = getRandomBiome(shared_biomeWeights, u01(rng));
                     block = dev_biomeBlocks[(int)randBiome].grassBlock;
                 }
             }
-        }
-#else
-        int thisLayerIdx = -1;
-        #pragma unroll
-        for (int layerIdx = layerIdxStart; layerIdx < numMaterials; ++layerIdx)
-        {
-            float layerStart = shared_layersAndHeight[layerIdx];
-            float layerEnd = shared_layersAndHeight[layerIdx + 1];
-
-            if (layerStart <= y && y < layerEnd)
-            {
-                thisLayerIdx = layerIdx;
-                break;
-            }
-        }
-
-        block = dev_materialInfos[thisLayerIdx].block;
-
-        bool isTopBlock = y >= height - 1.f;
-        if (isTopBlock)
-        {
-            if (block == Block::DIRT)
-            {
-                const Biome randBiome = getRandomBiome(shared_biomeWeights, u01(rng));
-                block = dev_biomeBlocks[(int)randBiome].grassBlock;
-            }
-        }
 #endif
+        }
+
+        biomeBlockPostProcess(&block, randBiome, worldBlockPos);
+    }
+    else if (y < 128)
+    {
+        block = Block::WATER;
     }
 
     if (y < featureHeightBounds[0] || y > featureHeightBounds[1])

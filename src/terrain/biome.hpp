@@ -6,6 +6,15 @@
 
 enum class Biome : unsigned char
 {
+    SAVANNA,
+    MESA,
+    FROZEN_WASTELAND,
+    REDWOOD_FOREST,
+    SHREKS_SWAMP,
+    SPARSE_DESERT,
+    LUSH_BIRCH_FOREST,
+    TIANZI_MOUNTAINS,
+
     JUNGLE,
     RED_DESERT,
     PURPLE_MUSHROOMS,
@@ -20,7 +29,7 @@ static constexpr int numBiomes = (int)Biome::MOUNTAINS + 1;
 
 struct BiomeBlocks
 {
-    Block grassBlock{ Block::GRASS };
+    Block grassBlock{ Block::DIRT };
 };
 
 enum class Material : unsigned char
@@ -46,10 +55,11 @@ enum class Material : unsigned char
     MUD,
     DIRT,
     RED_SAND,
-    SAND
+    SAND,
+    SMOOTH_SAND
 };
 
-static constexpr int numMaterials = (int)Material::SAND + 1;
+static constexpr int numMaterials = (int)Material::SMOOTH_SAND + 1;
 static constexpr int numStratifiedMaterials = (int)Material::SANDSTONE + 1;
 static constexpr int numForwardMaterials = (int)Material::ANDESITE + 1;
 static constexpr int numErodedMaterials = numMaterials - numStratifiedMaterials;

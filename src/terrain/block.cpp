@@ -10,6 +10,9 @@ static std::array<BlockData, numBlocks> blockDatas;
 void BlockUtils::init()
 {
     blockDatas[(int)Block::AIR] = { BlockUvs(), TransparencyType::TRANSPARENT };
+
+    blockDatas[(int)Block::WATER] = { BlockUvs(ivec2(15, 15)) }; // water is opaque for now
+
     blockDatas[(int)Block::STONE] = { BlockUvs(ivec2(3, 0)).setRandomFlip() };
     blockDatas[(int)Block::DIRT] = { BlockUvs(ivec2(0, 0)).setRandomRotation() };
     blockDatas[(int)Block::GRASS] = { BlockUvs(ivec2(1, 0), ivec2(2, 0), ivec2(0, 0)).setRandomRotation(false, true, true) };
@@ -48,6 +51,13 @@ void BlockUtils::init()
     blockDatas[(int)Block::MAGENTA_CRYSTAL] = { BlockUvs(ivec2(0, 3)) }; // crystals are opaque for now
     blockDatas[(int)Block::CYAN_CRYSTAL] = { BlockUvs(ivec2(1, 3)) };
     blockDatas[(int)Block::GREEN_CRYSTAL] = { BlockUvs(ivec2(2, 3)) };
+    blockDatas[(int)Block::SMOOTH_SAND] = { BlockUvs(ivec2(3, 3)) };
+    blockDatas[(int)Block::TERRACOTTA] = { BlockUvs(ivec2(4, 3)) };
+    blockDatas[(int)Block::YELLOW_TERRACOTTA] = { BlockUvs(ivec2(5, 3)) };
+    blockDatas[(int)Block::ORANGE_TERRACOTTA] = { BlockUvs(ivec2(6, 3)) };
+    blockDatas[(int)Block::PURPLE_TERRACOTTA] = { BlockUvs(ivec2(7, 3)) };
+    blockDatas[(int)Block::RED_TERRACOTTA] = { BlockUvs(ivec2(8, 3)) };
+    blockDatas[(int)Block::WHITE_TERRACOTTA] = { BlockUvs(ivec2(9, 3)) };
 }
 
 BlockData BlockUtils::getBlockData(Block block)
