@@ -12,7 +12,7 @@
 #define DEBUG_SKIP_EROSION 0
 #define DEBUG_USE_CONTRIBUTION_FILL_METHOD 0
 
-//#define DEBUG_BIOME_OVERRIDE Biome::OASIS
+#define DEBUG_BIOME_OVERRIDE Biome::SAVANNA
 
 Chunk::Chunk(ivec2 worldChunkPos)
     : worldChunkPos(worldChunkPos), worldBlockPos(worldChunkPos.x * 16, 0, worldChunkPos.y * 16)
@@ -1118,6 +1118,7 @@ void Chunk::createVBOs()
                 }
 
                 BlockData thisBlockData = BlockUtils::getBlockData(thisBlock);
+                const auto thisTrans = thisBlockData.transparency;
 
                 for (int dirIdx = 0; dirIdx < 6; ++dirIdx)
                 {
@@ -1156,14 +1157,14 @@ void Chunk::createVBOs()
 
                         neighborBlock = neighborPosChunk->blocks[posTo3dIndex(neighborPos)];
 
-                        const auto thisTrans = thisBlockData.transparency;
                         const auto neighborTrans = BlockUtils::getBlockData(neighborBlock).transparency;
 
-                        // OPAQUE displays unless neighbor is OPAQUE
-                        // SEMI_TRANSPARENT displays no matter what
-                        // TRANSPARENT (except AIR) displays unless neighbor is TRANSPARENT (may need to revise this if two different transparent blocks are adjacent)
+                        // OPAQUE displays if neighbor is not OPAQUE
+                        // SEMI_TRANSPARENT if neighbor is not OPAQUE
+                        // TRANSPARENT (except AIR) displays if neighbor is AIR (may need to revise this if two different transparent blocks are adjacent)
                         // X_SHAPED displays no matter what
-                        if (thisTrans == neighborTrans && (thisTrans == TransparencyType::OPAQUE || thisTrans == TransparencyType::TRANSPARENT))
+                        if ((neighborTrans == TransparencyType::OPAQUE && (thisTrans == TransparencyType::OPAQUE || thisTrans == TransparencyType::SEMI_TRANSPARENT))
+                            || (thisTrans == TransparencyType::TRANSPARENT && neighborBlock != Block::AIR))
                         {
                             continue;
                         }

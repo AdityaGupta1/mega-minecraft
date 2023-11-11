@@ -11,7 +11,7 @@ void BlockUtils::init()
 {
     blockDatas[(int)Block::AIR] = { BlockUvs(), TransparencyType::TRANSPARENT };
 
-    blockDatas[(int)Block::WATER] = { BlockUvs(ivec2(15, 15)) }; // water is opaque for now
+    blockDatas[(int)Block::WATER] = { BlockUvs(ivec2(15, 15)), TransparencyType::TRANSPARENT };
 
     blockDatas[(int)Block::STONE] = { BlockUvs(ivec2(3, 0)).setRandomFlip() };
     blockDatas[(int)Block::DIRT] = { BlockUvs(ivec2(0, 0)).setRandomRotation() };
@@ -48,9 +48,9 @@ void BlockUtils::init()
     blockDatas[(int)Block::CACTUS] = { BlockUvs(ivec2(10, 2)) };
     blockDatas[(int)Block::PALM_WOOD] = { BlockUvs(ivec2(11, 2)) };
     blockDatas[(int)Block::PALM_LEAVES] = { BlockUvs(ivec2(13, 2)), TransparencyType::SEMI_TRANSPARENT };
-    blockDatas[(int)Block::MAGENTA_CRYSTAL] = { BlockUvs(ivec2(0, 3)) }; // crystals are opaque for now
-    blockDatas[(int)Block::CYAN_CRYSTAL] = { BlockUvs(ivec2(1, 3)) };
-    blockDatas[(int)Block::GREEN_CRYSTAL] = { BlockUvs(ivec2(2, 3)) };
+    blockDatas[(int)Block::MAGENTA_CRYSTAL] = { BlockUvs(ivec2(0, 3)), TransparencyType::TRANSPARENT };
+    blockDatas[(int)Block::CYAN_CRYSTAL] = { BlockUvs(ivec2(1, 3)), TransparencyType::TRANSPARENT };
+    blockDatas[(int)Block::GREEN_CRYSTAL] = { BlockUvs(ivec2(2, 3)), TransparencyType::TRANSPARENT };
     blockDatas[(int)Block::SMOOTH_SAND] = { BlockUvs(ivec2(3, 3)) };
     blockDatas[(int)Block::TERRACOTTA] = { BlockUvs(ivec2(4, 3)) };
     blockDatas[(int)Block::YELLOW_TERRACOTTA] = { BlockUvs(ivec2(5, 3)) };

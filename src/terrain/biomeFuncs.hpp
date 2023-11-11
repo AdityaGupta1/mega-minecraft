@@ -78,7 +78,6 @@ __device__ float worley(vec2 pos)
     vec2 uvFract = fract(pos);
     float minDist = FLT_MAX;
 
-    vec2 color;
     for (int x = -1; x <= 1; ++x)
     {
         for (int y = -1; y <= 1; ++y)
@@ -100,7 +99,6 @@ __device__ float worleyEdgeDist(vec2 pos)
     float minDist1 = FLT_MAX;
     float minDist2 = FLT_MAX;
 
-    vec2 color;
     for (int x = -1; x <= 1; ++x)
     {
         for (int y = -1; y <= 1; ++y)
@@ -182,6 +180,22 @@ __device__ float getHeight(Biome biome, vec2 pos)
 {
     switch (biome)
     {
+    case Biome::SAVANNA:
+    {
+        vec2 noiseOffsetPos = pos * 0.0040f;
+        vec2 noiseOffset = vec2(fbm<5>(noiseOffsetPos), fbm<5>(noiseOffsetPos + vec2(5923.45f, 4129.42f))) * 100.f;
+
+        vec2 noisePos = pos + noiseOffset;
+
+        float plateauNoise1 = worley(noisePos * 0.0070f);
+        plateauNoise1 = smoothstep(0.30f, 0.20f, plateauNoise1) * (1.f + 0.3f * simplex(noisePos * 0.0100f));
+
+        float plateauNoise2 = worley((noisePos + vec2(-3910.12f, -9012.34f)) * 0.0045f);
+        plateauNoise2 = smoothstep(0.16f, 0.08f, plateauNoise2) * (1.f + 0.2f * simplex(noisePos * 0.0130f));
+
+        float plateauHeight = (plateauNoise1 * 14.f) + (plateauNoise2 * 9.f);
+        return 136.f + 9.f * fbm<4>(pos * 0.0080f) + plateauHeight;
+    }
     case Biome::MESA:
     {
         pos *= 0.7f;
@@ -379,6 +393,7 @@ void BiomeUtils::init()
     setMaterialInfoSameBlock(TUFF, 24.f, 42.f, 0.0060f);
     setMaterialInfoSameBlock(CALCITE, 20.f, 30.f, 0.0040f);
     setMaterialInfoSameBlock(GRANITE, 18.f, 36.f, 0.0034f);
+    setMaterialInfoSameBlock(TERRACOTTA, 32.f, 16.f, 0.0020f);
     setMaterialInfoSameBlock(MARBLE, 28.f, 56.f, 0.0050f);
     setMaterialInfoSameBlock(ANDESITE, 24.f, 48.f, 0.0030f);
 
@@ -422,6 +437,8 @@ void BiomeUtils::init()
 
     for (int biomeIdx = 0; biomeIdx < numBiomes; ++biomeIdx)
     {
+        setCurrentBiomeMaterialWeight(TERRACOTTA, 0);
+
         setCurrentBiomeMaterialWeight(RED_SANDSTONE, 0);
         setCurrentBiomeMaterialWeight(SANDSTONE, 0);
 
@@ -433,6 +450,13 @@ void BiomeUtils::init()
         setCurrentBiomeMaterialWeight(SMOOTH_SAND, 0);
     }
 
+    setBiomeMaterialWeight(SAVANNA, STONE, 0.6f);
+    setBiomeMaterialWeight(SAVANNA, TUFF, 0.15f);
+    setBiomeMaterialWeight(SAVANNA, CALCITE, 0.0f);
+    setBiomeMaterialWeight(SAVANNA, GRANITE, 0.2f);
+    setBiomeMaterialWeight(SAVANNA, TERRACOTTA, 3.2f);
+    setBiomeMaterialWeight(SAVANNA, MARBLE, 0.0f);
+
     setBiomeMaterialWeight(MESA, CLAY, 0.8f);
     setBiomeMaterialWeight(MESA, DIRT, 0.0f);
 
@@ -440,6 +464,8 @@ void BiomeUtils::init()
     setBiomeMaterialWeight(SHREKS_SWAMP, MUD, 1.7f);
     setBiomeMaterialWeight(SHREKS_SWAMP, DIRT, 0.6f);
 
+    setBiomeMaterialWeight(SPARSE_DESERT, MARBLE, 2.0f);
+    setBiomeMaterialWeight(SPARSE_DESERT, ANDESITE, 0.5f);
     setBiomeMaterialWeight(SPARSE_DESERT, DIRT, 0.0f);
     setBiomeMaterialWeight(SPARSE_DESERT, SMOOTH_SAND, 1.4f);
 

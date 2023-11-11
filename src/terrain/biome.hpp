@@ -42,6 +42,7 @@ enum class Material : unsigned char
     TUFF,
     CALCITE,
     GRANITE,
+    TERRACOTTA,
     MARBLE,
     ANDESITE,
     
