@@ -759,27 +759,57 @@ void Terrain::debugGetCurrentChunkAndZone(vec2 playerPos, Chunk** chunkPtr, Zone
     *zonePtr = zoneUptr.get();
 }
 
-void Terrain::debugPrintCurrentChunkState(vec2 playerPos)
+void Terrain::debugPrintCurrentChunkInfo(vec2 playerPos)
 {
     Chunk* chunkPtr;
     Zone* zonePtr;
     debugGetCurrentChunkAndZone(playerPos, &chunkPtr, &zonePtr);
-    bool isInDrawableChunks = drawableChunks.find(chunkPtr) != drawableChunks.end();
 
     printf("===========================================================\n");
     printf("chunk (%d, %d)\n", chunkPtr->worldChunkPos.x, chunkPtr->worldChunkPos.y);
     printf("-----------------------------------------------------------\n");
     printf("chunk state: %d\n", (int)chunkPtr->getState());
     printf("chunk ready for queue: %s\n", chunkPtr->isReadyForQueue() ? "yes" : "no");
-    printf("chunk in drawable chunks: %s\n", isInDrawableChunks ? "yes" : "no");
+    printf("chunk in drawable chunks: %s\n", drawableChunks.find(chunkPtr) != drawableChunks.end() ? "yes" : "no");
     printf("chunk idx count: %d\n", chunkPtr->getIdxCount());
+    printf("===========================================================\n\n");
+}
+
+void Terrain::debugPrintCurrentZoneInfo(vec2 playerPos)
+{
+    Chunk* chunkPtr;
+    Zone* zonePtr;
+    debugGetCurrentChunkAndZone(playerPos, &chunkPtr, &zonePtr);
+
     printf("===========================================================\n");
     printf("zone (%d, %d)\n", zonePtr->worldChunkPos.x, zonePtr->worldChunkPos.y);
     printf("-----------------------------------------------------------\n");
     printf("zone is ready for erosion: %s\n", isZoneReadyForErosion(zonePtr) ? "yes" : "no");
     printf("zone has been queued for erosion: %s\n", zonePtr->hasBeenQueuedForErosion ? "yes" : "no");
     printf("===========================================================\n");
-    printf("\n");
+    for (int chunkZ = 0; chunkZ < ZONE_SIZE; ++chunkZ)
+    {
+        for (int chunkX = 0; chunkX < ZONE_SIZE; ++chunkX)
+        {
+            int chunkIdx = localChunkPosToIdx(chunkX, chunkZ);
+            chunkPtr = zonePtr->chunks[chunkIdx].get();
+
+            int chunkState;
+            if (chunkPtr == nullptr)
+            {
+                chunkState = -1;
+            }
+            else
+            {
+                chunkState = (int)chunkPtr->getState();
+            }
+
+            printf("%-5d", chunkState);
+        }
+
+        printf("\n");
+    }
+    printf("===========================================================\n\n");
 }
 
 void Terrain::debugPrintCurrentColumnLayers(vec2 playerPos)

@@ -96,6 +96,7 @@ public:
     void setCurrentChunkPos(ivec2 newCurrentChunkPos);
 
     void debugGetCurrentChunkAndZone(vec2 playerPos, Chunk** chunkPtr, Zone** zonePtr);
-    void debugPrintCurrentChunkState(vec2 playerPos);
+    void debugPrintCurrentChunkInfo(vec2 playerPos);
+    void debugPrintCurrentZoneInfo(vec2 playerPos);
     void debugPrintCurrentColumnLayers(vec2 playerPos);
 };
