@@ -449,7 +449,7 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
     }
     case Feature::PALM_TREE:
     {
-        if (floorPos.y < -2 || floorPos.y > 25)
+        if (floorPos.y < -2 || floorPos.y > 25 || abs(floorPos.x) + abs(floorPos.z) > 24)
         {
             return false;
         }
@@ -498,8 +498,17 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
 
         for (int i = 0; i < splineSize - 1; ++i)
         {
-            const vec3 pos1 = spline[i];
-            const vec3 pos2 = spline[i + 1];
+            vec3 pos1 = spline[i];
+            vec3 pos2 = spline[i + 1];
+            vec3 padding = normalize(pos2 - pos1) * 0.5f;
+            if (i > 0)
+            {
+                pos1 -= padding;
+            }
+            if (i + 1 < splineSize - 1)
+            {
+                pos2 += padding;
+            }
 
             float ratio;
             float distFromLine;
