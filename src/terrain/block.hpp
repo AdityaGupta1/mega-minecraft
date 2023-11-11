@@ -39,10 +39,13 @@ enum class Block : unsigned char
     JUNGLE_LEAVES_FRUITS,
     CACTUS,
     PALM_WOOD,
-    PALM_LEAVES
+    PALM_LEAVES,
+    MAGENTA_CRYSTAL,
+    CYAN_CRYSTAL,
+    GREEN_CRYSTAL
 };
 
-static constexpr int numBlocks = (int)Block::PALM_LEAVES + 1;
+static constexpr int numBlocks = (int)Block::GREEN_CRYSTAL + 1;
 
 struct SideUv
 {

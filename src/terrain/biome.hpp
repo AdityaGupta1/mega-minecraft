@@ -71,6 +71,8 @@ enum class Feature : unsigned char
     // SMALL_PURPLE_MUSHROOM
     PURPLE_MUSHROOM,
 
+    CRYSTAL,
+
     RAFFLESIA,
     LARGE_JUNGLE_TREE,
     SMALL_JUNGLE_TREE,
@@ -81,7 +83,6 @@ enum class Feature : unsigned char
     CACTUS
     
     //POND (not sure if this should go here or somewhere else)
-    //CRYSTAL
 };
 
 static constexpr int numFeatures = (int)Feature::CACTUS + 1;

@@ -6,6 +6,7 @@
 #include "util/utils.hpp"
 #include <glm/gtx/component_wise.hpp>
 #include "biomeFuncs.hpp"
+#include <glm/gtx/vector_angle.hpp>
 
 #pragma region utility functions
 
@@ -121,6 +122,41 @@ __device__ bool jungleLeaves(vec3 pos, float maxHeight, float minRadius, float m
     return false;
 }
 
+constexpr float crystalConeStart = 0.8f;
+constexpr float crystalConeN = 1.f / (1.f - crystalConeStart);
+
+__device__ float getCrystalRadius(float ratio)
+{
+    if (ratio < crystalConeStart)
+    {
+        return 0.8f + 0.25f * ratio;
+    }
+    else
+    {
+        return crystalConeN * (1.f - ratio);
+    }
+}
+
+__device__ bool isInCrystal(vec3 pos, vec3 pos1, vec3 pos2, float radiusMultiplier)
+{
+    float ratio;
+    float distanceFromLine;
+    bool inLine = calculateLineParams(pos, pos1, pos2, &ratio, &distanceFromLine);
+
+    if (!inLine)
+    {
+        return false;
+    }
+
+    float crystalRadius = getCrystalRadius(ratio) * radiusMultiplier;
+    constexpr float p = PI / 6.f;
+    const vec3 line = pos2 - pos1;
+    const vec3 pointPos = pos - (pos1 + ratio * line);
+    const float posAngle = length(pointPos) == 0.f ? 0.f : (angle(normalize(pointPos), normalize(cross(line, vec3(1, 0, 0)))) + TWO_PI);
+    crystalRadius *= cosf(p) / cosf(p - fmod(posAngle, 2.f * p));
+    return distanceFromLine < crystalRadius;
+}
+
 #pragma endregion
 
 // block should not change if return value is false
@@ -153,7 +189,7 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
         *block = Block::GRAVEL;
         return true;
     }
-    case Feature::PURPLE_MUSHROOM: 
+    case Feature::PURPLE_MUSHROOM:
     {
         float universalScale = 1.f + u01(featureRng) * 1.2f;
         pos *= universalScale;
@@ -172,7 +208,7 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
         vec3 ctrlPts[numCtrlPts];
         constexpr float lastCtrlPtIndex = numCtrlPts - 1.f;
         ctrlPts[0] = vec3(0);
-        #pragma unroll
+#pragma unroll
         for (int i = 1; i < numCtrlPts; ++i)
         {
             vec3 offset = vec3(u11(featureRng), u11(featureRng), u11(featureRng)) * vec3(6, 2, 6);
@@ -525,6 +561,74 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
                 return true;
             }
         }
+
+        return false;
+    }
+    case Feature::CRYSTAL:
+    {
+        pos += vec3(0, 2, 0);
+        pos *= 0.6f + 0.4f * u01(featureRng);
+
+        if (max(abs(pos.x), abs(pos.z)) > 15)
+        {
+            return false;
+        }
+
+        float crystalRand = u01(featureRng) * 3.f;
+
+        vec3 crystalEndPos = vec3(12.f * u11(featureRng), 18.f + 8.f * u01(featureRng), 12.f * u11(featureRng));
+        if (pos.y > crystalEndPos.y + 2.f)
+        {
+            return false;
+        }
+
+        if (!isInCrystal(pos, vec3(0), crystalEndPos, 4.f + 1.2f * u01(featureRng)))
+        {
+            pos *= 0.8f;
+
+            bool isInSmallCrystal = false;
+
+            int numSmallCrystals = (int)(4.f + 2.f * u01(featureRng));
+            float smallCrystalAngle = u01(featureRng) * TWO_PI;
+            for (int i = 0; i < numSmallCrystals; ++i)
+            {
+                smallCrystalAngle += PI_OVER_TWO + PI * u01(featureRng);
+                vec3 smallCrystalStartPos = vec3(0);
+                sincosf(smallCrystalAngle, &smallCrystalStartPos.z, &smallCrystalStartPos.x);
+                vec3 smallCrystalEndPos = smallCrystalStartPos;
+                smallCrystalStartPos *= 3.f;
+                smallCrystalEndPos *= 6.f + 3.f * u01(featureRng);
+                smallCrystalEndPos.y = 7.f + 5.f * u01(featureRng);
+
+                if (isInCrystal(pos, vec3(0), smallCrystalEndPos, 1.5f + 1.5f * u01(featureRng)))
+                {
+                    isInSmallCrystal = true;
+                    break;
+                }
+            }
+
+            if (!isInSmallCrystal)
+            {
+                return false;
+            }
+        }
+
+        Block crystalBlock;
+        if (crystalRand < 1.f)
+        {
+            crystalBlock = Block::MAGENTA_CRYSTAL;
+        }
+        else if (crystalRand < 2.f)
+        {
+            crystalBlock = Block::CYAN_CRYSTAL;
+        }
+        else
+        {
+            crystalBlock = Block::GREEN_CRYSTAL;
+        }
+
+        *block = crystalBlock;
+        return true;
 
         return false;
     }

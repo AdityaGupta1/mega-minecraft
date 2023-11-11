@@ -308,6 +308,10 @@ void BiomeUtils::init()
         { Feature::PURPLE_MUSHROOM, 11, 3, 0.45f, { {Material::DIRT, 0.5f} } }
     };
 
+    biomeFeatureGens[(int)Biome::CRYSTALS] = {
+        { Feature::CRYSTAL, 56, 12, 0.8f, { {Material::GRAVEL, 0.2f}, {Material::CLAY, 0.1f} } }
+    };
+
     biomeFeatureGens[(int)Biome::OASIS] = {
         { Feature::PALM_TREE, 24, 3, 0.35f, { {Material::SAND, 0.3f} } },
         { Feature::CACTUS, 16, 2, 0.40f, { {Material::SAND, 0.5f} } }
@@ -324,6 +328,8 @@ void BiomeUtils::init()
     setFeatureHeightBounds(SPHERE, -6, 6);
 
     setFeatureHeightBounds(PURPLE_MUSHROOM, -2, 80);
+
+    setFeatureHeightBounds(CRYSTAL, -4, 65);
 
     setFeatureHeightBounds(RAFFLESIA, -2, 10);
     setFeatureHeightBounds(TINY_JUNGLE_TREE, -2, 5);

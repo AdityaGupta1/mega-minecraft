@@ -45,6 +45,9 @@ void BlockUtils::init()
     blockDatas[(int)Block::CACTUS] = { BlockUvs(ivec2(10, 2)) };
     blockDatas[(int)Block::PALM_WOOD] = { BlockUvs(ivec2(11, 2)) };
     blockDatas[(int)Block::PALM_LEAVES] = { BlockUvs(ivec2(13, 2)), TransparencyType::SEMI_TRANSPARENT };
+    blockDatas[(int)Block::MAGENTA_CRYSTAL] = { BlockUvs(ivec2(0, 3)) }; // crystals are opaque for now
+    blockDatas[(int)Block::CYAN_CRYSTAL] = { BlockUvs(ivec2(1, 3)) };
+    blockDatas[(int)Block::GREEN_CRYSTAL] = { BlockUvs(ivec2(2, 3)) };
 }
 
 BlockData BlockUtils::getBlockData(Block block)
