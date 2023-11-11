@@ -72,45 +72,58 @@ __device__ float fbm(vec2 pos)
     return fbm;
 }
 
-__device__ float worley(vec2 pos)
+__device__ float worley(vec2 pos, vec3* colorPtr = nullptr)
 {
-    vec2 uvInt = floor(pos);
+    ivec2 uvInt = ivec2(floor(pos));
     vec2 uvFract = fract(pos);
-    float minDist = FLT_MAX;
 
+    float minDist = FLT_MAX;
+    vec2 closestPoint;
     for (int x = -1; x <= 1; ++x)
     {
         for (int y = -1; y <= 1; ++y)
         {
-            vec2 neighbor = vec2(x, y);
+            ivec2 neighbor = ivec2(x, y);
             vec2 point = rand2From2(uvInt + neighbor);
-            vec2 diff = neighbor + point - uvFract;
-            minDist = fmin(minDist, length(diff));
+            vec2 diff = vec2(neighbor) + point - uvFract;
+            float dist = length(diff);
+            if (dist < minDist)
+            {
+                minDist = dist;
+                closestPoint = point;
+            }
         }
+    }
+
+    if (colorPtr != nullptr)
+    {
+        *colorPtr = rand3From2(closestPoint);
     }
 
     return minDist;
 }
 
-__device__ float worleyEdgeDist(vec2 pos)
+__device__ float worleyEdgeDist(vec2 pos, vec3* colorPtr = nullptr)
 {
-    vec2 uvInt = floor(pos);
+    ivec2 uvInt = ivec2(floor(pos));
     vec2 uvFract = fract(pos);
+
     float minDist1 = FLT_MAX;
     float minDist2 = FLT_MAX;
-
+    vec2 closestPoint;
     for (int x = -1; x <= 1; ++x)
     {
         for (int y = -1; y <= 1; ++y)
         {
-            vec2 neighbor = vec2(x, y);
+            ivec2 neighbor = ivec2(x, y);
             vec2 point = rand2From2(uvInt + neighbor);
-            vec2 diff = neighbor + point - uvFract;
+            vec2 diff = vec2(neighbor) + point - uvFract;
             float dist = length(diff);
             if (dist < minDist1)
             {
                 minDist2 = minDist1;
                 minDist1 = dist;
+                closestPoint = point;
             }
             else if (dist < minDist2)
             {
@@ -119,7 +132,12 @@ __device__ float worleyEdgeDist(vec2 pos)
         }
     }
 
-    return (minDist2 - minDist1) * 0.5;
+    if (colorPtr != nullptr)
+    {
+        *colorPtr = rand3From2(closestPoint);
+    }
+
+    return (minDist2 - minDist1) * 0.5f;
 }
 
 #pragma endregion
@@ -231,7 +249,17 @@ __device__ float getHeight(Biome biome, vec2 pos)
     }
     case Biome::CRYSTALS:
     {
-        return 137.f + 7.f * fbm(pos * 0.0200f);
+        float towersBaseNoise = simplex(pos * 0.0030f);
+
+        vec3 worleyColor;
+        float towersWorleyNoise = worleyEdgeDist(pos * 0.0700f, &worleyColor);
+        towersWorleyNoise = smoothstep(0.10f, 0.15f, towersWorleyNoise);
+        towersWorleyNoise *= 0.4f + 1.2f * worleyColor.r;
+        float towersHeight = 60.f * towersWorleyNoise * smoothstep(0.70f, 0.74f, towersBaseNoise);
+        towersHeight += 18.f * smoothstep(0.35f, 0.8f, towersBaseNoise);
+
+        float baseHeight = 137.f + 8.f * fbm(pos * 0.0200f);
+        return baseHeight + towersHeight;
     }
     case Biome::OASIS:
     {
@@ -257,12 +285,30 @@ __device__ float getHeight(Biome biome, vec2 pos)
     return 128.f;
 }
 
-__device__ bool biomeBlockPreProcess(Block* block, Biome biome, vec3 worldBlockPos)
+__device__ bool biomeBlockPreProcess(Block* block, Biome biome, vec3 worldBlockPos, float height)
 {
+    switch (biome)
+    {
+    case Biome::CRYSTALS:
+    {
+        if (height > 176.f)
+        {
+            float quartzStartHeight = 140.f + 15.f * fbm<3>(vec2(worldBlockPos.x, worldBlockPos.z) * 0.0080f);
+            if (worldBlockPos.y > quartzStartHeight)
+            {
+                *block = Block::QUARTZ;
+                return true;
+            }
+        }
+
+        return false;
+    }
+    }
+
     return false;
 }
 
-__device__ bool biomeBlockPostProcess(Block* block, Biome biome, vec3 worldBlockPos)
+__device__ bool biomeBlockPostProcess(Block* block, Biome biome, vec3 worldBlockPos, float height)
 {
     switch (biome)
     {
@@ -479,7 +525,8 @@ void BiomeUtils::init()
 
     setBiomeMaterialWeight(PURPLE_MUSHROOMS, GRAVEL, 0.4f);
 
-    setBiomeMaterialWeight(CRYSTALS, GRAVEL, 0.35f);
+    setBiomeMaterialWeight(CRYSTALS, CALCITE, 0.3f);
+    setBiomeMaterialWeight(CRYSTALS, GRAVEL, 0.15f);
     setBiomeMaterialWeight(CRYSTALS, CLAY, 0.2f);
     setBiomeMaterialWeight(CRYSTALS, DIRT, 0.0f);
 
@@ -521,7 +568,7 @@ void BiomeUtils::init()
     };
 
     biomeFeatureGens[(int)Biome::CRYSTALS] = {
-        { Feature::CRYSTAL, 56, 12, 0.8f, { {Material::GRAVEL, 0.2f}, {Material::CLAY, 0.1f} } }
+        { Feature::CRYSTAL, 56, 12, 0.8f, { {Material::STONE, 0.5f} } }
     };
 
     biomeFeatureGens[(int)Biome::OASIS] = {

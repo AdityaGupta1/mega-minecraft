@@ -58,6 +58,7 @@ void BlockUtils::init()
     blockDatas[(int)Block::PURPLE_TERRACOTTA] = { BlockUvs(ivec2(7, 3)) };
     blockDatas[(int)Block::RED_TERRACOTTA] = { BlockUvs(ivec2(8, 3)) };
     blockDatas[(int)Block::WHITE_TERRACOTTA] = { BlockUvs(ivec2(9, 3)) };
+    blockDatas[(int)Block::QUARTZ] = { BlockUvs(ivec2(10, 3)) };
 }
 
 BlockData BlockUtils::getBlockData(Block block)

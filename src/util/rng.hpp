@@ -46,3 +46,12 @@ __host__ __device__ vec2 rand2From3(vec3 v)
         dot(v, vec3(654.37f, 560.45f, 151.81f))
     )) * 39021.426f);
 }
+
+__host__ __device__ vec3 rand3From2(vec2 v)
+{
+    return fract(sin(vec3(
+        dot(v, vec2(238.68f, 491.28f)),
+        dot(v, vec2(654.37f, 560.45f)),
+        dot(v, vec2(640.88f, 151.81f))
+    )) * 39021.426f);
+}

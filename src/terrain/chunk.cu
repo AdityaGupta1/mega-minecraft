@@ -12,7 +12,7 @@
 #define DEBUG_SKIP_EROSION 0
 #define DEBUG_USE_CONTRIBUTION_FILL_METHOD 0
 
-#define DEBUG_BIOME_OVERRIDE Biome::SAVANNA
+//#define DEBUG_BIOME_OVERRIDE Biome::CRYSTALS
 
 Chunk::Chunk(ivec2 worldChunkPos)
     : worldChunkPos(worldChunkPos), worldBlockPos(worldChunkPos.x * 16, 0, worldChunkPos.y * 16)
@@ -764,7 +764,8 @@ void Chunk::generateFeaturePlacements()
 
             const auto& columnBiomeWeights = biomeWeights.data() + idx2d;
 
-            const ivec3 worldBlockPos = this->worldBlockPos + ivec3(localX, ((int)heightfield[idx2d]) + 1, localZ);
+            const float height = heightfield[idx2d];
+            const ivec3 worldBlockPos = this->worldBlockPos + ivec3(localX, ((int)height) + 1, localZ);
             auto blockRng = makeSeededRandomEngine(worldBlockPos.x, worldBlockPos.y, worldBlockPos.z, 7); // arbitrary w so this rng is different than heightfield rng
             thrust::uniform_real_distribution<float> u01(0, 1);
 
@@ -772,28 +773,6 @@ void Chunk::generateFeaturePlacements()
             const auto& featureGens = BiomeUtils::getBiomeFeatureGens(biome);
 
             const float* columnLayers = this->layers.data() + idx2d;
-            Material topLayerMaterial;
-            float topLayerThickness;
-
-            const float lastLayerThickness = this->heightfield[idx2d] - columnLayers[256 * (numMaterials - 1)];
-            if (lastLayerThickness > 0)
-            {
-                topLayerMaterial = (Material)(numMaterials - 1);
-                topLayerThickness = lastLayerThickness;
-            }
-            else
-            {
-                for (int layerIdx = numMaterials - 2; layerIdx >= 0; --layerIdx)
-                {
-                    const float thickness = columnLayers[256 * (layerIdx + 1)] - columnLayers[256 * (layerIdx)];
-                    if (thickness > 0)
-                    {
-                        topLayerMaterial = (Material)layerIdx;
-                        topLayerThickness = thickness;
-                        break;
-                    }
-                }
-            }
 
             const ivec2 localPos2d = ivec2(localX, localZ);
             const ivec2 worldPos2d = localPos2d + ivec2(this->worldBlockPos.x, this->worldBlockPos.z);
@@ -806,11 +785,17 @@ void Chunk::generateFeaturePlacements()
                 bool canPlace = false;
                 for (const auto& possibleTopLayer : featureGen.possibleTopLayers)
                 {
-                    if (topLayerMaterial == possibleTopLayer.material && topLayerThickness >= possibleTopLayer.minThickness)
+                    int layerIdx = (int)possibleTopLayer.material;
+                    float layerStart = columnLayers[256 * layerIdx];
+                    float layerEnd = columnLayers[256 * (layerIdx + 1)];
+
+                    if (layerStart > height || layerEnd < height || min(layerEnd, height) - layerStart < possibleTopLayer.minThickness)
                     {
-                        canPlace = true;
-                        break;
+                        continue;
                     }
+
+                    canPlace = true;
+                    break;
                 }
 
                 if (!canPlace)
@@ -927,7 +912,7 @@ __global__ void kernFill(
     if (y < height)
     {
         const Biome randBiome = getRandomBiome(shared_biomeWeights, u01(rng));
-        bool wasBlockPreProcessed = biomeBlockPreProcess(&block, randBiome, worldBlockPos);
+        bool wasBlockPreProcessed = biomeBlockPreProcess(&block, randBiome, worldBlockPos, height);
 
         if (!wasBlockPreProcessed)
         {
@@ -1004,7 +989,7 @@ __global__ void kernFill(
 #endif
         }
 
-        biomeBlockPostProcess(&block, randBiome, worldBlockPos);
+        biomeBlockPostProcess(&block, randBiome, worldBlockPos, height);
     }
     else if (y < 128)
     {

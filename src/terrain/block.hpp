@@ -52,10 +52,11 @@ enum class Block : unsigned char
     ORANGE_TERRACOTTA,
     PURPLE_TERRACOTTA,
     RED_TERRACOTTA,
-    WHITE_TERRACOTTA
+    WHITE_TERRACOTTA,
+    QUARTZ
 };
 
-static constexpr int numBlocks = (int)Block::WHITE_TERRACOTTA + 1;
+static constexpr int numBlocks = (int)Block::QUARTZ + 1;
 
 struct SideUv
 {
