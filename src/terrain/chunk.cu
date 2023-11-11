@@ -235,7 +235,7 @@ void calculateEdgeIndices(int offset, int& in, int& out)
 
 void Chunk::otherChunkGatherHeightfield(Chunk* chunkPtr, Chunk* const (&neighborChunks)[5][5], int centerX, int centerZ)
 {
-    chunkPtr->gatheredHeightfield.reserve(18 * 18);
+    chunkPtr->gatheredHeightfield.resize(18 * 18);
 
     for (const auto& neighborDir : DirectionEnums::dirVecs2d)
     {
@@ -283,10 +283,11 @@ void Chunk::otherChunkGatherHeightfield(Chunk* chunkPtr, Chunk* const (&neighbor
     // copy chunk's own heightfield into gathered heightfield
     for (int z = 0; z < 16; ++z)
     {
-        for (int x = 0; x < 16; ++x)
-        {
-            chunkPtr->gatheredHeightfield[posTo2dIndex<18>(x + 1, z + 1)] = chunkPtr->heightfield[posTo2dIndex(x, z)];
-        }
+        std::memcpy(
+            chunkPtr->gatheredHeightfield.data() + posTo2dIndex<18>(1, z + 1),
+            chunkPtr->heightfield.data() + (16 * z),
+            16 * sizeof(float)
+        );
     }
 }
 
