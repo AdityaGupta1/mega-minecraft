@@ -14,8 +14,8 @@ static constexpr int chunkMaxGenRadius = chunkVbosGenRadius + (ZONE_SIZE * 2);
 
 // TODO: get better estimates for these
 // ================================================================================
-static constexpr int totalActionTimePerSecond = 25000;
-static constexpr int maxActionTimePerFrame = 800;
+static constexpr int totalActionTimePerSecond = 32000;
+static constexpr int maxActionTimePerFrame = 600;
 // ================================================================================
 static constexpr int actionTimeGenerateHeightfield        = 3;
 static constexpr int actionTimeGatherHeightfield          = 2;
@@ -24,7 +24,7 @@ static constexpr int actionTimeErodeZone                  = 600;
 static constexpr int actionTimeGenerateFeaturePlacements  = 3;
 static constexpr int actionTimeGatherFeaturePlacements    = 5;
 static constexpr int actionTimeFill                       = 8;
-static constexpr int actionTimeCreateAndBufferVbos        = 150;
+static constexpr int actionTimeCreateAndBufferVbos        = 120;
 // ================================================================================
 
 Terrain::Terrain()
