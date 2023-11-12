@@ -191,8 +191,15 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
     }
     case Feature::BIRCH_TREE:
     {
-        int height = (int)(6.f + 5.f * u01(featureRng));
-        if (!isInRange(floorPos.y, 0, height + 6))
+        int height = (int)(6.2f + 4.f * u01(featureRng));
+
+        bool tall = u01(featureRng) < 0.08f;
+        if (tall)
+        {
+            height *= 1.9f;
+        }
+
+        if (max(abs(floorPos.x), abs(floorPos.z)) > 8 || !isInRange(floorPos.y, 0, height + 6))
         {
             return false;
         }
@@ -202,8 +209,42 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
             *block = Block::BIRCH_WOOD;
             return true;
         }
+        
+        float leavesTallMultiplier = tall ? 1.5f : 1.f;
+        float leavesStart = height - (3.0f - 2.2f * u01(featureRng)) * leavesTallMultiplier;
+        float leavesEnd = height + (4.2f + 1.2f * u01(featureRng)) * leavesTallMultiplier;
+        float ratio = (pos.y - leavesStart) / (leavesEnd - leavesStart);
 
-        return false;
+        if (!isInRange(ratio, 0.f, 1.f))
+        {
+            return false;
+        }
+
+        float x = powf(ratio, 0.8f);
+        float leavesRadius = 5.f * (0.5f * x * x * x - 1.5f * x * x + x) * (2.8f + 0.8f * u01(featureRng));
+
+        if (length(vec2(pos.x, pos.z)) > leavesRadius)
+        {
+            return false;
+        }
+
+        Block leafBlock;
+        float leafRand = u01(featureRng);
+        if (leafRand < 0.1f)
+        {
+            leafBlock = Block::YELLOW_BIRCH_LEAVES;
+        }
+        else if (leafRand < 0.2f)
+        {
+            leafBlock = Block::ORANGE_BIRCH_LEAVES;
+        }
+        else
+        {
+            leafBlock = Block::BIRCH_LEAVES;
+        }
+
+        *block = leafBlock;
+        return true;
     }
     case Feature::PURPLE_MUSHROOM:
     {
@@ -585,7 +626,7 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
         pos += vec3(0, 2, 0);
         pos *= 0.6f + 0.4f * u01(featureRng);
 
-        if (max(abs(pos.x), abs(pos.z)) > 15)
+        if (max(abs(floorPos.x), abs(floorPos.z)) > 15)
         {
             return false;
         }

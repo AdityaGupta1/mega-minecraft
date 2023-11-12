@@ -514,7 +514,7 @@ void BiomeUtils::init()
 
     // feature, gridCellSize, gridCellPadding, chancePerGridCell, possibleTopLayers
     biomeFeatureGens[(int)Biome::LUSH_BIRCH_FOREST] = {
-        { Feature::BIRCH_TREE, 9, 2, 0.5f, { {Material::DIRT, 0.5f} } }
+        { Feature::BIRCH_TREE, 9, 2, 0.7f, { {Material::DIRT, 0.5f} } }
     };
 
     biomeFeatureGens[(int)Biome::JUNGLE] = { 
@@ -552,7 +552,7 @@ void BiomeUtils::init()
     setFeatureHeightBounds(NONE, 0, 0);
     setFeatureHeightBounds(SPHERE, -6, 6);
 
-    setFeatureHeightBounds(BIRCH_TREE, -2, 12);
+    setFeatureHeightBounds(BIRCH_TREE, -2, 30);
 
     setFeatureHeightBounds(RAFFLESIA, -2, 10);
     setFeatureHeightBounds(TINY_JUNGLE_TREE, -2, 5);

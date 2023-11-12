@@ -66,6 +66,7 @@ void BlockUtils::init()
     blockDatas[(int)Block::BIRCH_WOOD] = { BlockUvs(ivec2(14, 3)) };
     blockDatas[(int)Block::BIRCH_LEAVES] = { BlockUvs(ivec2(0, 4)), TransparencyType::SEMI_TRANSPARENT };
     blockDatas[(int)Block::YELLOW_BIRCH_LEAVES] = { BlockUvs(ivec2(1, 4)), TransparencyType::SEMI_TRANSPARENT };
+    blockDatas[(int)Block::ORANGE_BIRCH_LEAVES] = { BlockUvs(ivec2(2, 4)), TransparencyType::SEMI_TRANSPARENT };
 }
 
 BlockData BlockUtils::getBlockData(Block block)
