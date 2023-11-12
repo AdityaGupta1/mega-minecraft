@@ -254,30 +254,30 @@ __device__ bool biomeBlockPreProcess(Block* block, Biome biome, vec3 worldBlockP
     return false;
 }
 
-__device__ bool biomeBlockPostProcess(Block* block, Biome biome, vec3 worldBlockPos, float height)
+__device__ bool biomeBlockPostProcess(Block* block, Biome biome, vec3 worldBlockPos, float height, bool isTopBlock)
 {
     switch (biome)
     {
     case Biome::MESA:
     {
-        if (*block == Block::WATER)
+        if (worldBlockPos.y < 90.f || *block == Block::WATER)
         {
             return false;
         }
 
         vec2 pos2d = vec2(worldBlockPos.x, worldBlockPos.z);
-        float terracottaMinHeight = 108.f + 12.f * fbm<3>(pos2d * 0.0040f);
-        if (worldBlockPos.y < terracottaMinHeight)
+        float terracottaStartHeight = 108.f + 12.f * fbm<3>(pos2d * 0.0040f);
+        if (worldBlockPos.y < terracottaStartHeight)
         {
             return false;
         }
 
-        if (*block == Block::CLAY && worldBlockPos.y < terracottaMinHeight + 20.f)
+        if (*block == Block::CLAY && worldBlockPos.y < terracottaStartHeight + 20.f)
         {
             return false;
         }
 
-        float sampleHeight = worldBlockPos.y + 3.f * simplex(vec3(pos2d * 0.0100f, worldBlockPos.y * 0.0300f)) - terracottaMinHeight;
+        float sampleHeight = worldBlockPos.y + 3.f * simplex(vec3(pos2d * 0.0100f, worldBlockPos.y * 0.0300f)) - terracottaStartHeight;
         sampleHeight = mod(sampleHeight, 32.f);
         Block terracottaBlock;
         if (sampleHeight < 5.f)
@@ -332,19 +332,40 @@ __device__ bool biomeBlockPostProcess(Block* block, Biome biome, vec3 worldBlock
     }
     case Biome::TIANZI_MOUNTAINS:
     {
-        if (*block == Block::WATER || *block == Block::DIRT || *block == Block::GRASS)
+        if (worldBlockPos.y < 90.f || *block == Block::WATER || *block == Block::DIRT || *block == Block::GRASS)
         {
             return false;
         }
 
-        float sandstoneMinHeight = 112.f + 14.f * fbm<3>(vec2(worldBlockPos.x, worldBlockPos.z) * 0.0040f);
+        float sandstoneStartHeight = 112.f + 14.f * fbm<3>(vec2(worldBlockPos.x, worldBlockPos.z) * 0.0040f);
 
-        if (worldBlockPos.y < sandstoneMinHeight)
+        if (worldBlockPos.y < sandstoneStartHeight)
         {
             return false;
         }
 
         *block = Block::SMOOTH_SANDSTONE;
+        return true;
+    }
+    case Biome::MOUNTAINS:
+    {
+        //if (!isTopBlock)
+        //{
+        //    return false;
+        //}
+        
+        if (worldBlockPos.y < 190.f)
+        {
+            return false;
+        }
+
+        float snowStartHeight = 202.f + 5.f * fbm<3>(vec2(worldBlockPos.x, worldBlockPos.z) * 0.0500f);
+        if (worldBlockPos.y < snowStartHeight)
+        {
+            return false;
+        }
+
+        *block = Block::SNOW;
         return true;
     }
     }
@@ -390,6 +411,7 @@ void BiomeUtils::init()
     BiomeBlocks* host_biomeBlocks = new BiomeBlocks[numBiomes];
 
     host_biomeBlocks[(int)Biome::SAVANNA].grassBlock = Block::SAVANNA_GRASS; // TODO: replace with regular grass after implementing biome-based color
+    host_biomeBlocks[(int)Biome::FROZEN_WASTELAND].grassBlock = Block::SNOWY_GRASS;
     host_biomeBlocks[(int)Biome::REDWOOD_FOREST].grassBlock = Block::GRASS;
     host_biomeBlocks[(int)Biome::SHREKS_SWAMP].grassBlock = Block::JUNGLE_GRASS;
     host_biomeBlocks[(int)Biome::LUSH_BIRCH_FOREST].grassBlock = Block::GRASS;
@@ -399,7 +421,7 @@ void BiomeUtils::init()
     host_biomeBlocks[(int)Biome::PURPLE_MUSHROOMS].grassBlock = Block::MYCELIUM;
     host_biomeBlocks[(int)Biome::OASIS].grassBlock = Block::JUNGLE_GRASS;
     host_biomeBlocks[(int)Biome::PLAINS].grassBlock = Block::GRASS;
-    host_biomeBlocks[(int)Biome::MOUNTAINS].grassBlock = Block::SNOWY_GRASS;
+    host_biomeBlocks[(int)Biome::MOUNTAINS].grassBlock = Block::GRASS;
 
     cudaMemcpyToSymbol(dev_biomeBlocks, host_biomeBlocks, numBiomes * sizeof(BiomeBlocks));
     delete[] host_biomeBlocks;

@@ -326,7 +326,7 @@ void tick(float deltaTime)
     {
         terrain->setCurrentChunkPos(Utils::worldPosToChunkPos(player->getPos()));
     }
-    terrain->tick();
+    terrain->tick(deltaTime);
 
     renderer->draw(deltaTime, viewMatChanged, windowSizeChanged);
     windowSizeChanged = false;

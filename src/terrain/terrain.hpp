@@ -71,6 +71,8 @@ private:
 
     Zone* lastUpdateZonePtr{ nullptr };
 
+    int actionTimeLeft{ 0 };
+
     void initCuda();
     void freeCuda();
 
@@ -88,7 +90,7 @@ public:
     Terrain();
     ~Terrain();
 
-    void tick();
+    void tick(float deltaTime);
 
     void draw(const ShaderProgram& prog, const Player* player);
 

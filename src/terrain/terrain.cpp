@@ -14,16 +14,17 @@ static constexpr int chunkMaxGenRadius = chunkVbosGenRadius + (ZONE_SIZE * 2);
 
 // TODO: get better estimates for these
 // ================================================================================
-static constexpr int totalActionTime = 500;
+static constexpr int totalActionTimePerSecond = 25000;
+static constexpr int maxActionTimePerFrame = 800;
 // ================================================================================
 static constexpr int actionTimeGenerateHeightfield        = 3;
 static constexpr int actionTimeGatherHeightfield          = 2;
 static constexpr int actionTimeGenerateLayers             = 5;
-static constexpr int actionTimeErodeZone                  = 500;
+static constexpr int actionTimeErodeZone                  = 600;
 static constexpr int actionTimeGenerateFeaturePlacements  = 3;
 static constexpr int actionTimeGatherFeaturePlacements    = 5;
 static constexpr int actionTimeFill                       = 8;
-static constexpr int actionTimeCreateAndBufferVbos        = 100;
+static constexpr int actionTimeCreateAndBufferVbos        = 150;
 // ================================================================================
 
 Terrain::Terrain()
@@ -43,11 +44,11 @@ bool finishedTiming = false;
 std::chrono::system_clock::time_point start;
 #endif
 
-static constexpr int numDevBlocks = totalActionTime / actionTimeFill;
-static constexpr int numDevHeightfields = totalActionTime / min(actionTimeGenerateHeightfield, min(actionTimeGenerateLayers, actionTimeFill));
-static constexpr int numDevChunkWorldBlockPositions = totalActionTime / min(actionTimeGenerateHeightfield, actionTimeGenerateLayers);
-static constexpr int numDevLayers = totalActionTime / min(actionTimeGenerateLayers, actionTimeFill);
-static constexpr int numDevGatheredLayers = totalActionTime / actionTimeErodeZone;
+static constexpr int numDevBlocks = maxActionTimePerFrame / actionTimeFill;
+static constexpr int numDevHeightfields = maxActionTimePerFrame / min(actionTimeGenerateHeightfield, min(actionTimeGenerateLayers, actionTimeFill));
+static constexpr int numDevChunkWorldBlockPositions = maxActionTimePerFrame / min(actionTimeGenerateHeightfield, actionTimeGenerateLayers);
+static constexpr int numDevLayers = maxActionTimePerFrame / min(actionTimeGenerateLayers, actionTimeFill);
+static constexpr int numDevGatheredLayers = maxActionTimePerFrame / actionTimeErodeZone;
 static constexpr int numStreams = max(max(numDevBlocks, numDevHeightfields), max(numDevLayers, numDevGatheredLayers)); // TODO: revisit (probably only if I decide to make kernFill operate on multiple chunks at once)
 
 static Block* dev_blocks;
@@ -449,7 +450,7 @@ void checkChunkAndNeighborsForNeedsVbos(Chunk* chunkPtr)
     chunkPtr->setState(ChunkState::NEEDS_VBOS);
 }
 
-void Terrain::tick()
+void Terrain::tick(float deltaTime)
 {
     while (!chunksToDestroyVbos.empty())
     {
@@ -474,7 +475,7 @@ void Terrain::tick()
         needsUpdateChunks = false;
     }
 
-    int actionTimeLeft = totalActionTime;
+    actionTimeLeft = min(actionTimeLeft + (int)(totalActionTimePerSecond * deltaTime), maxActionTimePerFrame);
 
     int blocksIdx = 0;
     int heightfieldIdx = 0;

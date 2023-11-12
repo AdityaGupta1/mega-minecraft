@@ -12,7 +12,7 @@
 #define DEBUG_SKIP_EROSION 0
 #define DEBUG_USE_CONTRIBUTION_FILL_METHOD 0
 
-#define DEBUG_BIOME_OVERRIDE Biome::TIANZI_MOUNTAINS
+//#define DEBUG_BIOME_OVERRIDE Biome::MOUNTAINS
 
 Chunk::Chunk(ivec2 worldChunkPos)
     : worldChunkPos(worldChunkPos), worldBlockPos(worldChunkPos.x * 16, 0, worldChunkPos.y * 16)
@@ -916,6 +916,7 @@ __global__ void kernFill(
 
     Block block = Block::AIR;
     Biome randBiome = getRandomBiome(shared_biomeWeights, u01(rng));
+    bool isTopBlock = false;
     if (y < height)
     {
         bool wasBlockPreProcessed = biomeBlockPreProcess(&block, randBiome, worldBlockPos, height);
@@ -984,7 +985,7 @@ __global__ void kernFill(
 
             block = dev_materialInfos[thisLayerIdx].block;
 
-            bool isTopBlock = y >= height - 1.f;
+            isTopBlock = y >= height - 1.f;
             if (isTopBlock)
             {
                 if (block == Block::DIRT)
@@ -1002,7 +1003,7 @@ __global__ void kernFill(
 
     if (block != Block::AIR)
     {
-        biomeBlockPostProcess(&block, randBiome, worldBlockPos, height);
+        biomeBlockPostProcess(&block, randBiome, worldBlockPos, height, isTopBlock);
     }
 
     if (y < allFeaturesHeightBounds[0] || y > allFeaturesHeightBounds[1])
