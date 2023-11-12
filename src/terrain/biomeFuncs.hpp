@@ -178,7 +178,7 @@ __device__ float getHeight(Biome biome, vec2 pos)
 
         float hillsHeight = 16.f * simplex(pos * 0.0150f);
 
-        return 135.f + hillsHeight + 9.f * fbm<3>(pos * 0.0070f) + mountainsHeight;
+        return 131.f + hillsHeight + 9.f * fbm<3>(pos * 0.0070f) + mountainsHeight;
     }
     case Biome::JUNGLE:
     {
@@ -260,6 +260,11 @@ __device__ bool biomeBlockPostProcess(Block* block, Biome biome, vec3 worldBlock
     {
     case Biome::MESA:
     {
+        if (*block == Block::WATER)
+        {
+            return false;
+        }
+
         vec2 pos2d = vec2(worldBlockPos.x, worldBlockPos.z);
         float terracottaMinHeight = 108.f + 12.f * fbm<3>(pos2d * 0.0040f);
         if (worldBlockPos.y < terracottaMinHeight)
@@ -323,6 +328,23 @@ __device__ bool biomeBlockPostProcess(Block* block, Biome biome, vec3 worldBlock
         }
 
         *block = Block::PACKED_ICE;
+        return true;
+    }
+    case Biome::TIANZI_MOUNTAINS:
+    {
+        if (*block == Block::WATER || *block == Block::DIRT || *block == Block::GRASS)
+        {
+            return false;
+        }
+
+        float sandstoneMinHeight = 112.f + 14.f * fbm<3>(vec2(worldBlockPos.x, worldBlockPos.z) * 0.0040f);
+
+        if (worldBlockPos.y < sandstoneMinHeight)
+        {
+            return false;
+        }
+
+        *block = Block::SMOOTH_SANDSTONE;
         return true;
     }
     }
@@ -478,6 +500,8 @@ void BiomeUtils::init()
     setBiomeMaterialWeight(SPARSE_DESERT, DIRT, 0.0f);
     setBiomeMaterialWeight(SPARSE_DESERT, SMOOTH_SAND, 1.4f);
 
+    setBiomeMaterialWeight(TIANZI_MOUNTAINS, SANDSTONE, 1.0f);
+
     setBiomeMaterialWeight(JUNGLE, CLAY, 1.0f);
     setBiomeMaterialWeight(JUNGLE, MUD, 1.0f);
     setBiomeMaterialWeight(JUNGLE, DIRT, 0.5f);
@@ -522,6 +546,11 @@ void BiomeUtils::init()
         { Feature::BIRCH_TREE, 9, 2, 0.7f, { {Material::DIRT, 0.5f} } }
     };
 
+    host_biomeFeatureGens[(int)Biome::TIANZI_MOUNTAINS] = {
+        { Feature::PINE_TREE, 7, 1, 0.80f, {}, false },
+        { Feature::PINE_SHRUB, 6, 1, 0.80f, {}, false }
+    };
+
     host_biomeFeatureGens[(int)Biome::JUNGLE] = {
         { Feature::RAFFLESIA, 54, 6, 0.50f, { {Material::DIRT, 0.5f} } },
         { Feature::LARGE_JUNGLE_TREE, 32, 3, 0.70f, { {Material::DIRT, 0.5f} } },
@@ -557,22 +586,25 @@ void BiomeUtils::init()
     setFeatureHeightBounds(NONE, 0, 0);
     setFeatureHeightBounds(SPHERE, -6, 6);
 
-    setFeatureHeightBounds(ACACIA_TREE, -2, 15);
+    setFeatureHeightBounds(ACACIA_TREE, 0, 15);
 
-    setFeatureHeightBounds(BIRCH_TREE, -2, 30);
+    setFeatureHeightBounds(BIRCH_TREE, 0, 30);
 
-    setFeatureHeightBounds(RAFFLESIA, -2, 10);
-    setFeatureHeightBounds(TINY_JUNGLE_TREE, -2, 5);
-    setFeatureHeightBounds(SMALL_JUNGLE_TREE, -2, 17);
-    setFeatureHeightBounds(LARGE_JUNGLE_TREE, -2, 38);
+    setFeatureHeightBounds(PINE_TREE, 0, 15);
+    setFeatureHeightBounds(PINE_SHRUB, 0, 8);
 
-    setFeatureHeightBounds(PURPLE_MUSHROOM, -2, 80);
+    setFeatureHeightBounds(RAFFLESIA, 0, 10);
+    setFeatureHeightBounds(TINY_JUNGLE_TREE, 0, 5);
+    setFeatureHeightBounds(SMALL_JUNGLE_TREE, 0, 17);
+    setFeatureHeightBounds(LARGE_JUNGLE_TREE, 0, 38);
+
+    setFeatureHeightBounds(PURPLE_MUSHROOM, 0, 80);
 
     setFeatureHeightBounds(CRYSTAL, -4, 65);
 
-    setFeatureHeightBounds(PALM_TREE, -2, 28);
+    setFeatureHeightBounds(PALM_TREE, 0, 28);
 
-    setFeatureHeightBounds(CACTUS, -2, 15);
+    setFeatureHeightBounds(CACTUS, 0, 15);
 
 #undef setFeatureHeightBounds
 

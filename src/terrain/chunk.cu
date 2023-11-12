@@ -12,7 +12,7 @@
 #define DEBUG_SKIP_EROSION 0
 #define DEBUG_USE_CONTRIBUTION_FILL_METHOD 0
 
-#define DEBUG_BIOME_OVERRIDE Biome::SAVANNA
+#define DEBUG_BIOME_OVERRIDE Biome::TIANZI_MOUNTAINS
 
 Chunk::Chunk(ivec2 worldChunkPos)
     : worldChunkPos(worldChunkPos), worldBlockPos(worldChunkPos.x * 16, 0, worldChunkPos.y * 16)
@@ -784,25 +784,28 @@ void Chunk::generateFeaturePlacements()
             {
                 const auto& featureGen = featureGens[i];
 
-                bool canPlace = false;
-                for (const auto& possibleTopLayer : featureGen.possibleTopLayers)
+                if (!featureGen.possibleTopLayers.empty())
                 {
-                    int layerIdx = (int)possibleTopLayer.material;
-                    float layerStart = columnLayers[256 * layerIdx];
-                    float layerEnd = columnLayers[256 * (layerIdx + 1)];
+                    bool canPlace = false;
+                    for (const auto& possibleTopLayer : featureGen.possibleTopLayers)
+                    {
+                        int layerIdx = (int)possibleTopLayer.material;
+                        float layerStart = columnLayers[256 * layerIdx];
+                        float layerEnd = columnLayers[256 * (layerIdx + 1)];
 
-                    if (layerStart > height || layerEnd < height || min(layerEnd, height) - layerStart < possibleTopLayer.minThickness)
+                        if (layerStart > height || layerEnd < height || min(layerEnd, height) - layerStart < possibleTopLayer.minThickness)
+                        {
+                            continue;
+                        }
+
+                        canPlace = true;
+                        break;
+                    }
+
+                    if (!canPlace)
                     {
                         continue;
                     }
-
-                    canPlace = true;
-                    break;
-                }
-
-                if (!canPlace)
-                {
-                    continue;
                 }
 
                 const ivec2 gridCornerWorldPos = ivec2(floor(vec2(worldPos2d) / (float)featureGen.gridCellSize) * (float)featureGen.gridCellSize);

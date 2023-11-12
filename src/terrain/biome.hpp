@@ -83,6 +83,9 @@ enum class Feature : unsigned char
 
     BIRCH_TREE,
 
+    PINE_TREE,
+    PINE_SHRUB,
+
     RAFFLESIA,
     LARGE_JUNGLE_TREE,
     SMALL_JUNGLE_TREE,
@@ -106,7 +109,7 @@ static constexpr int numFeatures = (int)Feature::CACTUS + 1;
 struct FeatureGenTopLayer
 {
     Material material;
-    float minThickness;
+    float minThickness{ 0.0f };
 };
 
 struct FeatureGen

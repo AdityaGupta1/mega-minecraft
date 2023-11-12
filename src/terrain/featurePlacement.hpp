@@ -315,6 +315,60 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
         *block = leafBlock;
         return true;
     }
+    case Feature::PINE_TREE:
+    {
+        int height = (int)(7.f + 4.f * u01(featureRng));
+        if (floorPos.y < 0 || floorPos.y > height + 4 || max(abs(floorPos.x), abs(floorPos.z)) > 6)
+        {
+            return false;
+        }
+
+        if (floorPos.x == 0 && floorPos.z == 0 && floorPos.y <= height)
+        {
+            *block = Block::PINE_WOOD;
+            return true;
+        }
+
+        float leavesStart = height - 4.f - 2.5f * u01(featureRng);
+        float leavesEnd = height + 3.f;
+        float leavesRatio = (pos.y - leavesStart) / (leavesEnd - leavesStart);
+        if (!isInRange(leavesRatio, 0.f, 1.f))
+        {
+            return false;
+        }
+
+        float leavesRadius = mix(3.f, 1.f, leavesRatio);
+        if (length(vec2(pos.x, pos.z)) < leavesRadius)
+        {
+            *block = u01(featureRng) < 0.5f ? Block::PINE_LEAVES_1 : Block::PINE_LEAVES_2;
+            return true;
+        }
+
+        return false;
+    }
+    case Feature::PINE_SHRUB:
+    {
+        int height = (int)(2.f + 2.f * u01(featureRng));
+        if (floorPos.y < 0 || floorPos.y > height + 4 || max(abs(floorPos.x), abs(floorPos.z)) > 6)
+        {
+            return false;
+        }
+
+        if (floorPos.x == 0 && floorPos.z == 0 && floorPos.y <= height)
+        {
+            *block = Block::PINE_WOOD;
+            return true;
+        }
+
+        vec3 leavesPos = pos - vec3(0, height - 1.f, 0);
+        if (jungleLeaves(leavesPos, 2.5f, 1.5f, 2.5f, u01(featureRng)))
+        {
+            *block = u01(featureRng) < 0.5f ? Block::PINE_LEAVES_1 : Block::PINE_LEAVES_2;
+            return true;
+        }
+
+        return false;
+    }
     case Feature::PURPLE_MUSHROOM:
     {
         float universalScale = 1.f + u01(featureRng) * 1.2f;
