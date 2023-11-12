@@ -2,7 +2,6 @@
 
 #include "biome.hpp"
 #include "cuda/cudaUtils.hpp"
-#include <glm/gtc/noise.hpp>
 #include <unordered_map>
 #include "defines.hpp"
 #include "util/rng.hpp"
@@ -55,92 +54,7 @@ Biome getRandomBiome(const float* columnBiomeWeights, float rand)
 
 #pragma endregion
 
-#pragma region noise functions
-
-template<int octaves = 5>
-__device__ float fbm(vec2 pos)
-{
-    float fbm = 0.f;
-    float amplitude = 1.f;
-    #pragma unroll
-    for (int i = 0; i < octaves; ++i)
-    {
-        amplitude *= 0.5f;
-        fbm += amplitude * glm::simplex(pos);
-        pos *= 2.f;
-    }
-    return fbm;
-}
-
-__device__ float worley(vec2 pos, vec3* colorPtr = nullptr)
-{
-    ivec2 uvInt = ivec2(floor(pos));
-    vec2 uvFract = fract(pos);
-
-    float minDist = FLT_MAX;
-    vec2 closestPoint;
-    for (int x = -1; x <= 1; ++x)
-    {
-        for (int y = -1; y <= 1; ++y)
-        {
-            ivec2 neighbor = ivec2(x, y);
-            vec2 point = rand2From2(uvInt + neighbor);
-            vec2 diff = vec2(neighbor) + point - uvFract;
-            float dist = length(diff);
-            if (dist < minDist)
-            {
-                minDist = dist;
-                closestPoint = point;
-            }
-        }
-    }
-
-    if (colorPtr != nullptr)
-    {
-        *colorPtr = rand3From2(closestPoint);
-    }
-
-    return minDist;
-}
-
-__device__ float worleyEdgeDist(vec2 pos, vec3* colorPtr = nullptr)
-{
-    ivec2 uvInt = ivec2(floor(pos));
-    vec2 uvFract = fract(pos);
-
-    float minDist1 = FLT_MAX;
-    float minDist2 = FLT_MAX;
-    vec2 closestPoint;
-    for (int x = -1; x <= 1; ++x)
-    {
-        for (int y = -1; y <= 1; ++y)
-        {
-            ivec2 neighbor = ivec2(x, y);
-            vec2 point = rand2From2(uvInt + neighbor);
-            vec2 diff = vec2(neighbor) + point - uvFract;
-            float dist = length(diff);
-            if (dist < minDist1)
-            {
-                minDist2 = minDist1;
-                minDist1 = dist;
-                closestPoint = point;
-            }
-            else if (dist < minDist2)
-            {
-                minDist2 = dist;
-            }
-        }
-    }
-
-    if (colorPtr != nullptr)
-    {
-        *colorPtr = rand3From2(closestPoint);
-    }
-
-    return (minDist2 - minDist1) * 0.5f;
-}
-
-#pragma endregion
+#pragma region biome weights
 
 struct BiomeNoise
 {
@@ -194,6 +108,8 @@ __device__ float getBiomeWeight(Biome biome, const BiomeNoise& noise)
     return totalWeight;
 }
 
+#pragma endregion
+
 __device__ float getHeight(Biome biome, vec2 pos)
 {
     switch (biome)
@@ -201,7 +117,7 @@ __device__ float getHeight(Biome biome, vec2 pos)
     case Biome::SAVANNA:
     {
         vec2 noiseOffsetPos = pos * 0.0040f;
-        vec2 noiseOffset = vec2(fbm<5>(noiseOffsetPos), fbm<5>(noiseOffsetPos + vec2(5923.45f, 4129.42f))) * 100.f;
+        vec2 noiseOffset = fbm2<5>(noiseOffsetPos) * 100.f;
 
         vec2 noisePos = pos + noiseOffset;
 
@@ -218,7 +134,7 @@ __device__ float getHeight(Biome biome, vec2 pos)
     {
         pos *= 0.7f;
         vec2 noiseOffsetPos = pos * 0.0050f;
-        vec2 noiseOffset = vec2(fbm<5>(noiseOffsetPos), fbm<5>(noiseOffsetPos + vec2(5923.45f, 4129.42f))) * 300.f;
+        vec2 noiseOffset = fbm2<5>(noiseOffsetPos) * 300.f;
         float riverNoise = worleyEdgeDist((pos + noiseOffset) * 0.0030f);
 
         float baseHeight = 122.f;
@@ -227,17 +143,47 @@ __device__ float getHeight(Biome biome, vec2 pos)
 
         return baseHeight + 6.f * simplex(pos * 0.0250f);
     }
+    case Biome::FROZEN_WASTELAND:
+    {
+        return 136.f + 16.f * fbm(pos * 0.0035f);
+    }
+    case Biome::REDWOOD_FOREST:
+    {
+        return 134.f + 8.f * fbm(pos * 0.0120f);
+    }
+    case Biome::SHREKS_SWAMP:
+    {
+        return 129.f + 10.f * fbm(pos * 0.0080f);
+    }
     case Biome::SPARSE_DESERT:
     {
-        vec2 noiseOffsetPos = pos * 0.0080f;
-        vec2 noiseOffset = vec2(simplex(noiseOffsetPos), simplex(noiseOffsetPos + vec2(5923.45f, 4129.42f))) * 20.0f;
+        vec2 noiseOffset = simplex2(pos * 0.0080f) * 20.0f;
         float dunesNoise = powf(worley((pos + noiseOffset) * 0.0160f), 2.f) * 18.f;
         return 132.f + 4.f * fbm<4>(pos * 0.0070f) + dunesNoise;
     }
+    case Biome::LUSH_BIRCH_FOREST:
+    {
+        float hillsHeight = (simplex(pos * 0.0012f) + 0.8f) * 20.f;
+        return 135.f + 8.f * fbm(pos * 0.0090f) + hillsHeight;
+    }
+    case Biome::TIANZI_MOUNTAINS:
+    {
+        vec2 noiseOffset = simplex2(pos * 0.0800f) * 3.0f;
+        vec2 noisePos = (pos + noiseOffset) * 0.0300f;
+
+        float worley1 = smoothstep(0.45f, 0.35f, worley(noisePos)) * 0.8f;
+        float worley2 = smoothstep(0.45f, 0.35f, worley(noisePos * 1.8f)) * 0.2f;
+        float mountainsHeight = worley1 + worley2;
+        mountainsHeight *= 65.f + 5.f * fbm<3>(noisePos * 1.6f);
+
+        float hillsHeight = 16.f * simplex(pos * 0.0150f);
+
+        return 135.f + hillsHeight + 9.f * fbm<3>(pos * 0.0070f) + mountainsHeight;
+    }
     case Biome::JUNGLE:
     {
-        float hillsNoise = (simplex(pos * 0.0030f) + 0.5f) * 25.f;
-        return 139.f + 8.f * fbm(pos * 0.0120f) + hillsNoise;
+        float hillsHeight = (simplex(pos * 0.0030f) + 0.5f) * 25.f;
+        return 139.f + 8.f * fbm(pos * 0.0120f) + hillsHeight;
     }
     case Biome::RED_DESERT:
     {
@@ -369,6 +315,16 @@ __device__ bool biomeBlockPostProcess(Block* block, Biome biome, vec3 worldBlock
         *block = terracottaBlock;
         return true;
     }
+    case Biome::FROZEN_WASTELAND:
+    {
+        if (*block != Block::WATER)
+        {
+            return false;
+        }
+
+        *block = Block::PACKED_ICE;
+        return true;
+    }
     }
 
     return false;
@@ -410,9 +366,9 @@ void BiomeUtils::init()
 
     BiomeBlocks* host_biomeBlocks = new BiomeBlocks[numBiomes];
 
-    host_biomeBlocks[(int)Biome::SAVANNA].grassBlock = Block::GRASS; // TODO: biome-based color
+    host_biomeBlocks[(int)Biome::SAVANNA].grassBlock = Block::SAVANNA_GRASS; // TODO: replace with regular grass after implementing biome-based color
     host_biomeBlocks[(int)Biome::REDWOOD_FOREST].grassBlock = Block::GRASS;
-    host_biomeBlocks[(int)Biome::SHREKS_SWAMP].grassBlock = Block::GRASS;
+    host_biomeBlocks[(int)Biome::SHREKS_SWAMP].grassBlock = Block::JUNGLE_GRASS;
     host_biomeBlocks[(int)Biome::LUSH_BIRCH_FOREST].grassBlock = Block::GRASS;
     host_biomeBlocks[(int)Biome::TIANZI_MOUNTAINS].grassBlock = Block::GRASS;
 
@@ -420,7 +376,7 @@ void BiomeUtils::init()
     host_biomeBlocks[(int)Biome::PURPLE_MUSHROOMS].grassBlock = Block::MYCELIUM;
     host_biomeBlocks[(int)Biome::OASIS].grassBlock = Block::JUNGLE_GRASS;
     host_biomeBlocks[(int)Biome::PLAINS].grassBlock = Block::GRASS;
-    host_biomeBlocks[(int)Biome::MOUNTAINS].grassBlock = Block::GRASS;
+    host_biomeBlocks[(int)Biome::MOUNTAINS].grassBlock = Block::SNOWY_GRASS;
 
     cudaMemcpyToSymbol(dev_biomeBlocks, host_biomeBlocks, numBiomes * sizeof(BiomeBlocks));
     delete[] host_biomeBlocks;
@@ -455,6 +411,7 @@ void BiomeUtils::init()
     setMaterialInfoSameBlock(RED_SAND, 3.5f, 30.f, 1.5f);
     setMaterialInfoSameBlock(SAND, 3.8f, 35.f, 1.4f);
     setMaterialInfoSameBlock(SMOOTH_SAND, 4.5f, 65.f, 4.0f);
+    setMaterialInfoSameBlock(SNOW, 2.5f, 45.f, 1.5f);
 
 #undef setMaterialInfo
 #undef setMaterialInfoSameBlock
@@ -483,17 +440,18 @@ void BiomeUtils::init()
 
     for (int biomeIdx = 0; biomeIdx < numBiomes; ++biomeIdx)
     {
-        setCurrentBiomeMaterialWeight(TERRACOTTA, 0);
+        setCurrentBiomeMaterialWeight(TERRACOTTA, 0.0f);
 
-        setCurrentBiomeMaterialWeight(RED_SANDSTONE, 0);
-        setCurrentBiomeMaterialWeight(SANDSTONE, 0);
+        setCurrentBiomeMaterialWeight(RED_SANDSTONE, 0.0f);
+        setCurrentBiomeMaterialWeight(SANDSTONE, 0.0f);
 
-        setCurrentBiomeMaterialWeight(GRAVEL, 0);
-        setCurrentBiomeMaterialWeight(CLAY, 0);
-        setCurrentBiomeMaterialWeight(MUD, 0);
-        setCurrentBiomeMaterialWeight(RED_SAND, 0);
-        setCurrentBiomeMaterialWeight(SAND, 0);
-        setCurrentBiomeMaterialWeight(SMOOTH_SAND, 0);
+        setCurrentBiomeMaterialWeight(GRAVEL, 0.0f);
+        setCurrentBiomeMaterialWeight(CLAY, 0.0f);
+        setCurrentBiomeMaterialWeight(MUD, 0.0f);
+        setCurrentBiomeMaterialWeight(RED_SAND, 0.0f);
+        setCurrentBiomeMaterialWeight(SAND, 0.0f);
+        setCurrentBiomeMaterialWeight(SMOOTH_SAND, 0.0f);
+        setCurrentBiomeMaterialWeight(SNOW, 0.0f);
     }
 
     setBiomeMaterialWeight(SAVANNA, STONE, 0.6f);
@@ -505,6 +463,10 @@ void BiomeUtils::init()
 
     setBiomeMaterialWeight(MESA, CLAY, 0.8f);
     setBiomeMaterialWeight(MESA, DIRT, 0.0f);
+
+    setBiomeMaterialWeight(FROZEN_WASTELAND, GRANITE, 0.0f);
+    setBiomeMaterialWeight(FROZEN_WASTELAND, DIRT, 0.6f);
+    setBiomeMaterialWeight(FROZEN_WASTELAND, SNOW, 1.1f);
 
     setBiomeMaterialWeight(SHREKS_SWAMP, CLAY, 1.3f);
     setBiomeMaterialWeight(SHREKS_SWAMP, MUD, 1.7f);
@@ -551,6 +513,10 @@ void BiomeUtils::init()
     cudaMemcpyToSymbol(dev_dirVecs2d, DirectionEnums::dirVecs2d.data(), 8 * sizeof(ivec2));
 
     // feature, gridCellSize, gridCellPadding, chancePerGridCell, possibleTopLayers
+    biomeFeatureGens[(int)Biome::LUSH_BIRCH_FOREST] = {
+        { Feature::BIRCH_TREE, 9, 2, 0.5f, { {Material::DIRT, 0.5f} } }
+    };
+
     biomeFeatureGens[(int)Biome::JUNGLE] = { 
         { Feature::RAFFLESIA, 54, 6, 0.50f, { {Material::DIRT, 0.5f} } },
         { Feature::LARGE_JUNGLE_TREE, 32, 3, 0.70f, { {Material::DIRT, 0.5f} } },
@@ -586,14 +552,16 @@ void BiomeUtils::init()
     setFeatureHeightBounds(NONE, 0, 0);
     setFeatureHeightBounds(SPHERE, -6, 6);
 
-    setFeatureHeightBounds(PURPLE_MUSHROOM, -2, 80);
-
-    setFeatureHeightBounds(CRYSTAL, -4, 65);
+    setFeatureHeightBounds(BIRCH_TREE, -2, 12);
 
     setFeatureHeightBounds(RAFFLESIA, -2, 10);
     setFeatureHeightBounds(TINY_JUNGLE_TREE, -2, 5);
     setFeatureHeightBounds(SMALL_JUNGLE_TREE, -2, 17);
     setFeatureHeightBounds(LARGE_JUNGLE_TREE, -2, 38);
+
+    setFeatureHeightBounds(PURPLE_MUSHROOM, -2, 80);
+
+    setFeatureHeightBounds(CRYSTAL, -4, 65);
 
     setFeatureHeightBounds(PALM_TREE, -2, 28);
 

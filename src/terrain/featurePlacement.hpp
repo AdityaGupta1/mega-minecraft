@@ -189,6 +189,22 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
         *block = Block::GRAVEL;
         return true;
     }
+    case Feature::BIRCH_TREE:
+    {
+        int height = (int)(6.f + 5.f * u01(featureRng));
+        if (!isInRange(floorPos.y, 0, height + 6))
+        {
+            return false;
+        }
+
+        if (floorPos.x == 0 && floorPos.z == 0 && isInRange(floorPos.y, 0, height))
+        {
+            *block = Block::BIRCH_WOOD;
+            return true;
+        }
+
+        return false;
+    }
     case Feature::PURPLE_MUSHROOM:
     {
         float universalScale = 1.f + u01(featureRng) * 1.2f;

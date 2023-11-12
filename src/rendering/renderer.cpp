@@ -9,7 +9,7 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 
-#define SHADOW_MAP_SIZE 8192
+#define SHADOW_MAP_SIZE 4096
 
 #define DEBUG_DISABLE_RENDERING 0
 

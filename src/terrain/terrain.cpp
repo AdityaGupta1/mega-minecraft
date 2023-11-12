@@ -9,7 +9,7 @@
 #include <glm/gtx/string_cast.hpp>
 #include "defines.hpp"
 
-static constexpr int chunkVbosGenRadius = 20;
+static constexpr int chunkVbosGenRadius = 16;
 static constexpr int chunkMaxGenRadius = chunkVbosGenRadius + (ZONE_SIZE * 2);
 
 // TODO: get better estimates for these
@@ -831,4 +831,21 @@ void Terrain::debugPrintCurrentColumnLayers(vec2 playerPos)
     }
     printf("------------\n");
     printf("hgt: %7.3f\n\n", chunkPtr->heightfield[idx2d]);
+}
+
+void Terrain::debugForceGatherHeightfield(vec2 playerPos)
+{
+    Chunk* chunkPtr;
+    Zone* zonePtr;
+    debugGetCurrentChunkAndZone(playerPos, &chunkPtr, &zonePtr);
+
+    printf("chunk (%d, %d)\n", chunkPtr->worldChunkPos.x, chunkPtr->worldChunkPos.y);
+    printf("current state: %d\n", (int)chunkPtr->getState());
+    printf("forcing gather heightfield...    ");
+
+    chunkPtr->gatherHeightfield();
+    needsUpdateChunks = true;
+
+    printf("done\n");
+    printf("new state: %d\n", (int)chunkPtr->getState());
 }

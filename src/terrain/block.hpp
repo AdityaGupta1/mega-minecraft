@@ -53,10 +53,17 @@ enum class Block : unsigned char
     PURPLE_TERRACOTTA,
     RED_TERRACOTTA,
     WHITE_TERRACOTTA,
-    QUARTZ
+    QUARTZ,
+    ICE,
+    PACKED_ICE,
+    BLUE_ICE,
+    SAVANNA_GRASS,
+    BIRCH_WOOD,
+    BIRCH_LEAVES,
+    YELLOW_BIRCH_LEAVES
 };
 
-static constexpr int numBlocks = (int)Block::QUARTZ + 1;
+static constexpr int numBlocks = (int)Block::YELLOW_BIRCH_LEAVES + 1;
 
 struct SideUv
 {

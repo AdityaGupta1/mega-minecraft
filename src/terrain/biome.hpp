@@ -57,10 +57,11 @@ enum class Material : unsigned char
     DIRT,
     RED_SAND,
     SAND,
-    SMOOTH_SAND
+    SMOOTH_SAND,
+    SNOW
 };
 
-static constexpr int numMaterials = (int)Material::SMOOTH_SAND + 1;
+static constexpr int numMaterials = (int)Material::SNOW + 1;
 static constexpr int numStratifiedMaterials = (int)Material::SANDSTONE + 1;
 static constexpr int numForwardMaterials = (int)Material::ANDESITE + 1;
 static constexpr int numErodedMaterials = numMaterials - numStratifiedMaterials;
@@ -78,16 +79,18 @@ enum class Feature : unsigned char
     NONE,
     SPHERE,
 
-    // TINY_PURPLE_MUSHROOM
-    // SMALL_PURPLE_MUSHROOM
-    PURPLE_MUSHROOM,
-
-    CRYSTAL,
+    BIRCH_TREE,
 
     RAFFLESIA,
     LARGE_JUNGLE_TREE,
     SMALL_JUNGLE_TREE,
     TINY_JUNGLE_TREE,
+
+    // TINY_PURPLE_MUSHROOM
+    // SMALL_PURPLE_MUSHROOM
+    PURPLE_MUSHROOM,
+
+    CRYSTAL,
 
     PALM_TREE,
     
@@ -111,12 +114,14 @@ struct FeatureGen
     int gridCellPadding;
     float chancePerGridCell;
     std::vector<FeatureGenTopLayer> possibleTopLayers;
+    bool canReplaceBlocks{ true };
 };
 
 struct FeaturePlacement
 {
     Feature feature;
     glm::ivec3 pos;
+    bool canReplaceBlocks;
 };
 
 namespace BiomeUtils

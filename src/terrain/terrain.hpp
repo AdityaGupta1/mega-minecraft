@@ -99,4 +99,5 @@ public:
     void debugPrintCurrentChunkInfo(vec2 playerPos);
     void debugPrintCurrentZoneInfo(vec2 playerPos);
     void debugPrintCurrentColumnLayers(vec2 playerPos);
+    void debugForceGatherHeightfield(vec2 playerPos);
 };

@@ -12,7 +12,7 @@
 #define DEBUG_SKIP_EROSION 0
 #define DEBUG_USE_CONTRIBUTION_FILL_METHOD 0
 
-//#define DEBUG_BIOME_OVERRIDE Biome::CRYSTALS
+#define DEBUG_BIOME_OVERRIDE Biome::LUSH_BIRCH_FOREST
 
 Chunk::Chunk(ivec2 worldChunkPos)
     : worldChunkPos(worldChunkPos), worldBlockPos(worldChunkPos.x * 16, 0, worldChunkPos.y * 16)
@@ -779,6 +779,7 @@ void Chunk::generateFeaturePlacements()
             const ivec2 worldPos2d = localPos2d + ivec2(this->worldBlockPos.x, this->worldBlockPos.z);
 
             Feature feature = Feature::NONE;
+            bool canReplaceBlocks = true;
             for (int i = 0; i < featureGens.size(); ++i)
             {
                 const auto& featureGen = featureGens[i];
@@ -814,13 +815,14 @@ void Chunk::generateFeaturePlacements()
                 if (localPos2d == gridPlaceLocalPos && u01(blockRng) < featureGen.chancePerGridCell)
                 {
                     feature = featureGen.feature;
+                    canReplaceBlocks = featureGen.canReplaceBlocks;
                     break;
                 }
             }
 
             if (feature != Feature::NONE)
             {
-                this->featurePlacements.push_back({ feature, worldBlockPos });
+                this->featurePlacements.push_back({ feature, worldBlockPos, canReplaceBlocks });
             }
         }
     }
@@ -910,9 +912,9 @@ __global__ void kernFill(
     thrust::uniform_real_distribution<float> u01(0, 1);
 
     Block block = Block::AIR;
+    Biome randBiome = getRandomBiome(shared_biomeWeights, u01(rng));
     if (y < height)
     {
-        const Biome randBiome = getRandomBiome(shared_biomeWeights, u01(rng));
         bool wasBlockPreProcessed = biomeBlockPreProcess(&block, randBiome, worldBlockPos, height);
 
         if (!wasBlockPreProcessed)
@@ -989,12 +991,15 @@ __global__ void kernFill(
             }
 #endif
         }
-
-        biomeBlockPostProcess(&block, randBiome, worldBlockPos, height);
     }
     else if (y < 128)
     {
         block = Block::WATER;
+    }
+
+    if (block != Block::AIR)
+    {
+        biomeBlockPostProcess(&block, randBiome, worldBlockPos, height);
     }
 
     if (y < featureHeightBounds[0] || y > featureHeightBounds[1])
@@ -1007,7 +1012,14 @@ __global__ void kernFill(
     bool placedFeature = false;
     for (int featureIdx = 0; featureIdx < numFeaturePlacements; ++featureIdx)
     {
-        if (placeFeature(dev_featurePlacements[featureIdx], worldBlockPos, &featureBlock))
+        const auto& featurePlacement = dev_featurePlacements[featureIdx];
+
+        if (block != Block::AIR && !featurePlacement.canReplaceBlocks)
+        {
+            continue;
+        }
+
+        if (placeFeature(featurePlacement, worldBlockPos, &featureBlock))
         {
             placedFeature = true;
             break;
