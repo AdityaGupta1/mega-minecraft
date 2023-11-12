@@ -93,7 +93,7 @@ __device__ void deCasteljau(vec3* ctrlPts, vec3* spline)
     }
 }
 
-__device__ bool calculateLineParams(const vec3& pos, const vec3& linePos1, const vec3& linePos2, float* ratio, float* distFromLine)
+__device__ bool calculateLineParams(const vec3 pos, const vec3 linePos1, const vec3 linePos2, float* ratio, float* distFromLine)
 {
     vec3 vecLine = linePos2 - linePos1;
 
@@ -106,6 +106,14 @@ __device__ bool calculateLineParams(const vec3& pos, const vec3& linePos1, const
     return *ratio >= 0 && *ratio <= 1;
 }
 
+__device__ bool isInRasterizedLine(const ivec3 floorPos, const vec3 linePos1, const vec3 linePos2)
+{
+    float ratio;
+    float distFromLine;
+    bool inLine = calculateLineParams(vec3(floorPos) + vec3(0.5f), linePos1, linePos2, &ratio, &distFromLine);
+    return inLine && distFromLine < 2.f && floorPos == ivec3(floor(mix(linePos1, linePos2, ratio)));
+}
+
 #pragma endregion
 
 #pragma region feature-specific functions
@@ -113,7 +121,7 @@ __device__ bool calculateLineParams(const vec3& pos, const vec3& linePos1, const
 __device__ bool jungleLeaves(vec3 pos, float maxHeight, float minRadius, float maxRadius, float rand)
 {
     float leavesRadiusMultiplier = 0.8f + 0.4f * rand;
-    if (pos.y > 0 && pos.y < maxHeight)
+    if (isInRange(pos.y, 0.f, maxHeight))
     {
         float leavesRadius = mix(maxRadius, minRadius, pos.y / maxHeight) * leavesRadiusMultiplier;
         return length(vec2(pos.x, pos.z)) < leavesRadius;
@@ -188,6 +196,67 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
 
         *block = Block::GRAVEL;
         return true;
+    }
+    case Feature::ACACIA_TREE:
+    {
+        if (max(abs(floorPos.x), abs(floorPos.z)) > 15)
+        {
+            return false;
+        }
+
+        int trunkBaseHeight = (int)(4.5f + 1.5f * u01(featureRng));
+        if (floorPos.x == 0 && floorPos.z == 0 && isInRange(floorPos.y, 0, trunkBaseHeight))
+        {
+            *block = Block::ACACIA_WOOD;
+            return true;
+        }
+
+        float branchAngle = u01(featureRng) * TWO_PI;
+        vec3 branchStartPos = vec3(0, trunkBaseHeight, 0);
+        vec3 branchEndPos = vec3(0);
+        sincosf(branchAngle, &branchEndPos.z, &branchEndPos.x);
+        branchEndPos = branchStartPos + (2.f + 1.5f * u01(featureRng)) * branchEndPos;
+        branchEndPos.y += 2.5f + 1.5f * u01(featureRng);
+        if (isInRasterizedLine(floorPos, floor(branchStartPos), ceil(branchEndPos)))
+        {
+            *block = Block::ACACIA_WOOD;
+            return true;
+        }
+
+        vec3 leavesPos = vec3(floorPos) - branchEndPos;
+        leavesPos.y += 0.5f;
+        if (jungleLeaves(leavesPos, 2.f, 2.f, 4.f, 0.5f + 0.5f * u01(featureRng)))
+        {
+            *block = Block::ACACIA_LEAVES;
+            return true;
+        }
+
+        if (u01(featureRng) < 0.5f)
+        {
+            return false;
+        }
+
+        branchAngle += PI_OVER_TWO + u01(featureRng) * PI;
+        branchStartPos = vec3(0, trunkBaseHeight - 0.8f - 0.8f * u01(featureRng), 0);
+        branchEndPos = vec3(0);
+        sincosf(branchAngle, &branchEndPos.z, &branchEndPos.x);
+        branchEndPos = branchStartPos + (1.5f + 1.f * u01(featureRng)) * branchEndPos;
+        branchEndPos.y += 2.f + 1.f * u01(featureRng);
+        if (isInRasterizedLine(floorPos, floor(branchStartPos), ceil(branchEndPos)))
+        {
+            *block = Block::ACACIA_WOOD;
+            return true;
+        }
+
+        leavesPos = vec3(floorPos) - branchEndPos;
+        leavesPos.y += 0.5f;
+        if (jungleLeaves(leavesPos, 2.001f, 1.5f, 3.5f, 0.5f + 0.5f * u01(featureRng)))
+        {
+            *block = Block::ACACIA_LEAVES;
+            return true;
+        }
+
+        return false;
     }
     case Feature::BIRCH_TREE:
     {
@@ -603,16 +672,7 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
                 pos2 += padding;
             }
 
-            float ratio;
-            float distFromLine;
-            bool inLine = calculateLineParams(pos + vec3(0.5f), pos1, pos2, &ratio, &distFromLine);
-            if (!inLine || distFromLine > 2.f)
-            {
-                continue;
-            }
-
-            const ivec3 actualPos = ivec3(floor(mix(pos1, pos2, ratio)));
-            if (floorPos == actualPos)
+            if (isInRasterizedLine(floorPos, pos1, pos2))
             {
                 *block = Block::PALM_WOOD;
                 return true;

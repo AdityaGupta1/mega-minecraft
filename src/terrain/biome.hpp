@@ -79,6 +79,8 @@ enum class Feature : unsigned char
     NONE,
     SPHERE,
 
+    ACACIA_TREE,
+
     BIRCH_TREE,
 
     RAFFLESIA,
@@ -130,8 +132,4 @@ namespace BiomeUtils
 
     void init(); // implemented in biomeFuncs.hpp so constant memory can live there
                  // biomeFuncs.hpp included only by featurePlacement.hpp which is included only by chunk.cu
-
-    std::vector<FeatureGen>& getBiomeFeatureGens(Biome biome);
-
-    ivec2 getFeatureHeightBounds(Feature feature);
 }

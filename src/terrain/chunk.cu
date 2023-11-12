@@ -12,7 +12,7 @@
 #define DEBUG_SKIP_EROSION 0
 #define DEBUG_USE_CONTRIBUTION_FILL_METHOD 0
 
-#define DEBUG_BIOME_OVERRIDE Biome::LUSH_BIRCH_FOREST
+#define DEBUG_BIOME_OVERRIDE Biome::SAVANNA
 
 Chunk::Chunk(ivec2 worldChunkPos)
     : worldChunkPos(worldChunkPos), worldBlockPos(worldChunkPos.x * 16, 0, worldChunkPos.y * 16)
@@ -771,7 +771,7 @@ void Chunk::generateFeaturePlacements()
             thrust::uniform_real_distribution<float> u01(0, 1);
 
             Biome biome = getRandomBiome<256>(columnBiomeWeights, u01(blockRng));
-            const auto& featureGens = BiomeUtils::getBiomeFeatureGens(biome);
+            const auto& featureGens = host_biomeFeatureGens[(int)biome];
 
             const float* columnLayers = this->layers.data() + idx2d;
 
@@ -868,7 +868,7 @@ __global__ void kernFill(
     float* layers,
     FeaturePlacement* dev_featurePlacements,
     int numFeaturePlacements,
-    ivec2 featureHeightBounds,
+    ivec2 allFeaturesHeightBounds,
     ivec3 chunkWorldBlockPos)
 {
     __shared__ float shared_layersAndHeight[numMaterials + 1];
@@ -1002,7 +1002,7 @@ __global__ void kernFill(
         biomeBlockPostProcess(&block, randBiome, worldBlockPos, height);
     }
 
-    if (y < featureHeightBounds[0] || y > featureHeightBounds[1])
+    if (y < allFeaturesHeightBounds[0] || y > allFeaturesHeightBounds[1])
     {
         blocks[idx] = block;
         return;
@@ -1015,6 +1015,12 @@ __global__ void kernFill(
         const auto& featurePlacement = dev_featurePlacements[featureIdx];
 
         if (block != Block::AIR && !featurePlacement.canReplaceBlocks)
+        {
+            continue;
+        }
+
+        ivec2 featureHeightBounds = dev_featureHeightBounds[(int)featurePlacement.feature] + ivec2(featurePlacement.pos.y);
+        if (y < featureHeightBounds[0] || y > featureHeightBounds[1])
         {
             continue;
         }
@@ -1045,7 +1051,7 @@ void Chunk::fill(
     ivec2 allFeaturesHeightBounds = ivec2(384, -1);
     for (const auto& featurePlacement : this->gatheredFeaturePlacements)
     {
-        const auto& featureHeightBounds = BiomeUtils::getFeatureHeightBounds(featurePlacement.feature);
+        const auto& featureHeightBounds = host_featureHeightBounds[(int)featurePlacement.feature];
         const ivec2 thisFeatureHeightBounds = ivec2(featurePlacement.pos.y) + featureHeightBounds;
         allFeaturesHeightBounds[0] = min(allFeaturesHeightBounds[0], thisFeatureHeightBounds[0]);
         allFeaturesHeightBounds[1] = max(allFeaturesHeightBounds[1], thisFeatureHeightBounds[1]);

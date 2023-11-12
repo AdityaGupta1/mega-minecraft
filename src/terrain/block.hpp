@@ -61,10 +61,12 @@ enum class Block : unsigned char
     BIRCH_WOOD,
     BIRCH_LEAVES,
     YELLOW_BIRCH_LEAVES,
-    ORANGE_BIRCH_LEAVES
+    ORANGE_BIRCH_LEAVES,
+    ACACIA_WOOD,
+    ACACIA_LEAVES
 };
 
-static constexpr int numBlocks = (int)Block::ORANGE_BIRCH_LEAVES + 1;
+static constexpr int numBlocks = (int)Block::ACACIA_LEAVES + 1;
 
 struct SideUv
 {

@@ -336,8 +336,9 @@ __constant__ float dev_biomeMaterialWeights[numBiomes * numMaterials];
 
 __constant__ ivec2 dev_dirVecs2d[8];
 
-static std::array<std::vector<FeatureGen>, numBiomes> biomeFeatureGens;
-static std::array<ivec2, numFeatures> featureHeightBounds;
+static std::array<std::vector<FeatureGen>, numBiomes> host_biomeFeatureGens;
+static std::array<ivec2, numFeatures> host_featureHeightBounds;
+__constant__ ivec2 dev_featureHeightBounds[numFeatures];
 
 void BiomeUtils::init()
 {
@@ -513,44 +514,50 @@ void BiomeUtils::init()
     cudaMemcpyToSymbol(dev_dirVecs2d, DirectionEnums::dirVecs2d.data(), 8 * sizeof(ivec2));
 
     // feature, gridCellSize, gridCellPadding, chancePerGridCell, possibleTopLayers
-    biomeFeatureGens[(int)Biome::LUSH_BIRCH_FOREST] = {
+    host_biomeFeatureGens[(int)Biome::SAVANNA] = {
+        { Feature::ACACIA_TREE, 36, 4, 0.3f, { {Material::DIRT, 0.5f} } }
+    };
+
+    host_biomeFeatureGens[(int)Biome::LUSH_BIRCH_FOREST] = {
         { Feature::BIRCH_TREE, 9, 2, 0.7f, { {Material::DIRT, 0.5f} } }
     };
 
-    biomeFeatureGens[(int)Biome::JUNGLE] = { 
+    host_biomeFeatureGens[(int)Biome::JUNGLE] = {
         { Feature::RAFFLESIA, 54, 6, 0.50f, { {Material::DIRT, 0.5f} } },
         { Feature::LARGE_JUNGLE_TREE, 32, 3, 0.70f, { {Material::DIRT, 0.5f} } },
         { Feature::SMALL_JUNGLE_TREE, 10, 2, 0.75f, { {Material::DIRT, 0.5f} } },
         { Feature::TINY_JUNGLE_TREE, 6, 1, 0.18f, { {Material::DIRT, 0.5f} } }
     };
 
-    biomeFeatureGens[(int)Biome::RED_DESERT] = {
+    host_biomeFeatureGens[(int)Biome::RED_DESERT] = {
         { Feature::PALM_TREE, 40, 3, 0.20f, { {Material::RED_SAND, 0.3f} } },
         { Feature::CACTUS, 16, 2, 0.20f, { {Material::RED_SAND, 0.5f} } }
     };
 
-    biomeFeatureGens[(int)Biome::PURPLE_MUSHROOMS] = {
+    host_biomeFeatureGens[(int)Biome::PURPLE_MUSHROOMS] = {
         { Feature::PURPLE_MUSHROOM, 11, 3, 0.45f, { {Material::DIRT, 0.5f} } }
     };
 
-    biomeFeatureGens[(int)Biome::CRYSTALS] = {
+    host_biomeFeatureGens[(int)Biome::CRYSTALS] = {
         { Feature::CRYSTAL, 56, 12, 0.8f, { {Material::STONE, 0.5f} } }
     };
 
-    biomeFeatureGens[(int)Biome::OASIS] = {
+    host_biomeFeatureGens[(int)Biome::OASIS] = {
         { Feature::PALM_TREE, 24, 3, 0.35f, { {Material::SAND, 0.3f} } },
         { Feature::CACTUS, 16, 2, 0.40f, { {Material::SAND, 0.5f} } }
     };
 
-    biomeFeatureGens[(int)Biome::DESERT] = {
+    host_biomeFeatureGens[(int)Biome::DESERT] = {
         { Feature::PALM_TREE, 64, 3, 0.30f, { {Material::SAND, 0.3f} } },
         { Feature::CACTUS, 16, 2, 0.70f, { {Material::SAND, 0.5f} } }
     };
 
-#define setFeatureHeightBounds(feature, yMin, yMax) featureHeightBounds[(int)Feature::feature] = ivec2(yMin, yMax)
+#define setFeatureHeightBounds(feature, yMin, yMax) host_featureHeightBounds[(int)Feature::feature] = ivec2(yMin, yMax)
 
     setFeatureHeightBounds(NONE, 0, 0);
     setFeatureHeightBounds(SPHERE, -6, 6);
+
+    setFeatureHeightBounds(ACACIA_TREE, -2, 15);
 
     setFeatureHeightBounds(BIRCH_TREE, -2, 30);
 
@@ -568,14 +575,6 @@ void BiomeUtils::init()
     setFeatureHeightBounds(CACTUS, -2, 15);
 
 #undef setFeatureHeightBounds
-}
 
-std::vector<FeatureGen>& BiomeUtils::getBiomeFeatureGens(Biome biome)
-{
-    return biomeFeatureGens[(int)biome];
-}
-
-ivec2 BiomeUtils::getFeatureHeightBounds(Feature feature)
-{
-    return featureHeightBounds[(int)feature];
+    cudaMemcpyToSymbol(dev_featureHeightBounds, host_featureHeightBounds.data(), numFeatures * sizeof(ivec2));
 }
