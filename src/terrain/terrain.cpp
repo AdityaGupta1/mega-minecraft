@@ -23,7 +23,7 @@ static constexpr int actionTimeGenerateLayers             = 5;
 static constexpr int actionTimeErodeZone                  = 600;
 static constexpr int actionTimeGenerateFeaturePlacements  = 3;
 static constexpr int actionTimeGatherFeaturePlacements    = 5;
-static constexpr int actionTimeFill                       = 8;
+static constexpr int actionTimeFill                       = 12;
 static constexpr int actionTimeCreateAndBufferVbos        = 120;
 // ================================================================================
 

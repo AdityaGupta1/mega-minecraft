@@ -36,6 +36,16 @@ __device__ float saturate(float v)
     return clamp(v, 0.f, 1.f);
 }
 
+__device__ float isSaturated(float v)
+{
+    return v >= 0.f && v <= 1.f;
+}
+
+__device__ float getRatio(float v, float minVal, float maxVal)
+{
+    return (v - minVal) / (maxVal - minVal);
+}
+
 #pragma endregion
 
 #pragma region SDFs
@@ -254,6 +264,71 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
         {
             *block = Block::ACACIA_LEAVES;
             return true;
+        }
+
+        return false;
+    }
+    case Feature::REDWOOD_TREE:
+    {
+        pos *= (0.6f + 0.4f * u01(featureRng));
+
+        float height = 27.f + 13.f * u01(featureRng);
+        float horizontalDistance = length(vec2(pos.x, pos.z));
+        float leavesStart = 10.f + 4.f * u01(featureRng);
+        if (pos.y > height + 8.f || horizontalDistance > 10.f || (pos.y < leavesStart - 4.f && horizontalDistance > 3.5f))
+        {
+            return false;
+        }
+
+        float trunkRatio = getRatio(pos.y, -4.f, height);
+        if (isSaturated(trunkRatio))
+        {
+            float trunkRadius = 2.f / (trunkRatio + 2.f) + 0.08f / powf(trunkRatio + 0.4f, 3.f);
+            trunkRadius += 0.3f * simplex(vec3(worldBlockPos) * 0.1300f) * smoothstep(0.6f, 0.2f, trunkRatio);
+
+            if (horizontalDistance < trunkRadius)
+            {
+                *block = Block::REDWOOD_WOOD;
+                return true;
+            }
+        }
+
+        float leavesEnd = height + 1.5f + 1.f * u01(featureRng);
+        if (!isInRange(pos.y, leavesStart, leavesEnd))
+        {
+            return false;
+        }
+
+        const int leavesCellBaseHeight = (int)floor(pos.y * 0.5f) * 2;
+        const float leavesSeed = u01(featureRng) * 4102.39f;
+        const float leavesSimplex = 1.1f * simplex(vec3(worldBlockPos) * 0.2000f);
+        #pragma unroll
+        for (int dy = -4; dy <= 4; dy += 2)
+        {
+            const int leavesCellHeight = leavesCellBaseHeight + dy;
+
+            float leavesHeightRatio = getRatio(leavesCellHeight, leavesStart, leavesEnd);
+            leavesHeightRatio = 1.1f - 0.5f * leavesHeightRatio;
+
+            vec3 leavesCenter = rand3From2(vec2(leavesCellHeight, leavesSeed)) - 0.5f;
+            leavesCenter *= vec3(3.3f, 1.3f, 3.3f) * leavesHeightRatio;
+            leavesCenter.y = min(leavesCenter.y + leavesCellHeight, height + 0.8f);
+
+            vec3 leavesPos = pos - leavesCenter;
+            leavesPos.y *= 1.7f;
+            float leavesDistance = length(leavesPos);
+            if (leavesDistance > 5.0f)
+            {
+                continue;
+            }
+
+            float leavesRadius = 2.5f + 0.8f * u01(featureRng) + leavesSimplex;
+            leavesRadius *= leavesHeightRatio;
+            if (leavesDistance < leavesRadius)
+            {
+                *block = Block::REDWOOD_LEAVES;
+                return true;
+            }
         }
 
         return false;

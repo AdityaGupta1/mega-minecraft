@@ -81,6 +81,8 @@ enum class Feature : unsigned char
 
     ACACIA_TREE,
 
+    REDWOOD_TREE,
+
     BIRCH_TREE,
 
     PINE_TREE,

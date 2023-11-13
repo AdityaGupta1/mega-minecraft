@@ -568,6 +568,10 @@ void BiomeUtils::init()
         { Feature::BIRCH_TREE, 9, 2, 0.7f, { {Material::DIRT, 0.5f} } }
     };
 
+    host_biomeFeatureGens[(int)Biome::REDWOOD_FOREST] = {
+        { Feature::REDWOOD_TREE, 10, 2, 0.75f, { {Material::DIRT, 0.5f} } }
+    };
+
     host_biomeFeatureGens[(int)Biome::TIANZI_MOUNTAINS] = {
         { Feature::PINE_TREE, 7, 1, 0.80f, {}, false },
         { Feature::PINE_SHRUB, 6, 1, 0.80f, {}, false }
@@ -609,6 +613,8 @@ void BiomeUtils::init()
     setFeatureHeightBounds(SPHERE, -6, 6);
 
     setFeatureHeightBounds(ACACIA_TREE, 0, 15);
+
+    setFeatureHeightBounds(REDWOOD_TREE, -5, 75);
 
     setFeatureHeightBounds(BIRCH_TREE, 0, 30);
 
