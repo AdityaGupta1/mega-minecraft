@@ -275,7 +275,7 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
         float height = 27.f + 13.f * u01(featureRng);
         float horizontalDistance = length(vec2(pos.x, pos.z));
         float leavesStart = 10.f + 4.f * u01(featureRng);
-        if (pos.y > height + 8.f || horizontalDistance > 10.f || (pos.y < leavesStart - 4.f && horizontalDistance > 3.5f))
+        if (pos.y > height + 8.f || horizontalDistance > 10.f || (pos.y < leavesStart - 4.f && horizontalDistance > 3.f))
         {
             return false;
         }

@@ -94,7 +94,7 @@ template<std::size_t diameter>
 void Chunk::iterateNeighborChunks(Chunk* const (&neighborChunks)[diameter][diameter], ChunkState currentState, ChunkState nextState,
     ChunkProcessorFunc<diameter> chunkProcessorFunc)
 {
-    int start = diameter / 4; // assuming diameter = (4k + 1) for some k
+    int start = diameter / 4; // assuming diameter = (4k + 1) for some k, so start <- k
     int end = diameter - start;
 
     for (int centerZ = start; centerZ < end; ++centerZ)
@@ -116,7 +116,13 @@ void Chunk::iterateNeighborChunks(Chunk* const (&neighborChunks)[diameter][diame
                     if (neighborChunks[centerZ + offsetZ][centerX + offsetX] == nullptr)
                     {
                         isReady = false;
+                        break;
                     }
+                }
+
+                if (!isReady)
+                {
+                    break;
                 }
             }
 
