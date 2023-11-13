@@ -15,11 +15,13 @@
 class OptixRenderer
 {
 public:
-    OptixRenderer(Terrain* terrain);
+    OptixRenderer(GLFWwindow* window, ivec2* windowSize, Terrain* terrain, Player* player);
 
 protected:
     GLFWwindow* window{ nullptr };
+    ivec2* windowSize{ nullptr };
     Terrain* terrain{ nullptr };
+    Player* player{ nullptr };
 
     CUcontext          cudaContext = {};
     CUstream           stream;
@@ -50,6 +52,8 @@ protected:
     std::vector<OptixProgramGroup> hitProgramGroups;
 
     OptixShaderBindingTable sbt = {};
+
+    CUBuffer playerInfoBuffer;
 
     void createContext();
     void buildChunkAccel(const Chunk* c);

@@ -77,7 +77,7 @@ bool init(int argc, char **argv) {
 
     initGame();
 
-    optix = std::make_unique<OptixRenderer>(terrain.get());
+    optix = std::make_unique<OptixRenderer>(window, &windowSize, terrain.get(), player.get());
     renderer = std::make_unique<Renderer>(window, &windowSize, terrain.get(), player.get());
     if (!renderer->init())
     {

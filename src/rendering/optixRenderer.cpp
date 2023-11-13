@@ -4,7 +4,8 @@
 
 extern "C" char embedded_ptx[];
 
-OptixRenderer::OptixRenderer(Terrain* terrain) : terrain(terrain)
+OptixRenderer::OptixRenderer(GLFWwindow* window, ivec2* windowSize, Terrain* terrain, Player* player) 
+    : window(window), windowSize(windowSize), terrain(terrain), player(player)
 {
     createContext();
 }
@@ -304,5 +305,5 @@ void OptixRenderer::buildSBT()
 
 void OptixRenderer::optixRenderFrame()
 {
-    // glfwSwapBuffers(window);
+    glfwSwapBuffers(window);
 }
