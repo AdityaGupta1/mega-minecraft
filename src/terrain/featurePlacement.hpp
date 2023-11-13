@@ -113,7 +113,7 @@ __device__ bool calculateLineParams(const vec3 pos, const vec3 linePos1, const v
     vec3 pointLine = vecLine * (*ratio);
     *distFromLine = distance(pointPos, pointLine);
 
-    return *ratio >= 0 && *ratio <= 1;
+    return isSaturated(*ratio);
 }
 
 __device__ bool isInRasterizedLine(const ivec3 floorPos, const vec3 linePos1, const vec3 linePos2)
@@ -270,12 +270,12 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
     }
     case Feature::REDWOOD_TREE:
     {
-        pos *= (0.6f + 0.4f * u01(featureRng));
+        pos *= (0.6f + 0.3f * u01(featureRng));
 
         float height = 27.f + 13.f * u01(featureRng);
         float horizontalDistance = length(vec2(pos.x, pos.z));
         float leavesStart = 10.f + 4.f * u01(featureRng);
-        if (pos.y > height + 8.f || horizontalDistance > 10.f || (pos.y < leavesStart - 4.f && horizontalDistance > 3.f))
+        if (pos.y > height + 8.f || horizontalDistance > 12.f || (pos.y < leavesStart - 4.f && horizontalDistance > 3.f))
         {
             return false;
         }
@@ -300,9 +300,10 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
         }
 
         const int leavesCellBaseHeight = (int)floor(pos.y * 0.5f) * 2;
-        const float leavesSeed = u01(featureRng) * 4102.39f;
+        const float branchSeed = 593.23f * rand1From3(featurePos);
+        const float leavesSeed = 412.39f * rand1From1(branchSeed);
         const float leavesSimplex = 1.1f * simplex(vec3(worldBlockPos) * 0.2000f);
-        #pragma unroll
+        bool isInLeaves = false;
         for (int dy = -4; dy <= 4; dy += 2)
         {
             const int leavesCellHeight = leavesCellBaseHeight + dy;
@@ -311,8 +312,26 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
             leavesHeightRatio = 1.1f - 0.5f * leavesHeightRatio;
 
             vec3 leavesCenter = rand3From2(vec2(leavesCellHeight, leavesSeed)) - 0.5f;
-            leavesCenter *= vec3(3.3f, 1.3f, 3.3f) * leavesHeightRatio;
+            leavesCenter *= vec3(7.5f, 1.3f, 7.5f) * leavesHeightRatio;
             leavesCenter.y = min(leavesCenter.y + leavesCellHeight, height + 0.8f);
+
+            vec3 branchStart = vec3(0, leavesCenter.y - 2.f - 1.5f * rand1From1(leavesCellHeight + branchSeed), 0);
+            vec3 branchEnd = leavesCenter;
+            float branchRatio;
+            float distFromBranch;
+            if (calculateLineParams(pos, branchStart, branchEnd, &branchRatio, &distFromBranch))
+            {
+                if (isSaturated(branchRatio) && distFromBranch < 0.5f)
+                {
+                    *block = Block::REDWOOD_WOOD;
+                    return true;
+                }
+            }
+
+            if (isInLeaves)
+            {
+                continue;
+            }
 
             vec3 leavesPos = pos - leavesCenter;
             leavesPos.y *= 1.7f;
@@ -322,14 +341,48 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
                 continue;
             }
 
-            float leavesRadius = 2.5f + 0.8f * u01(featureRng) + leavesSimplex;
+            float leavesRadius = 2.5f + 0.5f * rand1From1(leavesCellHeight + leavesSeed) + leavesSimplex;
             leavesRadius *= leavesHeightRatio;
             if (leavesDistance < leavesRadius)
             {
-                *block = Block::REDWOOD_LEAVES;
+                isInLeaves = true;
+            }
+        }
+
+        if (isInLeaves)
+        {
+            *block = Block::REDWOOD_LEAVES;
+            return true;
+        }
+
+        return false;
+    }
+    case Feature::CYPRESS_TREE:
+    {
+        float trunkHeight = 25.f + 12.f * u01(featureRng);
+        float trunkDistance = length(vec2(pos.x, pos.z));
+        if (pos.y > trunkHeight + 4.f || trunkDistance > 12.f)
+        {
+            return false;
+        }
+
+        float trunkRatio = getRatio(pos.y, -2.f, trunkHeight);
+        if (isSaturated(trunkRatio))
+        {
+            float trunkRadius = 0.5f * ((1.3f + trunkRatio) / powf(0.73f + trunkRatio, 4.f)) + 0.5f;
+            if (trunkDistance < trunkRadius)
+            {
+                *block = Block::CYPRESS_WOOD;
                 return true;
             }
         }
+
+        //int numBranches = 4 + (int)(u01(featureRng) * 3.f);
+        //float branchHeight = 
+        //for ()
+        //{
+
+        //}
 
         return false;
     }

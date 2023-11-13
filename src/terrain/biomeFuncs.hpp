@@ -153,7 +153,7 @@ __device__ float getHeight(Biome biome, vec2 pos)
     }
     case Biome::SHREKS_SWAMP:
     {
-        return 129.f + 10.f * fbm(pos * 0.0080f);
+        return 130.f + 12.f * fbm(pos * 0.0080f);
     }
     case Biome::SPARSE_DESERT:
     {
@@ -227,8 +227,8 @@ __device__ float getHeight(Biome biome, vec2 pos)
     }
     }
 
-    //printf("getHeight() reached an unreachable section");
-    return 128.f;
+    printf("getHeight() reached an unreachable section");
+    return SEA_LEVEL;
 }
 
 __device__ bool biomeBlockPreProcess(Block* block, Biome biome, vec3 worldBlockPos, float height)
@@ -329,6 +329,25 @@ __device__ bool biomeBlockPostProcess(Block* block, Biome biome, vec3 worldBlock
 
         *block = Block::PACKED_ICE;
         return true;
+    }
+    case Biome::SHREKS_SWAMP:
+    {
+        if (worldBlockPos.y < 100.f)
+        {
+            return false;
+        }
+
+        if (*block == Block::DIRT || *block == Block::JUNGLE_GRASS)
+        {
+            float mudEnd = SEA_LEVEL + 0.8f + 1.1f * simplex(vec2(worldBlockPos.x, worldBlockPos.z) * 0.0300f);
+            if (worldBlockPos.y < mudEnd)
+            {
+                *block = Block::MUD;
+                return true;
+            }
+        }
+
+        return false;
     }
     case Biome::TIANZI_MOUNTAINS:
     {
@@ -513,8 +532,8 @@ void BiomeUtils::init()
     setBiomeMaterialWeight(FROZEN_WASTELAND, DIRT, 0.6f);
     setBiomeMaterialWeight(FROZEN_WASTELAND, SNOW, 1.1f);
 
-    setBiomeMaterialWeight(SHREKS_SWAMP, CLAY, 1.3f);
-    setBiomeMaterialWeight(SHREKS_SWAMP, MUD, 1.7f);
+    setBiomeMaterialWeight(SHREKS_SWAMP, CLAY, 1.7f);
+    setBiomeMaterialWeight(SHREKS_SWAMP, MUD, 2.2f);
     setBiomeMaterialWeight(SHREKS_SWAMP, DIRT, 0.6f);
 
     setBiomeMaterialWeight(SPARSE_DESERT, MARBLE, 2.0f);
@@ -564,12 +583,17 @@ void BiomeUtils::init()
         { Feature::ACACIA_TREE, 36, 4, 0.3f, { {Material::DIRT, 0.5f} } }
     };
 
-    host_biomeFeatureGens[(int)Biome::LUSH_BIRCH_FOREST] = {
-        { Feature::BIRCH_TREE, 9, 2, 0.7f, { {Material::DIRT, 0.5f} } }
-    };
-
     host_biomeFeatureGens[(int)Biome::REDWOOD_FOREST] = {
         { Feature::REDWOOD_TREE, 10, 2, 0.75f, { {Material::DIRT, 0.5f} } }
+    };
+
+    host_biomeFeatureGens[(int)Biome::SHREKS_SWAMP] = {
+        { Feature::CYPRESS_TREE, 18, 3, 0.6f, {} },
+        { Feature::BIRCH_TREE, 16, 2, 0.15f, { {Material::DIRT, 0.5f} } }
+    };
+
+    host_biomeFeatureGens[(int)Biome::LUSH_BIRCH_FOREST] = {
+        { Feature::BIRCH_TREE, 9, 2, 0.7f, { {Material::DIRT, 0.5f} } }
     };
 
     host_biomeFeatureGens[(int)Biome::TIANZI_MOUNTAINS] = {
@@ -615,6 +639,8 @@ void BiomeUtils::init()
     setFeatureHeightBounds(ACACIA_TREE, 0, 15);
 
     setFeatureHeightBounds(REDWOOD_TREE, -5, 75);
+
+    setFeatureHeightBounds(CYPRESS_TREE, -3, 65); // TODO: revisit
 
     setFeatureHeightBounds(BIRCH_TREE, 0, 30);
 

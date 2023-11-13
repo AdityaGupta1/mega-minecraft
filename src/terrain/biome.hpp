@@ -4,6 +4,8 @@
 
 #define MAX_GATHERED_FEATURES_PER_CHUNK 1024
 
+#define SEA_LEVEL 128
+
 enum class Biome : unsigned char
 {
     SAVANNA,
@@ -83,6 +85,8 @@ enum class Feature : unsigned char
 
     REDWOOD_TREE,
 
+    CYPRESS_TREE,
+
     BIRCH_TREE,
 
     PINE_TREE,
@@ -101,6 +105,7 @@ enum class Feature : unsigned char
 
     PALM_TREE,
     
+    //JOSHUA_TREE,
     CACTUS
     
     //POND (not sure if this should go here or somewhere else)

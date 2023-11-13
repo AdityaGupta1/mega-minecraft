@@ -69,17 +69,19 @@ enum class Block : unsigned char
     PINE_LEAVES_1,
     PINE_LEAVES_2,
     REDWOOD_WOOD,
-    REDWOOD_LEAVES
+    REDWOOD_LEAVES,
+    CYPRESS_WOOD,
+    CYPRESS_LEAVES
 };
 
-static constexpr int numBlocks = (int)Block::REDWOOD_LEAVES + 1;
+static constexpr int numBlocks = (int)Block::CYPRESS_LEAVES + 1;
 
 struct SideUv
 {
     SideUv() = default;
     SideUv(glm::ivec2 uv) : uv(uv) {}
 
-    glm::ivec2 uv;
+    glm::ivec2 uv{ 0 };
     bool randRot{ false };
     bool randFlip{ false };
 };

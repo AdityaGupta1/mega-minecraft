@@ -12,7 +12,7 @@
 #define DEBUG_SKIP_EROSION 0
 #define DEBUG_USE_CONTRIBUTION_FILL_METHOD 0
 
-//#define DEBUG_BIOME_OVERRIDE Biome::REDWOOD_FOREST
+#define DEBUG_BIOME_OVERRIDE Biome::REDWOOD_FOREST
 
 Chunk::Chunk(ivec2 worldChunkPos)
     : worldChunkPos(worldChunkPos), worldBlockPos(worldChunkPos.x * 16, 0, worldChunkPos.y * 16)
@@ -1002,7 +1002,7 @@ __global__ void kernFill(
 #endif
         }
     }
-    else if (y < 128)
+    else if (y < SEA_LEVEL)
     {
         block = Block::WATER;
     }
