@@ -21,6 +21,13 @@ typedef Record<ChunkData> HitGroupRecord;
 OptixRenderer::OptixRenderer(GLFWwindow* window, ivec2* windowSize, Terrain* terrain, Player* player) 
     : window(window), windowSize(windowSize), terrain(terrain), player(player)
 {
+    const float fovy = 26.f;
+    float yscaled = tan(fovy * (PI / 180));
+    float xscaled = (yscaled * windowSize->x) / windowSize->y;
+    launchParams.camera.pixelLength = glm::vec2(2 * xscaled / (float)windowSize->x, 2 * yscaled / (float)windowSize->y);
+
+    launchParamsBuffer.alloc(sizeof(OptixParams));
+    
     createContext();
 }
 
@@ -133,7 +140,7 @@ void OptixRenderer::buildRootAccel()
     OPTIX_CHECK(optixAccelBuild(optixContext, 0, &rootIAS.buildOptions, &rootIAS.buildInput, 1, 
         rootIAS.tempBuffer.dev_ptr(), rootIAS.bufferSizes.tempSizeInBytes, 
         rootIAS.outputBuffer.dev_ptr(), rootIAS.bufferSizes.outputSizeInBytes, 
-        &rootIAS.handle, nullptr, 0));
+        &launchParams.rootHandle, nullptr, 0));
 }
 
 void OptixRenderer::buildChunkAccel(const Chunk* c)
@@ -445,5 +452,30 @@ void OptixRenderer::buildSBT()
 
 void OptixRenderer::optixRenderFrame()
 {
+    if (launchParams.windowSize.x == 0) return;
+
+    launchParamsBuffer.populate(&launchParams, 1);
+    launchParams.frame.frameId++;
+
+    OPTIX_CHECK(optixLaunch(/*! pipeline we're launching launch: */
+        pipeline, 0,
+        /*! parameters and SBT */
+        launchParamsBuffer.dev_ptr(),
+        launchParamsBuffer.size(),
+        &sbt,
+        /*! dimensions of the launch: */
+        launchParams.windowSize.x,
+        launchParams.windowSize.y,
+        1
+    ));
     glfwSwapBuffers(window);
+}
+
+void OptixRenderer::setCamera()
+{
+    launchParams.camera.forward = player->getForward();
+    launchParams.camera.up = player->getUp();
+    launchParams.camera.right = player->getRight();
+    launchParams.camera.position = player->getPos();
+    launchParams.windowSize = glm::ivec2(windowSize->x, windowSize->y);
 }

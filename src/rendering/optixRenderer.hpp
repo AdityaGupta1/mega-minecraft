@@ -22,6 +22,8 @@ protected:
     ivec2* windowSize{ nullptr };
     Terrain* terrain{ nullptr };
     Player* player{ nullptr };
+    OptixParams launchParams = {};
+    CUBuffer launchParamsBuffer;
 
     CUcontext          cudaContext = {};
     CUstream           stream;
@@ -40,7 +42,6 @@ protected:
     std::vector<cudaTextureObject_t> texObjects;
 
     struct {
-        OptixTraversableHandle handle;
         CUBuffer outputBuffer;
         CUBuffer tempBuffer;
         OptixBuildInput buildInput;
@@ -74,4 +75,5 @@ protected:
     void createPipeline();
     void buildSBT();
     void optixRenderFrame();
+    void setCamera();
 };
