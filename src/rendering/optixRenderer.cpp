@@ -1,8 +1,22 @@
 #include "optixRenderer.hpp"
+
 #include <optix_function_table_definition.h>
 #include <optix_stack_size.h>
 
+#include <stb_image.h>
+
 extern "C" char embedded_ptx[];
+
+template <typename T>
+struct Record
+{
+    __align__(OPTIX_SBT_RECORD_ALIGNMENT) char header[OPTIX_SBT_RECORD_HEADER_SIZE];
+    T data;
+};
+
+typedef Record<void*>   RayGenRecord;
+typedef Record<void*>     MissRecord;
+typedef Record<ChunkData> HitGroupRecord;
 
 OptixRenderer::OptixRenderer(GLFWwindow* window, ivec2* windowSize, Terrain* terrain, Player* player) 
     : window(window), windowSize(windowSize), terrain(terrain), player(player)
@@ -23,6 +37,78 @@ void OptixRenderer::createContext()
     }
     buildRootAccel();
     createPipeline();
+}
+
+void OptixRenderer::createTextures()
+{
+    // in case we ever get more textures for who knows what
+    int numTextures = 1;
+
+    texArrays.resize(numTextures);
+    texObjects.resize(numTextures);
+
+    stbi_set_flip_vertically_on_load(true);
+
+    int width, height, channels;
+    unsigned char* data = stbi_load("textures/blocks_diffuse.png", &width, &height, &channels, 0);
+
+    for (int i = 0; i < width * height; ++i)
+    {
+        for (int j = 0; j < 3; ++j)
+        {
+            auto& col = data[i * 4 + j];
+            col = (unsigned char)(pow(col / 255.f, 2.2f) * 255.f);
+        }
+    }
+    Texture t = {};
+    t.host_buffer = data;
+    t.width = width;
+    t.height = height;
+    t.channels = channels;
+    textures.push_back(t);
+
+    for (int textureID = 0; textureID < numTextures; textureID++) {
+        auto texture = textures[textureID];
+
+        cudaChannelFormatDesc channel_desc = cudaCreateChannelDesc<uchar4>();
+        int32_t width = texture.width;
+        int32_t height = texture.height;
+        int32_t channels = texture.channels;
+        int32_t pitch = width * channels * sizeof(uint8_t);
+
+        cudaArray_t& pixelArray = texArrays[textureID];
+        CUDA_CHECK(cudaMallocArray(&pixelArray,
+            &channel_desc,
+            width, height));
+
+        CUDA_CHECK(cudaMemcpy2DToArray(pixelArray,
+            /* offset */0, 0,
+            texture.host_buffer,
+            pitch, pitch, height,
+            cudaMemcpyHostToDevice));
+
+        cudaResourceDesc res_desc = {};
+        res_desc.resType = cudaResourceTypeArray;
+        res_desc.res.array.array = pixelArray;
+
+        cudaTextureDesc tex_desc = {};
+        tex_desc.addressMode[0] = cudaAddressModeWrap;
+        tex_desc.addressMode[1] = cudaAddressModeWrap;
+        tex_desc.filterMode = cudaFilterModeLinear;
+        tex_desc.readMode = cudaReadModeNormalizedFloat;
+        tex_desc.normalizedCoords = 1;
+        tex_desc.maxAnisotropy = 1;
+        tex_desc.maxMipmapLevelClamp = 99;
+        tex_desc.minMipmapLevelClamp = 0;
+        tex_desc.mipmapFilterMode = cudaFilterModePoint;
+        tex_desc.borderColor[0] = 1.0f;
+        tex_desc.sRGB = 0;
+
+        // Create texture object
+        cudaTextureObject_t cuda_tex = 0;
+        CUDA_CHECK(cudaCreateTextureObject(&cuda_tex, &res_desc, &tex_desc, nullptr));
+        texObjects[textureID] = cuda_tex;
+    }
 }
 
 void OptixRenderer::buildRootAccel()
@@ -48,8 +134,6 @@ void OptixRenderer::buildRootAccel()
         rootIAS.tempBuffer.dev_ptr(), rootIAS.bufferSizes.tempSizeInBytes, 
         rootIAS.outputBuffer.dev_ptr(), rootIAS.bufferSizes.outputSizeInBytes, 
         &rootIAS.handle, nullptr, 0));
-
-    cudaStreamSynchronize(stream);
 }
 
 void OptixRenderer::buildChunkAccel(const Chunk* c)
@@ -63,6 +147,9 @@ void OptixRenderer::buildChunkAccel(const Chunk* c)
 
     dev_vertices.populate(&c->verts, c->verts.size());
     dev_vertices.populate(&c->idx, c->idx.size());
+
+    vertexBuffer.push_back(dev_vertices);
+    indexBuffer.push_back(dev_indices);
 
     OptixTraversableHandle gasHandle = 0;
 
@@ -80,7 +167,7 @@ void OptixRenderer::buildChunkAccel(const Chunk* c)
     triangleInput.triangleArray.vertexBuffers       = &d_vertices;
     
     triangleInput.triangleArray.indexFormat         = OPTIX_INDICES_FORMAT_UNSIGNED_INT3;
-    triangleInput.triangleArray.indexStrideInBytes  = sizeof(glm::ivec3);
+    triangleInput.triangleArray.indexStrideInBytes  = sizeof(glm::uvec3);
     triangleInput.triangleArray.numIndexTriplets    = (int)c->idx.size();
     triangleInput.triangleArray.indexBuffer         = d_indices;
     
@@ -135,8 +222,10 @@ void OptixRenderer::buildChunkAccel(const Chunk* c)
         &emitDesc, 1
     ));
 
-    dev_vertices.free();
-    dev_indices.free();
+    // I don't think you can free the device vertices and indices, cause GAS needs to access this
+    // dev_vertices.free();
+    // dev_indices.free();
+    
     // optixAccelCompact
     uint64_t compactedSize;
     compactedSizeBuffer.populate(&compactedSize, 1);
@@ -150,6 +239,11 @@ void OptixRenderer::buildChunkAccel(const Chunk* c)
         gasBuffer.dev_ptr(),
         gasBuffer.size(),
         &gasHandle));
+
+    // cleanup
+    outputBuffer.free();
+    tempBuffer.free();
+    compactedSizeBuffer.free();
 
     // to instance
     OptixInstance gasInstance = {};
@@ -301,6 +395,53 @@ void OptixRenderer::createPipeline()
 
 void OptixRenderer::buildSBT()
 {
+    // ------------------------------------------------------------------
+    // build raygen records
+    // ------------------------------------------------------------------
+    std::vector<RayGenRecord> raygenRecords;
+    for (int i = 0; i < raygenProgramGroups.size(); i++) {
+        RayGenRecord rec;
+        OPTIX_CHECK(optixSbtRecordPackHeader(raygenProgramGroups[i], &rec));
+        rec.data = nullptr; /* for now ... */
+        raygenRecords.push_back(rec);
+    }
+    raygenRecordBuffer.initFromVector(raygenRecords);
+    sbt.raygenRecord = raygenRecordBuffer.dev_ptr();
+
+    // ------------------------------------------------------------------
+    // build miss records
+    // ------------------------------------------------------------------
+    std::vector<MissRecord> missRecords;
+    for (int i = 0; i < missProgramGroups.size(); i++) {
+        MissRecord rec;
+        OPTIX_CHECK(optixSbtRecordPackHeader(missProgramGroups[i], &rec));
+        rec.data = nullptr; /* for now ... */
+        missRecords.push_back(rec);
+    }
+    missRecordBuffer.initFromVector(missRecords);
+    sbt.missRecordBase = missRecordBuffer.dev_ptr();
+    sbt.missRecordStrideInBytes = sizeof(MissRecord);
+    sbt.missRecordCount = (int)missRecords.size();
+
+    // ------------------------------------------------------------------
+    // build hitgroup records
+    // ------------------------------------------------------------------
+    std::vector<HitGroupRecord> hitgroupRecords;
+    int numChunks = chunkInstances.size();
+    for (int c = 0; c < numChunks; c++) {
+        for (int i = 0; i < hitProgramGroups.size(); i++) {
+            HitGroupRecord rec;
+            OPTIX_CHECK(optixSbtRecordPackHeader(hitProgramGroups[i], &rec));
+            rec.data.verts = (Vertex*)vertexBuffer[c].dev_ptr();
+            rec.data.texture = texObjects[0];
+            rec.data.idx = (GLuint*)indexBuffer[c].dev_ptr();
+            hitgroupRecords.push_back(rec);
+        }
+    }
+    hitRecordBuffer.initFromVector(hitgroupRecords);
+    sbt.hitgroupRecordBase = hitRecordBuffer.dev_ptr();
+    sbt.hitgroupRecordStrideInBytes = sizeof(HitGroupRecord);
+    sbt.hitgroupRecordCount = (int)hitgroupRecords.size();
 }
 
 void OptixRenderer::optixRenderFrame()

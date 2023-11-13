@@ -6,24 +6,21 @@
 #include <sstream>
 #include <stdexcept>
 
-#define CUDA_CHECK(call)							\
-    {									\
-      cudaError_t rc = cuda##call;                                      \
-      if (rc != cudaSuccess) {                                          \
-        std::stringstream txt;                                          \
-        cudaError_t err =  rc; /*cudaGetLastError();*/                  \
-        txt << "CUDA Error " << cudaGetErrorName(err)                   \
-            << " (" << cudaGetErrorString(err) << ")";                  \
-        throw std::runtime_error(txt.str());                            \
-      }                                                                 \
-    }
+#define CUDA_CHECK(call)							                    \
+  {								                                     	\
+     cudaError_t err = call;                                            \
+     if (err != cudaSuccess) {                                          \
+       fprintf(stderr, "CUDA call (%s) failed with error: '%s (%s)' (%s:%u)\n", #call, cudaGetErrorName(err), cudaGetErrorString(err), __FILE__, __LINE__);\
+       exit(EXIT_FAILURE);                                              \
+     }                                                                  \
+  }
 
-#define OPTIX_CHECK( call )                                             \
-  {                                                                     \
-    OptixResult res = call;                                             \
-    if( res != OPTIX_SUCCESS )                                          \
-      {                                                                 \
-        fprintf( stderr, "Optix call (%s) failed with code %d (line %d)\n", #call, res, __LINE__ ); \
-        exit( 2 );                                                      \
-      }                                                                 \
+#define OPTIX_CHECK( call )                                                                          \
+  {                                                                                                  \
+    OptixResult res = call;                                                                          \
+    if( res != OPTIX_SUCCESS )                                                                       \
+      {                                                                                              \
+        fprintf( stderr, "Optix call (%s) failed with code %d (%s:%u)\n", #call, res, __FILE__, __LINE__ ); \
+        exit( 2 );                                                                                   \
+      }                                                                                              \
   }

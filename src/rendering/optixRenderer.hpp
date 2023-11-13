@@ -35,6 +35,10 @@ protected:
     OptixModule                 module;
     OptixModuleCompileOptions   moduleCompileOptions = {};
 
+    std::vector<Texture> textures;
+    std::vector<cudaArray_t> texArrays;
+    std::vector<cudaTextureObject_t> texObjects;
+
     struct {
         OptixTraversableHandle handle;
         CUBuffer outputBuffer;
@@ -46,16 +50,23 @@ protected:
 
     CUBuffer chunkInstancesBuffer;
     std::vector<OptixInstance> chunkInstances;
+    
+    std::vector<CUBuffer> vertexBuffer;
+    std::vector<CUBuffer> indexBuffer;
 
     std::vector<OptixProgramGroup> raygenProgramGroups;
     std::vector<OptixProgramGroup> missProgramGroups;
     std::vector<OptixProgramGroup> hitProgramGroups;
 
+    CUBuffer raygenRecordBuffer;
+    CUBuffer missRecordBuffer;
+    CUBuffer hitRecordBuffer;
     OptixShaderBindingTable sbt = {};
 
     CUBuffer playerInfoBuffer;
 
     void createContext();
+    void createTextures();
     void buildChunkAccel(const Chunk* c);
     void buildRootAccel();
     void createModule();

@@ -7,21 +7,13 @@
 #include <thrust/random.h>
 #include <vector>
 #include "util/utils.hpp"
+#include "util/common.h"
 
-#define CUDA_CHECK(call)::CudaUtils::cudaCheck(call, #call, __FILE__, __LINE__);
 
 namespace CudaUtils
 {
 
     void checkCUDAError(const char* msg, int line = -1);
-    inline void cudaCheck(cudaError_t error, const char* call, const char* file, unsigned int line)
-    {
-        if (error != cudaSuccess)
-        {
-            fprintf(stderr, "CUDA call (%s) failed with error: '%s' (%s:%u)\n", call, cudaGetErrorString(error), file, line);
-            exit(EXIT_FAILURE);
-        }
-    }
 
 }
 
