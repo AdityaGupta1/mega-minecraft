@@ -49,7 +49,7 @@ protected:
     } rootIAS;
 
     CUBuffer chunkInstancesBuffer;
-    std::vector<OptixInstance> chunkInstances;
+    std::vector<OptixInstance> chunkInstances = {};
     
     std::vector<CUBuffer> vertexBuffer;
     std::vector<CUBuffer> indexBuffer;

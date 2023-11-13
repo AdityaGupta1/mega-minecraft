@@ -33,10 +33,10 @@ void OptixRenderer::createContext()
     createModule();
     createProgramGroups();
     for (const Chunk* c : terrain->getDrawableChunks()) {
-        buildChunkAccel(c);
+       buildChunkAccel(c);
     }
     buildRootAccel();
-    createPipeline();
+    //createPipeline();
 }
 
 void OptixRenderer::createTextures()
@@ -130,7 +130,7 @@ void OptixRenderer::buildRootAccel()
     rootIAS.outputBuffer.alloc(rootIAS.bufferSizes.outputSizeInBytes);
     rootIAS.tempBuffer.alloc(rootIAS.bufferSizes.tempSizeInBytes);
     
-    OPTIX_CHECK(optixAccelBuild(optixContext, stream, &rootIAS.buildOptions, &rootIAS.buildInput, 1, 
+    OPTIX_CHECK(optixAccelBuild(optixContext, 0, &rootIAS.buildOptions, &rootIAS.buildInput, 1, 
         rootIAS.tempBuffer.dev_ptr(), rootIAS.bufferSizes.tempSizeInBytes, 
         rootIAS.outputBuffer.dev_ptr(), rootIAS.bufferSizes.outputSizeInBytes, 
         &rootIAS.handle, nullptr, 0));
@@ -142,11 +142,8 @@ void OptixRenderer::buildChunkAccel(const Chunk* c)
     CUBuffer dev_vertices;
     CUBuffer dev_indices;
 
-    dev_vertices.alloc(c->verts.size());
-    dev_vertices.alloc(c->idx.size());
-
-    dev_vertices.populate(&c->verts, c->verts.size());
-    dev_vertices.populate(&c->idx, c->idx.size());
+    dev_vertices.initFromVector(c->verts);
+    dev_indices.initFromVector(c->idx);
 
     vertexBuffer.push_back(dev_vertices);
     indexBuffer.push_back(dev_indices);
@@ -223,12 +220,12 @@ void OptixRenderer::buildChunkAccel(const Chunk* c)
     ));
 
     // I don't think you can free the device vertices and indices, cause GAS needs to access this
-    // dev_vertices.free();
-    // dev_indices.free();
+    //dev_vertices.free();
+    //dev_indices.free();
     
     // optixAccelCompact
     uint64_t compactedSize;
-    compactedSizeBuffer.populate(&compactedSize, 1);
+    compactedSizeBuffer.retrieve(&compactedSize, 1);
 
     CUBuffer gasBuffer;
 
@@ -241,17 +238,19 @@ void OptixRenderer::buildChunkAccel(const Chunk* c)
         &gasHandle));
 
     // cleanup
-    outputBuffer.free();
-    tempBuffer.free();
-    compactedSizeBuffer.free();
+    //outputBuffer.free();
+    //tempBuffer.free();
+    //compactedSizeBuffer.free();
+
+    const unsigned int id = chunkInstances.size();
 
     // to instance
     OptixInstance gasInstance = {};
     float transform[12] = { 1,0,0, c->worldBlockPos.x,0,1,0,0,0,0,1,c->worldBlockPos.z };
     memcpy(gasInstance.transform, transform, sizeof(float) * 12);
-    gasInstance.instanceId = 0;
+    gasInstance.instanceId = id;
     gasInstance.visibilityMask = 255;
-    gasInstance.sbtOffset = 0;
+    gasInstance.sbtOffset = id;
     gasInstance.flags = OPTIX_INSTANCE_FLAG_NONE;
     gasInstance.traversableHandle = gasHandle;
 
@@ -264,7 +263,7 @@ void OptixRenderer::createModule()
     moduleCompileOptions.debugLevel = OPTIX_COMPILE_DEBUG_LEVEL_NONE;
 
     pipelineCompileOptions.usesMotionBlur = false;
-    pipelineCompileOptions.traversableGraphFlags = OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_SINGLE_GAS;
+    pipelineCompileOptions.traversableGraphFlags = OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_ANY;
     pipelineCompileOptions.numPayloadValues = 2;
     pipelineCompileOptions.numAttributeValues = 2;
     pipelineCompileOptions.exceptionFlags = OPTIX_EXCEPTION_FLAG_NONE;

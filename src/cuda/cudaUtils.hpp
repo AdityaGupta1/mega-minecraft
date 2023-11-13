@@ -62,7 +62,7 @@ struct CUBuffer {
     }
 
     template<typename T>
-    void retrieve(const T* host_ptr, size_t count) {
+    void retrieve(T* host_ptr, size_t count) {
         assert(d_ptr != nullptr);
         assert(byteSize >= count * sizeof(T));
         CUDA_CHECK(cudaMemcpy(host_ptr, d_ptr, count * sizeof(T), cudaMemcpyDeviceToHost));
