@@ -14,7 +14,7 @@ IF(CUDA_COMPUTE_DETECT AND NOT DEFINED COMPUTES_DETECTED_LIST)
     # Check for GPUs present and their compute capability
     # based on http://stackoverflow.com/questions/2285185/easiest-way-to-test-for-existence-of-cuda-capable-gpu-from-cmake/2297877#2297877 (Christopher Bruns)
 
-    IF(CUDA_FOUND)
+    IF(CUDAToolkit_FOUND)
         MESSAGE(STATUS "${CMAKE_MODULE_PATH}/cuda_compute_capability.cpp")
 
         TRY_RUN(RUN_RESULT_VAR COMPILE_RESULT_VAR
@@ -43,7 +43,7 @@ IF(CUDA_COMPUTE_DETECT AND NOT DEFINED COMPUTES_DETECTED_LIST)
             MESSAGE(STATUS "CUDA Compute Detection Failed")
             SET(CUDA_HAVE_GPU FALSE CACHE BOOL "Whether CUDA-capable GPU is present")
         ENDIF()
-    ENDIF(CUDA_FOUND)
+    ENDIF(CUDAToolkit_FOUND)
 ENDIF()
 
 IF(    CUDA_COMPUTE_20

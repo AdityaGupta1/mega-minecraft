@@ -22,18 +22,17 @@ endif()
 ########################################
 # CUDA Setup
 ########################################
-find_package(CUDA 10 REQUIRED)
+find_package(CUDAToolkit 10 REQUIRED)
 include(${CMAKE_MODULE_PATH}/CUDAComputesList.cmake)
 
-list(APPEND CUDA_NVCC_FLAGS ${CUDA_GENERATE_CODE})
-list(APPEND CUDA_NVCC_FLAGS_DEBUG "-g -G")
-set(CUDA_VERBOSE_BUILD ON)
+#list(APPEND CUDA_NVCC_FLAGS ${CUDA_GENERATE_CODE})
+#list(APPEND CUDA_NVCC_FLAGS_DEBUG "-g -G")
+#set(CUDA_VERBOSE_BUILD ON)
 
-if (CUDA_TOOLKIT_ROOT_DIR)
-	include_directories(${CUDA_TOOLKIT_ROOT_DIR}/include)
-endif()
-
-set(LIBRARIES ${CUDA_LIBRARIES} ${CUDA_CUDA_LIBRARY})
+include_directories(${CUDAToolkit_INCLUDE_DIRS})
+message(STATUS ${CUDA_LIBRARIES})
+message(STATUS ${CUDAToolkit_LIBRARY_DIR})
+set(LIBRARIES CUDA::cudart)
 
 ########################################
 
@@ -117,25 +116,20 @@ file(GLOB_RECURSE sources "src/*.cpp" "src/*.cu")
 list(SORT headers)
 list(SORT sources)
 
-set(COMPILE_SOURCES ${sources})
-foreach(SOURCE_FILE IN LISTS sources)
-    if(SOURCE_FILE MATCHES "src/shaders/")
-        list(REMOVE_ITEM COMPILE_SOURCES ${SOURCE_FILE})
-    endif()
-endforeach()
-
 source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/src" PREFIX "Headers" FILES ${headers})
 source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/src" PREFIX "Sources" FILES ${sources})
+
+foreach(SHADER_SRC ${SHADERS})
+    set_source_files_properties(${SHADER_SRC} PROPERTIES HEADER_FILE_ONLY TRUE)
+endforeach()
 
 add_executable( ${CMAKE_PROJECT_NAME}
   ${headers}
   ${sources}
-  ${SHADERS_HEADERS}
-  ${SHADERS}
   ${PROGRAM_MODULES}
 )
 
-
+message(STATUS ${COMPUTES_DETECTED_LIST})
 set_target_properties(${CMAKE_PROJECT_NAME} PROPERTIES CUDA_ARCHITECTURES "${COMPUTES_DETECTED_LIST}")
 
 target_link_libraries(${CMAKE_PROJECT_NAME} ${LIBRARIES})

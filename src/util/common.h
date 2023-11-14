@@ -20,8 +20,8 @@
     OptixResult res = call;                                                                          \
     if( res != OPTIX_SUCCESS )                                                                       \
       {                                                                                              \
-        fprintf( stderr, "Optix call (%s) failed with code %d (%s:%u)\n", #call, res, __FILE__, __LINE__ ); \
-        exit(EXIT_FAILURE);                                                                          \
+        fprintf( stderr, "Optix call (%s) failed with error: '%s (%s)' (%s:%u)\n", #call, optixGetErrorName(res), optixGetErrorString(res), __FILE__, __LINE__ ); \
       }                                                                                              \
   }
 
+// exit(EXIT_FAILURE);                                                                          \

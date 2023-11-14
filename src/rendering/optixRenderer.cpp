@@ -289,8 +289,8 @@ std::vector<char> OptixRenderer::readData(std::string const& filename)
 
 void OptixRenderer::createModule()
 {
-    moduleCompileOptions.optLevel = OPTIX_COMPILE_OPTIMIZATION_DEFAULT;
-    moduleCompileOptions.debugLevel = OPTIX_COMPILE_DEBUG_LEVEL_NONE;
+    moduleCompileOptions.optLevel = OPTIX_COMPILE_OPTIMIZATION_LEVEL_0;
+    moduleCompileOptions.debugLevel = OPTIX_COMPILE_DEBUG_LEVEL_FULL;
     moduleCompileOptions.maxRegisterCount = OPTIX_COMPILE_DEFAULT_MAX_REGISTER_COUNT;
 
     pipelineCompileOptions.usesMotionBlur = false;
@@ -317,7 +317,7 @@ void OptixRenderer::createModule()
             log, &sizeof_log,
             &modules[i]
         ));
-        if (sizeof_log > 1) std::cout << "Module " << i << " Create:" << log << std::endl;
+        if (sizeof_log > 1) std::cout << "Module " << i << " Create:" << log << std::endl;      
     }
 }
 
