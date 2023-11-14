@@ -93,8 +93,11 @@ private:
 public:
     static void generateHeightfields(
         std::vector<Chunk*>& chunks,
+        ivec2* host_chunkWorldBlockPositions,
         ivec2* dev_chunkWorldBlockPositions,
+        float* host_heightfields,
         float* dev_heightfields,
+        float* host_biomeWeights,
         float* dev_biomeWeights,
         cudaStream_t stream);
 
@@ -102,9 +105,13 @@ public:
 
     static void generateLayers(
         std::vector<Chunk*>& chunks,
+        float* host_heightfields,
         float* dev_heightfields,
+        float* host_biomeWeights,
         float* dev_biomeWeights,
+        ivec2* host_chunkWorldBlockPositions,
         ivec2* dev_chunkWorldBlockPositions,
+        float* host_layers,
         float* dev_layers,
         cudaStream_t stream);
 
