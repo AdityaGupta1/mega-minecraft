@@ -21,6 +21,7 @@
     if( res != OPTIX_SUCCESS )                                                                       \
       {                                                                                              \
         fprintf( stderr, "Optix call (%s) failed with code %d (%s:%u)\n", #call, res, __FILE__, __LINE__ ); \
-        exit( 2 );                                                                                   \
+        exit(EXIT_FAILURE);                                                                          \
       }                                                                                              \
   }
+

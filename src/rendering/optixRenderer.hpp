@@ -2,10 +2,14 @@
 
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
+#include <cuda_runtime.h>
 #include <optix.h>
 #include <optix_stubs.h>
 
 #include <vector>
+#include <iostream>
+#include <string>
+#include <fstream>
 
 #include "cuda/cudaUtils.hpp"
 #include "player/player.hpp"
@@ -34,7 +38,7 @@ protected:
     OptixPipelineCompileOptions pipelineCompileOptions = {};
     OptixPipelineLinkOptions    pipelineLinkOptions = {};
 
-    OptixModule                 module;
+    std::vector<OptixModule>    modules;
     OptixModuleCompileOptions   moduleCompileOptions = {};
 
     std::vector<Texture> textures;
@@ -70,6 +74,7 @@ protected:
     void createTextures();
     void buildChunkAccel(const Chunk* c);
     void buildRootAccel();
+    std::vector<char> readData(std::string const& filename);
     void createModule();
     void createProgramGroups();
     void createPipeline();

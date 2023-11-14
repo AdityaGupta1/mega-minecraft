@@ -1,12 +1,12 @@
-cmake_minimum_required(VERSION 3.1)
-project(mega_minecraft)
+cmake_minimum_required(VERSION 3.17)
+project(mega_minecraft LANGUAGES CXX CUDA)
 
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
 
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
 # Enable C++11 for host code
@@ -29,18 +29,21 @@ list(APPEND CUDA_NVCC_FLAGS ${CUDA_GENERATE_CODE})
 list(APPEND CUDA_NVCC_FLAGS_DEBUG "-g -G")
 set(CUDA_VERBOSE_BUILD ON)
 
-if(WIN32)
-    # Set up include and lib paths
-    set(CUDA_HOST_COMPILER ${CMAKE_CXX_COMPILER} CACHE FILEPATH "Host side compiler used by NVCC" FORCE)
-endif(WIN32)
+if (CUDA_TOOLKIT_ROOT_DIR)
+	include_directories(${CUDA_TOOLKIT_ROOT_DIR}/include)
+endif()
+
+set(LIBRARIES ${CUDA_LIBRARIES} ${CUDA_CUDA_LIBRARY})
+
 ########################################
+
 
 find_package(OpenGL REQUIRED)
 
 if(UNIX)
     find_package(glfw3 REQUIRED)
     find_package(GLEW REQUIRED)
-    set(LIBRARIES glfw ${GLEW_LIBRARIES} ${OPENGL_gl_LIBRARY})
+    list(APPEND LIBRARIES glfw ${GLEW_LIBRARIES} ${OPENGL_gl_LIBRARY})
 else(UNIX)
     set(EXTERNAL "external")
 
@@ -54,19 +57,59 @@ else(UNIX)
 
     add_definitions(${GLEW_DEFINITIONS})
     include_directories(${GLEW_INCLUDE_DIR} ${GLFW_INCLUDE_DIR})
-    set(LIBRARIES ${GLEW_LIBRARY} ${GLFW_LIBRARY} ${OPENGL_LIBRARY})
+    list(APPEND LIBRARIES ${GLEW_LIBRARY} ${GLFW_LIBRARY} ${OPENGL_LIBRARY})
 endif(UNIX)
 
 set(GLM_ROOT_DIR "external")
 set(OPTIX_ROOT_DIR "external")
+
 find_package(GLM REQUIRED)
 include_directories(${GLM_INCLUDE_DIRS})
+message(STATUS "GLM include directories: ${GLM_INCLUDE_DIRS}")
 
 include_directories(${CMAKE_SOURCE_DIR}/src)
 
-find_package(OptiX REQUIRED)
+########################################
+# OptiX Setup + Compile
+########################################
+find_package(OPTIX REQUIRED)
 
 include_directories(${OPTIX_INCLUDE_DIRS})
+include("nvcuda_compile_module")
+
+file(GLOB_RECURSE SHADERS "src/shaders/*.cu")
+file(GLOB_RECURSE SHADER_HEADERS "src/shaders/*.h" "src/shaders/*.hpp")
+
+# When using OptiX SDK 7.5.0 and CUDA 11.7 or higher, the modules can either be built from OptiX IR input or from PTX input.
+# OPTIX_PROGRAM_TARGET and OPTIX_MODULE_EXTENSION switch the NVCC compilation between the two options.
+NVCUDA_COMPILE_MODULE(
+  SOURCES ${SHADERS}
+  DEPENDENCIES ${SHADERS_HEADERS}
+  TARGET_PATH "${CMAKE_CURRENT_BINARY_DIR}/optix_shaders"
+  EXTENSION "${OPTIX_MODULE_EXTENSION}"
+  GENERATED_FILES PROGRAM_MODULES
+  NVCC_OPTIONS "${OPTIX_PROGRAM_TARGET}" "--machine=64" "--gpu-architecture=compute_50" "--use_fast_math" "--relocatable-device-code=true" "--generate-line-info" "-Wno-deprecated-gpu-targets" "-I${OPTIX_INCLUDE_DIR}" "-I${CMAKE_CURRENT_SOURCE_DIR}/shaders"
+)
+
+# Generate a header file with the file names
+set(SHADER_LIST_FILE "${CMAKE_CURRENT_BINARY_DIR}/optix_shaders/ShaderList.h")
+file(WRITE ${SHADER_LIST_FILE} "#pragma once\n#include <vector>\n#include <string>\nconst std::vector<std::string> shaderFiles = {\n")
+foreach(SHADER_FILE ${PROGRAM_MODULES})
+    file(APPEND ${SHADER_LIST_FILE} "    \"${SHADER_FILE}\",\n")
+endforeach()
+file(APPEND ${SHADER_LIST_FILE} "};\n")
+
+# Add the binary dir to the include directories so that ShaderList.h can be included
+include_directories(${CMAKE_CURRENT_BINARY_DIR}/optix_shaders)
+
+if(USE_OPTIX_IR)
+add_definitions(
+  # This define switches the OptiX program module filenames to either *.optixir or *.ptx extensions at compile time.
+  "-DUSE_OPTIX_IR"
+)
+endif()
+
+########################################
 
 file(GLOB_RECURSE headers "src/*.h" "src/*.hpp")
 file(GLOB_RECURSE sources "src/*.cpp" "src/*.cu")
@@ -74,44 +117,27 @@ file(GLOB_RECURSE sources "src/*.cpp" "src/*.cu")
 list(SORT headers)
 list(SORT sources)
 
+set(COMPILE_SOURCES ${sources})
+foreach(SOURCE_FILE IN LISTS sources)
+    if(SOURCE_FILE MATCHES "src/shaders/")
+        list(REMOVE_ITEM COMPILE_SOURCES ${SOURCE_FILE})
+    endif()
+endforeach()
+
 source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/src" PREFIX "Headers" FILES ${headers})
 source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/src" PREFIX "Sources" FILES ${sources})
 
-### MACRO FROM https://github.com/ingowald/optix7course/blob/master/common/gdt/cmake/configure_optix.cmake
+add_executable( ${CMAKE_PROJECT_NAME}
+  ${headers}
+  ${sources}
+  ${SHADERS_HEADERS}
+  ${SHADERS}
+  ${PROGRAM_MODULES}
+)
 
-find_program(BIN2C bin2c
-  DOC "Path to the cuda-sdk bin2c executable.")
 
-# this macro defines cmake rules that execute the following four steps:
-# 1) compile the given cuda file ${cuda_file} to an intermediary PTX file
-# 2) use the 'bin2c' tool (that comes with CUDA) to
-#    create a second intermediary (.c-)file which defines a const string variable
-#    (named '${c_var_name}') whose (constant) value is the PTX output
-#    from the previous step.
-# 3) compile the given .c file to an intermediary object file (why thus has
-#    that PTX string 'embedded' as a global constant.
-# 4) assign the name of the intermediary .o file to the cmake variable
-#    'output_var', which can then be added to cmake targets.
-macro(cuda_compile_and_embed output_var cuda_file)
-  set(c_var_name ${output_var})
-  cuda_compile_ptx(ptx_files ${cuda_file} OPTIONS --generate-line-info -use_fast_math --keep --relocatable-device-code=true)
-  list(GET ptx_files 0 ptx_file)
-  set(embedded_file ${ptx_file}_embedded.c)
-#  message("adding rule to compile and embed ${cuda_file} to \"const char ${var_name}[];\"")
-  add_custom_command(
-    OUTPUT ${embedded_file}
-    COMMAND ${BIN2C} -c --padd 0 --type char --name ${c_var_name} ${ptx_file} > ${embedded_file}
-    DEPENDS ${ptx_file}
-    COMMENT "compiling (and embedding ptx from) ${cuda_file}"
-    )
-  set(${output_var} ${embedded_file})
-endmacro()
+set_target_properties(${CMAKE_PROJECT_NAME} PROPERTIES CUDA_ARCHITECTURES "${COMPUTES_DETECTED_LIST}")
 
-### END OF MACRO
-
-cuda_compile_and_embed(embedded_ptx ${CMAKE_CURRENT_SOURCE_DIR}/src/rendering/optixRenderer.cu)
-
-cuda_add_executable(${CMAKE_PROJECT_NAME} ${sources} ${headers} ${embedded_ptx})
 target_link_libraries(${CMAKE_PROJECT_NAME} ${LIBRARIES})
 
 set(SHADER_DIR ${CMAKE_SOURCE_DIR}/shaders)

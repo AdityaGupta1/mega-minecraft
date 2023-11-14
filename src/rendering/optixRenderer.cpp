@@ -1,11 +1,12 @@
 #include "optixRenderer.hpp"
-
-#include <optix_function_table_definition.h>
-#include <optix_stack_size.h>
+#include "ShaderList.h"
 
 #include <stb_image.h>
 
-extern "C" char embedded_ptx[];
+#undef min
+#undef max
+#include <optix_stack_size.h>
+#include <optix_function_table_definition.h>
 
 template <typename T>
 struct Record
@@ -264,10 +265,33 @@ void OptixRenderer::buildChunkAccel(const Chunk* c)
     chunkInstances.push_back(gasInstance);
 }
 
+std::vector<char> OptixRenderer::readData(std::string const& filename)
+{
+    std::ifstream inputData(filename, std::ios::binary);
+
+    if (inputData.fail())
+    {
+        std::cerr << "ERROR: readData() Failed to open file " << filename << '\n';
+        return std::vector<char>();
+    }
+
+    // Copy the input buffer to a char vector.
+    std::vector<char> data(std::istreambuf_iterator<char>(inputData), {});
+
+    if (inputData.fail())
+    {
+        std::cerr << "ERROR: readData() Failed to read file " << filename << '\n';
+        return std::vector<char>();
+    }
+
+    return data;
+}
+
 void OptixRenderer::createModule()
 {
     moduleCompileOptions.optLevel = OPTIX_COMPILE_OPTIMIZATION_DEFAULT;
     moduleCompileOptions.debugLevel = OPTIX_COMPILE_DEBUG_LEVEL_NONE;
+    moduleCompileOptions.maxRegisterCount = OPTIX_COMPILE_DEFAULT_MAX_REGISTER_COUNT;
 
     pipelineCompileOptions.usesMotionBlur = false;
     pipelineCompileOptions.traversableGraphFlags = OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_ANY;
@@ -278,18 +302,23 @@ void OptixRenderer::createModule()
 
     pipelineLinkOptions.maxTraceDepth = 2;
 
-    const std::string ptxCode = embedded_ptx;
-    char log[2048];
-    size_t sizeof_log = sizeof(log);
+    modules.resize(shaderFiles.size());
+    for (size_t i = 0; i < shaderFiles.size(); i++) {
+        std::vector<char> programData = readData(shaderFiles[i]);
 
-    OPTIX_CHECK(optixModuleCreate(optixContext,
-        &moduleCompileOptions,
-        &pipelineCompileOptions,
-        ptxCode.c_str(),
-        ptxCode.size(),
-        log, &sizeof_log,
-        &module
-    ));
+        char log[2048];
+        size_t sizeof_log = sizeof(log);
+
+        OPTIX_CHECK(optixModuleCreate(optixContext,
+            &moduleCompileOptions,
+            &pipelineCompileOptions,
+            programData.data(),
+            programData.size(),
+            log, &sizeof_log,
+            &modules[i]
+        ));
+        if (sizeof_log > 1) std::cout << "Module " << i << " Create:" << log << std::endl;
+    }
 }
 
 void OptixRenderer::createProgramGroups()
@@ -304,7 +333,7 @@ void OptixRenderer::createProgramGroups()
     // Ray Gen
     OptixProgramGroupDesc rayGenDesc = {};
     rayGenDesc.kind = OPTIX_PROGRAM_GROUP_KIND_RAYGEN;
-    rayGenDesc.raygen.module = module;
+    rayGenDesc.raygen.module = modules[0];
     rayGenDesc.raygen.entryFunctionName = "__raygen__render";
 
     char log[2048];
@@ -318,10 +347,12 @@ void OptixRenderer::createProgramGroups()
         &raygenProgramGroups[0]
     ));
 
+    if (sizeof_log > 1) std::cout << "RayGen PG: " << log << std::endl;
+
     // Miss
     OptixProgramGroupDesc missDesc = {};
     missDesc.kind = OPTIX_PROGRAM_GROUP_KIND_MISS;
-    missDesc.miss.module = module;
+    missDesc.miss.module = modules[0];
     missDesc.miss.entryFunctionName = "__miss__radiance";
 
     OPTIX_CHECK(optixProgramGroupCreate(
@@ -332,10 +363,12 @@ void OptixRenderer::createProgramGroups()
         &missProgramGroups[0]
     ));
 
+    if (sizeof_log > 1) std::cout << "Miss PG: " << log << std::endl;
+
     // Hits
     OptixProgramGroupDesc hitDesc = {};
     hitDesc.kind = OPTIX_PROGRAM_GROUP_KIND_HITGROUP;
-    hitDesc.hitgroup.moduleCH = module;
+    hitDesc.hitgroup.moduleCH = modules[0];
     hitDesc.hitgroup.entryFunctionNameCH = "__hit__radiance";
     OPTIX_CHECK(optixProgramGroupCreate(
         optixContext,
@@ -345,6 +378,8 @@ void OptixRenderer::createProgramGroups()
         log, &sizeof_log,
         &hitProgramGroups[0]
     ));
+
+    if (sizeof_log > 1) std::cout << "Hit PG: " << log << std::endl;
 }
 
 void OptixRenderer::createPipeline()

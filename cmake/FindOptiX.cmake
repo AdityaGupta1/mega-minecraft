@@ -7,7 +7,7 @@
 # - OPTIX_FOUND
 #
 # The following variables can be set as arguments for the module.
-# - OPTIX_ROOT_DIR : Root library directory of GLM 
+# - OPTIX_ROOT_DIR : Root library directory of OptiX
 #
 #
 
@@ -28,14 +28,18 @@ if (WIN32)
 else()
 	# Find include files
 	find_path(
-		GLM_INCLUDE_DIR
-		NAMES glm/glm.hpp
+		OPTIX_INCLUDE_DIR
+		NAMES optix.h
 		PATHS
-		/usr/include
-		/usr/local/include
-		/sw/include
-		/opt/local/include
+		$ENV{OptiX}/include
+		$ENV{OptiX_SDK}/include
 		${OPTIX_ROOT_DIR}/include
+		"/usr/NVIDIA-OptiX-SDK-*-linux64/include"
+		"/usr/local/NVIDIA-OptiX-SDK-*-linux64/include"
+		"/sw/NVIDIA-OptiX-SDK-*-linux64/include"
+		"/opt/local/NVIDIA-OptiX-SDK-*-linux64/include"
+		${OPTIX_ROOT_DIR}/include
+		~"/NVIDIA-OptiX-SDK-*-linux64/include"
 		DOC "The directory where optix.h resides")
 endif()
 
@@ -45,6 +49,16 @@ find_package_handle_standard_args(OPTIX DEFAULT_MSG OPTIX_INCLUDE_DIR)
 # Define OPTIX_INCLUDE_DIRS
 if (OPTIX_FOUND)
 	set(OPTIX_INCLUDE_DIRS ${OPTIX_INCLUDE_DIR})
+	string(REGEX REPLACE "OptiX[-\\s]SDK[-\\s]([0-9]\\.[0-9])\\." "\\1" OPTIX_VERSION ${OPTIX_INCLUDE_DIR})
+	if(OPTIX_VERSION VERSION_GREATER "7.5" OR OPTIX_VERSION VERSION_EQUAL "7.5")
+		set(USE_OPTIX_IR TRUE)
+		set(OPTIX_MODULE_EXTENSION ".optixir")	
+		set(OPTIX_PROGRAM_TARGET "--optix-ir")
+	else()
+		set(USE_OPTIX_IR FALSE)
+		set(OPTIX_MODULE_EXTENSION ".ptx")
+		set(OPTIX_PROGRAM_TARGET "--ptx")
+	endif()
 endif()
 
 # Hide some variables
