@@ -44,7 +44,7 @@ void OptixRenderer::createContext()
        buildChunkAccel(c);
     }
     buildRootAccel();
-    //createPipeline();
+    createPipeline();
 }
 
 void OptixRenderer::createTextures()

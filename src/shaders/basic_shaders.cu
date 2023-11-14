@@ -31,11 +31,16 @@ static __forceinline__ __device__ T* getPRD()
 }
 
 extern "C" __global__ void __raygen__render() {
+    const int ix = optixGetLaunchIndex().x;
+    const int iy = optixGetLaunchIndex().y;
 
+    const auto& camera = params.camera;
+    glm::vec3 pixelColorPRD = glm::vec3(0.f);
 }
 
 extern "C" __global__ void __miss__radiance() {
-
+    float3& prd = *(float3*)getPRD<float3>();
+    prd = make_float3(0.f, 0.f, 0.f);
 }
 
 extern "C" __global__ void __hit__radiance() {
