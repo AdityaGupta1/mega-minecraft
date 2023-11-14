@@ -35,7 +35,7 @@ extern "C" __global__ void __raygen__render() {
     const int iy = optixGetLaunchIndex().y;
 
     const auto& camera = params.camera;
-    glm::vec3 pixelColorPRD = glm::vec3(0.f);
+    float3 pixelColorPRD = make_float3(0.f, 0.f, 0.f);
 }
 
 extern "C" __global__ void __miss__radiance() {

@@ -34,7 +34,7 @@
 #include <vector>
 
 //#include <dp/Assert.h>
-#include "inc/MyAssert.h"
+#include "MyAssert.h"
 
 namespace dp
 {

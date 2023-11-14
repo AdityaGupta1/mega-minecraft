@@ -123,10 +123,28 @@ foreach(SHADER_SRC ${SHADERS})
     set_source_files_properties(${SHADER_SRC} PROPERTIES HEADER_FILE_ONLY TRUE)
 endforeach()
 
+set( NVPRO_MATH
+  # Math functions:
+  src/dp/math/MyAssert.h
+  src/dp/math/Config.h
+  src/dp/math/math.h
+  src/dp/math/Matmnt.h
+  src/dp/math/Quatt.h
+  src/dp/math/Trafo.h
+  src/dp/math/Vecnt.h
+  src/dp/math/src/Math.cpp
+  src/dp/math/src/Matmnt.cpp
+  src/dp/math/src/Quatt.cpp
+  src/dp/math/src/Trafo.cpp
+)
+
+source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/src/dp/math" PREFIX "NVPRO_Math" FILES ${NVPRO_MATH})
+
 add_executable( ${CMAKE_PROJECT_NAME}
   ${headers}
   ${sources}
   ${PROGRAM_MODULES}
+  ${NVPRO_MATH}
 )
 
 message(STATUS ${COMPUTES_DETECTED_LIST})

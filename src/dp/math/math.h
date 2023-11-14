@@ -33,7 +33,7 @@
 #include <string>
 
 //#include <dp/Assert.h>
-#include "inc/MyAssert.h"
+#include "MyAssert.h"
 #include <dp/math/Config.h>
 
 
