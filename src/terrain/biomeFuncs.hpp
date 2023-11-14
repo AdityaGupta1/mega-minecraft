@@ -58,29 +58,48 @@ Biome getRandomBiome(const float* columnBiomeWeights, float rand)
 
 struct BiomeNoise
 {
+    float ocean;
+    float beach;
     float rocky;
     float magic;
     float temperature;
     float moisture;
 };
 
+enum class BiomeWeightType : unsigned char
+{
+    IGNORE,
+    POSITIVE,
+    NEGATIVE
+};
+
+struct BiomeWeights
+{
+    BiomeWeightType ocean;
+    BiomeWeightType beach;
+    BiomeWeightType rocky;
+    BiomeWeightType magic;
+    BiomeWeightType temperature;
+    BiomeWeightType moisture;
+};
+
 static constexpr float overallBiomeScale = 0.32f;
-__constant__ BiomeNoise dev_biomeNoiseWeights[numBiomes];
+__constant__ BiomeWeights dev_biomeNoiseWeights[numBiomes];
 
 __device__ float getSingleBiomeNoise(vec2 pos, float noiseScale, vec2 offset, float smoothstepThreshold)
 {
-    return glm::smoothstep(-smoothstepThreshold, smoothstepThreshold, glm::simplex(pos * noiseScale + offset));
+    return smoothstep(-smoothstepThreshold, smoothstepThreshold, simplex(pos * noiseScale + offset));
 }
 
 __device__ BiomeNoise getBiomeNoise(const vec2 worldPos)
 {
-    const vec2 noiseOffset = vec2(
-        glm::simplex(worldPos * 0.015f + vec2(6839.19f, 1803.34f)),
-        glm::simplex(worldPos * 0.015f + vec2(8230.53f, 2042.84f))
-    ) * 14.f;
+    const vec2 noiseOffset = fbm2<3>(worldPos * 0.015f) * 20.f;
     const vec2 biomeNoisePos = (worldPos + noiseOffset) * overallBiomeScale;
 
     BiomeNoise noise;
+    float oceanNoise = simplex(biomeNoisePos * 0.0007f + vec2(2853.49f, -9481.42f));
+    noise.ocean = smoothstep(0.01f, -0.02f, oceanNoise);
+    noise.beach = smoothstep(-0.15f, -0.05f, oceanNoise);
     noise.rocky = getSingleBiomeNoise(biomeNoisePos, 0.0015f, vec2(-8102.35f, -7620.23f), 0.08f);
     noise.magic = getSingleBiomeNoise(biomeNoisePos, 0.0030f, vec2(5612.35f, 9182.49f), 0.07f);
     noise.temperature = getSingleBiomeNoise(biomeNoisePos, 0.0012f, vec2(-4021.34f, -8720.12f), 0.06f);
@@ -88,23 +107,30 @@ __device__ BiomeNoise getBiomeNoise(const vec2 worldPos)
     return noise;
 }
 
-__device__ void applySingleBiomeNoise(float& totalWeight, const float noise, const float weight)
+__device__ void applySingleBiomeNoise(float& totalWeight, const BiomeWeightType weight, const float noise)
 {
-    if (weight >= 0)
+    switch (weight)
     {
-        totalWeight *= glm::mix(1.f - noise, noise, weight);
+    case BiomeWeightType::POSITIVE:
+        totalWeight *= noise;
+        break;
+    case BiomeWeightType::NEGATIVE:
+        totalWeight *= 1.f - noise;
+        break;
     }
 }
 
 __device__ float getBiomeWeight(Biome biome, const BiomeNoise& noise)
 {
-    const auto& biomeNoiseWeights = dev_biomeNoiseWeights[(int)biome];
+    const auto& biomeWeights = dev_biomeNoiseWeights[(int)biome];
 
     float totalWeight = 1.f;
-    applySingleBiomeNoise(totalWeight, biomeNoiseWeights.rocky, noise.rocky);
-    applySingleBiomeNoise(totalWeight, biomeNoiseWeights.magic, noise.magic);
-    applySingleBiomeNoise(totalWeight, biomeNoiseWeights.temperature, noise.temperature);
-    applySingleBiomeNoise(totalWeight, biomeNoiseWeights.moisture, noise.moisture);
+    applySingleBiomeNoise(totalWeight, biomeWeights.ocean, noise.ocean);
+    applySingleBiomeNoise(totalWeight, biomeWeights.beach, noise.beach);
+    applySingleBiomeNoise(totalWeight, biomeWeights.rocky, noise.rocky);
+    applySingleBiomeNoise(totalWeight, biomeWeights.magic, noise.magic);
+    applySingleBiomeNoise(totalWeight, biomeWeights.temperature, noise.temperature);
+    applySingleBiomeNoise(totalWeight, biomeWeights.moisture, noise.moisture);
     return totalWeight;
 }
 
@@ -114,6 +140,19 @@ __device__ float getHeight(Biome biome, vec2 pos)
 {
     switch (biome)
     {
+    //case Biome::CORAL_REEF:
+    //case Biome::ARCHIPELAGO:
+    //case Biome::WARM_OCEAN:
+    case Biome::COOL_OCEAN:
+    {
+        return 90.f + 18.f * fbm(pos * 0.0040f);
+    }
+    //case Biome::ROCKY_BEACH:
+    //case Biome::TROPICAL_BEACH:
+    case Biome::BEACH:
+    {
+        return 132.f + 5.f * fbm(pos * 0.0055f);
+    }
     case Biome::SAVANNA:
     {
         vec2 noiseOffsetPos = pos * 0.0040f;
@@ -404,39 +443,56 @@ __constant__ ivec2 dev_featureHeightBounds[numFeatures];
 
 void BiomeUtils::init()
 {
-    BiomeNoise* host_biomeNoiseWeights = new BiomeNoise[numBiomes];
+    BiomeWeights* host_biomeNoiseWeights = new BiomeWeights[numBiomes];
 
-    host_biomeNoiseWeights[(int)Biome::SAVANNA] = { 1, 1, 1, 1 };
-    host_biomeNoiseWeights[(int)Biome::MESA] = { 1, 1, 1, 0 };
-    host_biomeNoiseWeights[(int)Biome::FROZEN_WASTELAND] = { 1, 1, 0, 1 };
-    host_biomeNoiseWeights[(int)Biome::REDWOOD_FOREST] = { 1, 1, 0, 0 };
-    host_biomeNoiseWeights[(int)Biome::SHREKS_SWAMP] = { 1, 0, 1, 1 };
-    host_biomeNoiseWeights[(int)Biome::SPARSE_DESERT] = { 1, 0, 1, 0 };
-    host_biomeNoiseWeights[(int)Biome::LUSH_BIRCH_FOREST] = { 1, 0, 0, 1 };
-    host_biomeNoiseWeights[(int)Biome::TIANZI_MOUNTAINS] = { 1, 0, 0, 0 };
+#define biomeWeights(biome) host_biomeNoiseWeights[(int)Biome::biome]
+#define wI BiomeWeightType::IGNORE
+#define wP BiomeWeightType::POSITIVE
+#define wN BiomeWeightType::NEGATIVE
 
-    host_biomeNoiseWeights[(int)Biome::JUNGLE] = { 0, 1, 1, 1 };
-    host_biomeNoiseWeights[(int)Biome::RED_DESERT] = { 0, 1, 1, 0 };
-    host_biomeNoiseWeights[(int)Biome::PURPLE_MUSHROOMS] = { 0, 1, 0, 1 };
-    host_biomeNoiseWeights[(int)Biome::CRYSTALS] = { 0, 1, 0, 0 };
-    host_biomeNoiseWeights[(int)Biome::OASIS] = { 0, 0, 1, 1 };
-    host_biomeNoiseWeights[(int)Biome::DESERT] = { 0, 0, 1, 0 };
-    host_biomeNoiseWeights[(int)Biome::PLAINS] = { 0, 0, 0, 1 };
-    host_biomeNoiseWeights[(int)Biome::MOUNTAINS] = { 0, 0, 0, 0 };
+                                        // ocean, beach, rocky, magic, temperature, moisture
+    biomeWeights(COOL_OCEAN) =          { wP, wN, wI, wI, wI, wI };
 
-    cudaMemcpyToSymbol(dev_biomeNoiseWeights, host_biomeNoiseWeights, numBiomes * sizeof(BiomeNoise));
+    biomeWeights(BEACH) =               { wP, wP, wI, wI, wI, wI };
+
+    biomeWeights(SAVANNA) =             { wN, wI, wP, wP, wP, wP };
+    biomeWeights(MESA) =                { wN, wI, wP, wP, wP, wN };
+    biomeWeights(FROZEN_WASTELAND) =    { wN, wI, wP, wP, wN, wP };
+    biomeWeights(REDWOOD_FOREST) =      { wN, wI, wP, wP, wN, wN };
+    biomeWeights(SHREKS_SWAMP) =        { wN, wI, wP, wN, wP, wP };
+    biomeWeights(SPARSE_DESERT) =       { wN, wI, wP, wN, wP, wN };
+    biomeWeights(LUSH_BIRCH_FOREST) =   { wN, wI, wP, wN, wN, wP };
+    biomeWeights(TIANZI_MOUNTAINS) =    { wN, wI, wP, wN, wN, wN };
+
+    biomeWeights(JUNGLE) =              { wN, wI, wN, wP, wP, wP };
+    biomeWeights(RED_DESERT) =          { wN, wI, wN, wP, wP, wN };
+    biomeWeights(PURPLE_MUSHROOMS) =    { wN, wI, wN, wP, wN, wP };
+    biomeWeights(CRYSTALS) =            { wN, wI, wN, wP, wN, wN };
+    biomeWeights(OASIS) =               { wN, wI, wN, wN, wP, wP };
+    biomeWeights(DESERT) =              { wN, wI, wN, wN, wP, wN };
+    biomeWeights(PLAINS) =              { wN, wI, wN, wN, wN, wP };
+    biomeWeights(MOUNTAINS) =           { wN, wI, wN, wN, wN, wN };
+
+    cudaMemcpyToSymbol(dev_biomeNoiseWeights, host_biomeNoiseWeights, numBiomes * sizeof(BiomeWeights));
     delete[] host_biomeNoiseWeights;
+
+#undef biomeWeights
+#undef wI
+#undef wP
+#undef wN
 
     BiomeBlocks* host_biomeBlocks = new BiomeBlocks[numBiomes];
 
-    host_biomeBlocks[(int)Biome::SAVANNA].grassBlock = Block::SAVANNA_GRASS; // TODO: replace with regular grass after implementing biome-based color
+    //host_biomeBlocks[(int)Biome::TROPICAL_BEACH].grassBlock = Block::JUNGLE_GRASS;
+
+    host_biomeBlocks[(int)Biome::SAVANNA].grassBlock = Block::SAVANNA_GRASS;
     host_biomeBlocks[(int)Biome::FROZEN_WASTELAND].grassBlock = Block::SNOWY_GRASS;
     host_biomeBlocks[(int)Biome::REDWOOD_FOREST].grassBlock = Block::GRASS;
     host_biomeBlocks[(int)Biome::SHREKS_SWAMP].grassBlock = Block::JUNGLE_GRASS;
     host_biomeBlocks[(int)Biome::LUSH_BIRCH_FOREST].grassBlock = Block::GRASS;
     host_biomeBlocks[(int)Biome::TIANZI_MOUNTAINS].grassBlock = Block::GRASS;
 
-    host_biomeBlocks[(int)Biome::JUNGLE].grassBlock = Block::JUNGLE_GRASS; // TODO: replace with regular grass after implementing biome-based color
+    host_biomeBlocks[(int)Biome::JUNGLE].grassBlock = Block::JUNGLE_GRASS;
     host_biomeBlocks[(int)Biome::PURPLE_MUSHROOMS].grassBlock = Block::MYCELIUM;
     host_biomeBlocks[(int)Biome::OASIS].grassBlock = Block::JUNGLE_GRASS;
     host_biomeBlocks[(int)Biome::PLAINS].grassBlock = Block::GRASS;
@@ -517,6 +573,13 @@ void BiomeUtils::init()
         setCurrentBiomeMaterialWeight(SMOOTH_SAND, 0.0f);
         setCurrentBiomeMaterialWeight(SNOW, 0.0f);
     }
+
+    setBiomeMaterialWeight(COOL_OCEAN, GRAVEL, 0.7f);
+    setBiomeMaterialWeight(COOL_OCEAN, DIRT, 0.3f);
+    setBiomeMaterialWeight(COOL_OCEAN, SAND, 0.7f);
+
+    setBiomeMaterialWeight(BEACH, DIRT, 0.0f);
+    setBiomeMaterialWeight(BEACH, SAND, 1.0f);
 
     setBiomeMaterialWeight(SAVANNA, STONE, 0.6f);
     setBiomeMaterialWeight(SAVANNA, TUFF, 0.15f);
