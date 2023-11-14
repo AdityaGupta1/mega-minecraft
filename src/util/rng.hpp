@@ -45,6 +45,13 @@ __host__ __device__ float rand1From1(float v)
     ) * 39021.426f);
 }
 
+__host__ __device__ float rand1From2(vec2 v)
+{
+    return fract(sin(
+        dot(v, vec2(238.68f, 491.28f))
+    ) * 39021.426f);
+}
+
 __host__ __device__ float rand1From3(vec3 v)
 {
     return fract(sin(

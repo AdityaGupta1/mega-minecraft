@@ -588,8 +588,8 @@ void BiomeUtils::init()
     };
 
     host_biomeFeatureGens[(int)Biome::SHREKS_SWAMP] = {
-        { Feature::CYPRESS_TREE, 18, 3, 0.6f, {} },
-        { Feature::BIRCH_TREE, 16, 2, 0.15f, { {Material::DIRT, 0.5f} } }
+        { Feature::CYPRESS_TREE, 18, 3, 0.6f, { {Material::DIRT, 0.5f}, {Material::MUD, 0.5f} } },
+        { Feature::BIRCH_TREE, 16, 2, 0.15f, { {Material::DIRT, 0.4f} } }
     };
 
     host_biomeFeatureGens[(int)Biome::LUSH_BIRCH_FOREST] = {
@@ -603,9 +603,9 @@ void BiomeUtils::init()
 
     host_biomeFeatureGens[(int)Biome::JUNGLE] = {
         { Feature::RAFFLESIA, 54, 6, 0.50f, { {Material::DIRT, 0.5f} } },
-        { Feature::LARGE_JUNGLE_TREE, 32, 3, 0.70f, { {Material::DIRT, 0.5f} } },
-        { Feature::SMALL_JUNGLE_TREE, 10, 2, 0.75f, { {Material::DIRT, 0.5f} } },
-        { Feature::TINY_JUNGLE_TREE, 6, 1, 0.18f, { {Material::DIRT, 0.5f} } }
+        { Feature::LARGE_JUNGLE_TREE, 28, 3, 0.70f, { {Material::DIRT, 0.5f} } },
+        { Feature::SMALL_JUNGLE_TREE, 10, 2, 0.82f, { {Material::DIRT, 0.5f} } },
+        { Feature::TINY_JUNGLE_TREE, 6, 1, 0.28f, { {Material::DIRT, 0.5f} } }
     };
 
     host_biomeFeatureGens[(int)Biome::RED_DESERT] = {

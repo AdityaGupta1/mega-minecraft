@@ -312,6 +312,7 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
             leavesHeightRatio = 1.1f - 0.5f * leavesHeightRatio;
 
             vec3 leavesCenter = rand3From2(vec2(leavesCellHeight, leavesSeed)) - 0.5f;
+            // x/z distribution is a square but whatever
             leavesCenter *= vec3(7.5f, 1.3f, 7.5f) * leavesHeightRatio;
             leavesCenter.y = min(leavesCenter.y + leavesCellHeight, height + 0.8f);
 
@@ -370,6 +371,7 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
         if (isSaturated(trunkRatio))
         {
             float trunkRadius = 0.5f * ((1.3f + trunkRatio) / powf(0.73f + trunkRatio, 4.f)) + 0.5f;
+            trunkRadius *= (1.f + (0.3f * simplex(vec3(worldBlockPos) * 0.1500f)) * smoothstep(0.55f, 0.15f, trunkRatio));
             if (trunkDistance < trunkRadius)
             {
                 *block = Block::CYPRESS_WOOD;
@@ -377,12 +379,47 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
             }
         }
 
-        //int numBranches = 4 + (int)(u01(featureRng) * 3.f);
-        //float branchHeight = 
-        //for ()
-        //{
+        if (jungleLeaves(pos - vec3(0, trunkHeight, 0), 2.f, 3.f, 4.5f, u01(featureRng)))
+        {
+            *block = Block::CYPRESS_LEAVES;
+            return true;
+        }
 
-        //}
+        int numBranches = 6 + (int)(u01(featureRng) * 5.f);
+        float branchHeight = trunkHeight - 1.f;
+        float branchAngle = u01(featureRng) * TWO_PI;
+        for (int i = 0; i < numBranches; ++i)
+        {
+            branchHeight -= 1.f + 3.6f * u01(featureRng);
+            branchAngle += PI_OVER_TWO + u01(featureRng) * PI;
+
+            vec3 branchStart = vec3(0, branchHeight, 0);
+            vec3 branchEnd;
+            sincosf(branchAngle, &branchEnd.z, &branchEnd.x);
+            branchEnd *= 4.f + 1.5f * u01(featureRng);
+            branchEnd.y = 2.2f + 1.2f * u01(featureRng);
+            branchEnd *= 1.f - 0.3f * getRatio(branchHeight, 0.f, trunkHeight);
+            branchEnd += branchStart;
+
+            if (isInRasterizedLine(pos, branchStart, branchEnd))
+            {
+                *block = Block::CYPRESS_WOOD;
+                return true;
+            }
+
+            vec3 leavesPos = pos - branchEnd + 0.3f;
+            float leavesDroopRand = rand1From2(vec2(worldBlockPos.x, worldBlockPos.z));
+            if (leavesDroopRand < 0.2f && isInRange(leavesPos.y, max(-2.f, leavesDroopRand * -10.f), 0.f))
+            {
+                leavesPos.y = 0.f;
+            }
+
+            if (jungleLeaves(leavesPos, 2.f, 2.5f, 4.f, u01(featureRng)))
+            {
+                *block = Block::CYPRESS_LEAVES;
+                return true;
+            }
+        }
 
         return false;
     }
