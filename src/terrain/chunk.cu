@@ -839,20 +839,24 @@ void Chunk::generateFeaturePlacements()
     // this probably won't include decorators (single block/column things) since those can be done on the CPU at the end of Chunk::fill()
 }
 
+static const std::array<ivec2, 25> gatherFeaturePlacementsChunkOffsets = {
+    ivec2(0, 0), ivec2(0, 1), ivec2(1, 1), ivec2(1, 0), ivec2(1, -1), ivec2(0, -1), ivec2(-1, -1),
+    ivec2(-1, 0), ivec2(-1, 1), ivec2(2, 0), ivec2(2, 1), ivec2(2, 2), ivec2(1, 2), ivec2(0, 2),
+    ivec2(-1, 2), ivec2(-2, 2), ivec2(-2, 1), ivec2(-2, 0), ivec2(-2, -1), ivec2(-2, -2),
+    ivec2(-1, -2), ivec2(0, -2), ivec2(1, -2), ivec2(2, -2), ivec2(2, -1)
+};
+
 void Chunk::otherChunkGatherFeaturePlacements(Chunk* chunkPtr, Chunk* const (&neighborChunks)[9][9], int centerX, int centerZ)
 {
     chunkPtr->gatheredFeaturePlacements.clear();
 
-    for (int offsetZ = -2; offsetZ <= 2; ++offsetZ)
+    for (const auto& offset : gatherFeaturePlacementsChunkOffsets)
     {
-        for (int offsetX = -2; offsetX <= 2; ++offsetX)
-        {
-            const auto& neighborPtr = neighborChunks[centerZ + offsetZ][centerX + offsetX];
+        const auto& neighborPtr = neighborChunks[centerZ + offset.y][centerX + offset.x];
 
-            for (const auto& neighborFeaturePlacement : neighborPtr->featurePlacements)
-            {
-                chunkPtr->gatheredFeaturePlacements.push_back(neighborFeaturePlacement);
-            }
+        for (const auto& neighborFeaturePlacement : neighborPtr->featurePlacements)
+        {
+            chunkPtr->gatheredFeaturePlacements.push_back(neighborFeaturePlacement);
         }
     }
 }
