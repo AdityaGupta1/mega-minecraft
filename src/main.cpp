@@ -255,6 +255,13 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
             freeCam = !freeCam;
         }
         break;
+    case GLFW_KEY_K:
+        if (action == GLFW_PRESS)
+        {
+            auto playerPos = player->getPos();
+            printf("player position: (%.2f, %.2f, %.2f)\n", playerPos.x, playerPos.y, playerPos.z);
+        }
+        break;
     }
 }
 

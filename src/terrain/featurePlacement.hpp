@@ -211,13 +211,32 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
     {
         pos.y = worldBlockPos.y - SEA_LEVEL;
 
-        if (sdSphere(pos, 3.f) < 0.f)
+        float horizontalDistance = length(vec2(pos.x, pos.z));
+
+        float icebergRadius = 20.f + 12.f * u01(featureRng);
+        float icebergCenterRatio = 1.f - (horizontalDistance / icebergRadius);
+        if (icebergCenterRatio > 1.15f)
+        {
+            return false;
+        }
+
+        vec2 noisePos = vec2(worldBlockPos.x, worldBlockPos.z) * 0.0450f;
+        float icebergStartHeight = -6.f - 34.f * icebergCenterRatio + 14.f * fbm<3>(noisePos);
+        float icebergEndHeight = -4.f + 20.f * icebergCenterRatio + 8.f * fbm<3>(noisePos);
+        if (icebergEndHeight < icebergStartHeight || !isInRange(pos.y, icebergStartHeight, icebergEndHeight))
+        {
+            return false;
+        }
+
+        if (pos.y < -4.f)
         {
             *block = Block::BLUE_ICE;
             return true;
         }
 
-        return false;
+        float packedIceHeight = -2.2f + 5.6f * icebergCenterRatio + 1.2f * simplex(noisePos * 0.8000f);
+        *block = (pos.y > icebergEndHeight - packedIceHeight) ? Block::PACKED_ICE : Block::BLUE_ICE;
+        return true;
     }
     case Feature::ACACIA_TREE:
     {

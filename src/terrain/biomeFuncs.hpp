@@ -159,9 +159,12 @@ __device__ float getHeight(Biome biome, vec2 pos)
         return 93.f + 18.f * fbm(pos * 0.0055f);
     }
     case Biome::ICEBERGS:
+    {
+        return 66.f + 18.f * fbm(pos * 0.0060f);
+    }
     case Biome::COOL_OCEAN:
     {
-        return 86.f + 22.f * fbm(pos * 0.0065f);
+        return 80.f + 22.f * fbm(pos * 0.0065f);
     }
     case Biome::ROCKY_BEACH:
     {
@@ -720,7 +723,7 @@ void BiomeUtils::init()
 
     // feature, gridCellSize, gridCellPadding, chancePerGridCell, possibleTopLayers
     host_biomeFeatureGens[(int)Biome::ICEBERGS] = {
-        { Feature::ICEBERG, 64, 8, 0.30f, {} }
+        { Feature::ICEBERG, 112, 6, 0.70f, {} }
     };
 
     host_biomeFeatureGens[(int)Biome::TROPICAL_BEACH] = {
@@ -784,8 +787,7 @@ void BiomeUtils::init()
     setFeatureHeightBounds(NONE, 0, 0);
     setFeatureHeightBounds(SPHERE, -6, 6);
 
-    // TODO: revisit
-    setFeatureHeightBounds(ICEBERG, 10, 80); // placed at sea level instead of on the ground
+    setFeatureHeightBounds(ICEBERG, 0, 110); // placed at sea level
 
     setFeatureHeightBounds(ACACIA_TREE, 0, 15);
 
