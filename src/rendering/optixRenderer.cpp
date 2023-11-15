@@ -28,6 +28,7 @@ OptixRenderer::OptixRenderer(GLFWwindow* window, ivec2* windowSize, Terrain* ter
     launchParams.camera.pixelLength = glm::vec2(2 * xscaled / (float)windowSize->x, 2 * yscaled / (float)windowSize->y);
 
     launchParamsBuffer.alloc(sizeof(OptixParams));
+    frameBuffer.alloc(sizeof(windowSize->x * windowSize->y * sizeof(uint32_t)));
     
     createContext();
 }
@@ -45,6 +46,8 @@ void OptixRenderer::createContext()
     }
     buildRootAccel();
     createPipeline();
+    createTextures();
+    buildSBT();
 }
 
 void OptixRenderer::createTextures()
@@ -489,6 +492,7 @@ void OptixRenderer::optixRenderFrame()
 {
     if (launchParams.windowSize.x == 0) return;
 
+    launchParams.frame.colorBuffer = (uint32_t*) frameBuffer.dev_ptr();
     launchParamsBuffer.populate(&launchParams, 1);
     launchParams.frame.frameId++;
 
@@ -503,7 +507,6 @@ void OptixRenderer::optixRenderFrame()
         launchParams.windowSize.y,
         1
     ));
-    glfwSwapBuffers(window);
 }
 
 void OptixRenderer::setCamera()
@@ -513,4 +516,11 @@ void OptixRenderer::setCamera()
     launchParams.camera.right = player->getRight();
     launchParams.camera.position = player->getPos();
     launchParams.windowSize = glm::ivec2(windowSize->x, windowSize->y);
+}
+
+void OptixRenderer::downloadPixels(uint32_t* host_pixels)
+{
+    frameBuffer.retrieve(host_pixels, windowSize->x * windowSize->y);
+    //cudaMemcpy(host_pixels, launchParams.frame.colorBuffer, windowSize->x * windowSize->y * sizeof(uint32_t), cudaMemcpyDeviceToHost);
+    std::cout << host_pixels[0] << std::endl;
 }

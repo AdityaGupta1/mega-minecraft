@@ -20,6 +20,8 @@ class OptixRenderer
 {
 public:
     OptixRenderer(GLFWwindow* window, ivec2* windowSize, Terrain* terrain, Player* player);
+    void optixRenderFrame();
+    void downloadPixels(uint32_t* host_pixels);
 
 protected:
     GLFWwindow* window{ nullptr };
@@ -69,6 +71,7 @@ protected:
     OptixShaderBindingTable sbt = {};
 
     CUBuffer playerInfoBuffer;
+    CUBuffer frameBuffer;
 
     void createContext();
     void createTextures();
@@ -79,6 +82,5 @@ protected:
     void createProgramGroups();
     void createPipeline();
     void buildSBT();
-    void optixRenderFrame();
     void setCamera();
 };

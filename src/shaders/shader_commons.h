@@ -41,8 +41,8 @@ struct OptixParams
 
     struct {
         int frameId;
-        float4* colorBuffer;
-        float4* normalBuffer;
+        uint32_t* colorBuffer;
+        uint32_t* normalBuffer;
     } frame;
     OptixTraversableHandle rootHandle;
 };

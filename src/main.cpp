@@ -64,6 +64,7 @@ bool init(int argc, char **argv) {
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN); 
     
     glfwSetCursorPos(window, windowSize.x / 2.f, windowSize.y / 2.f);
+    pixels.resize(windowSize.x * windowSize.y);
 
     glewExperimental = GL_TRUE;
     if (glewInit() != GLEW_OK) {
@@ -307,6 +308,9 @@ void tick(float deltaTime)
     }
     terrain->tick();
 
-    renderer->draw(deltaTime, viewMatChanged, windowSizeChanged);
+    //renderer->draw(deltaTime, viewMatChanged, windowSizeChanged);
+    optix->optixRenderFrame();
+    std::cout << "num pixels: " << pixels.size() << std::endl;
+    optix->downloadPixels(pixels.data());
     windowSizeChanged = false;
 }

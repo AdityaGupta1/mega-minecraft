@@ -26,6 +26,8 @@ bool windowSizeChanged;
 std::unique_ptr<OptixRenderer> optix;
 std::unique_ptr<Renderer> renderer;
 
+std::vector<uint32_t> pixels;
+
 //====================================
 // Game things
 //====================================
