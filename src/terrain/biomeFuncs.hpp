@@ -140,15 +140,36 @@ __device__ float getHeight(Biome biome, vec2 pos)
 {
     switch (biome)
     {
-    //case Biome::CORAL_REEF:
-    //case Biome::ARCHIPELAGO:
-    //case Biome::WARM_OCEAN:
+    case Biome::CORAL_REEF:
+    {
+        return 107.f + 16.f * fbm(pos * 0.0065f);
+    }
+    case Biome::ARCHIPELAGO:
+    {
+        float islandNoise = (fbm<4>(pos * 0.0055f) + 1.f) * 0.5f;
+        islandNoise = powf(islandNoise, 2.4f);
+        islandNoise = smoothstep(1.f, 0.f, islandNoise);
+        float islandHeight = 22.f * islandNoise;
+
+        float baseHeight = 107.f + 24.f * fbm(pos * 0.0060f);
+        return baseHeight + islandHeight;
+    }
+    case Biome::WARM_OCEAN:
+    {
+        return 93.f + 18.f * fbm(pos * 0.0055f);
+    }
     case Biome::COOL_OCEAN:
     {
-        return 90.f + 18.f * fbm(pos * 0.0040f);
+        return 86.f + 22.f * fbm(pos * 0.0065f);
     }
-    //case Biome::ROCKY_BEACH:
-    //case Biome::TROPICAL_BEACH:
+    case Biome::ROCKY_BEACH:
+    {
+        return 134.f + 8.f * fbm(pos * 0.0070f);
+    }
+    case Biome::TROPICAL_BEACH:
+    {
+        return 129.5f + 6.f * fbm(pos * 0.0045f);
+    }
     case Biome::BEACH:
     {
         return 132.f + 5.f * fbm(pos * 0.0055f);
@@ -297,6 +318,42 @@ __device__ bool biomeBlockPostProcess(Block* block, Biome biome, vec3 worldBlock
 {
     switch (biome)
     {
+    case Biome::ARCHIPELAGO:
+    {
+        if (worldBlockPos.y < SEA_LEVEL)
+        {
+            return false;
+        }
+
+        float dirtHeight = SEA_LEVEL + 1.5f + 1.7f * fbm<3>(vec2(worldBlockPos.x, worldBlockPos.z) * 0.0065f);
+        if (worldBlockPos.y > dirtHeight)
+        {
+            *block = isTopBlock ? Block::GRASS : Block::DIRT;
+            return true;
+        }
+
+        return false;
+    }
+    case Biome::TROPICAL_BEACH:
+    {
+        if (isTopBlock && *block != Block::SMOOTH_SAND)
+        {
+            *block = Block::SMOOTH_SAND;
+            return true;
+        }
+
+        return false;
+    }
+    case Biome::BEACH:
+    {
+        if (isTopBlock && *block != Block::SAND)
+        {
+            *block = Block::SAND;
+            return true;
+        }
+
+        return false;
+    }
     case Biome::MESA:
     {
         if (worldBlockPos.y < 90.f || *block == Block::WATER)
@@ -407,11 +464,6 @@ __device__ bool biomeBlockPostProcess(Block* block, Biome biome, vec3 worldBlock
     }
     case Biome::MOUNTAINS:
     {
-        //if (!isTopBlock)
-        //{
-        //    return false;
-        //}
-        
         if (worldBlockPos.y < 190.f)
         {
             return false;
@@ -451,9 +503,14 @@ void BiomeUtils::init()
 #define wN BiomeWeightType::NEGATIVE
 
                                         // ocean, beach, rocky, magic, temperature, moisture
-    biomeWeights(COOL_OCEAN) =          { wP, wN, wI, wI, wI, wI };
+    biomeWeights(CORAL_REEF) =          { wP, wN, wP, wP, wI, wI };
+    biomeWeights(ARCHIPELAGO) =         { wP, wN, wP, wN, wI, wI };
+    biomeWeights(WARM_OCEAN) =          { wP, wN, wN, wI, wP, wI };
+    biomeWeights(COOL_OCEAN) =          { wP, wN, wN, wI, wN, wI };
 
-    biomeWeights(BEACH) =               { wP, wP, wI, wI, wI, wI };
+    biomeWeights(ROCKY_BEACH) =         { wP, wP, wP, wI, wI, wI };
+    biomeWeights(TROPICAL_BEACH) =      { wP, wP, wN, wI, wP, wI };
+    biomeWeights(BEACH) =               { wP, wP, wN, wI, wN, wI };
 
     biomeWeights(SAVANNA) =             { wN, wI, wP, wP, wP, wP };
     biomeWeights(MESA) =                { wN, wI, wP, wP, wP, wN };
@@ -483,7 +540,7 @@ void BiomeUtils::init()
 
     BiomeBlocks* host_biomeBlocks = new BiomeBlocks[numBiomes];
 
-    //host_biomeBlocks[(int)Biome::TROPICAL_BEACH].grassBlock = Block::JUNGLE_GRASS;
+    host_biomeBlocks[(int)Biome::TROPICAL_BEACH].grassBlock = Block::JUNGLE_GRASS;
 
     host_biomeBlocks[(int)Biome::SAVANNA].grassBlock = Block::SAVANNA_GRASS;
     host_biomeBlocks[(int)Biome::FROZEN_WASTELAND].grassBlock = Block::SNOWY_GRASS;
@@ -574,9 +631,24 @@ void BiomeUtils::init()
         setCurrentBiomeMaterialWeight(SNOW, 0.0f);
     }
 
-    setBiomeMaterialWeight(COOL_OCEAN, GRAVEL, 0.7f);
-    setBiomeMaterialWeight(COOL_OCEAN, DIRT, 0.3f);
-    setBiomeMaterialWeight(COOL_OCEAN, SAND, 0.7f);
+    setBiomeMaterialWeight(CORAL_REEF, DIRT, 0.0f);
+    setBiomeMaterialWeight(CORAL_REEF, SAND, 0.7f);
+
+    setBiomeMaterialWeight(ARCHIPELAGO, GRAVEL, 0.3f);
+    setBiomeMaterialWeight(ARCHIPELAGO, DIRT, 0.0f);
+    setBiomeMaterialWeight(ARCHIPELAGO, SAND, 0.8f);
+
+    setBiomeMaterialWeight(WARM_OCEAN, DIRT, 0.0f);
+    setBiomeMaterialWeight(WARM_OCEAN, SAND, 0.7f);
+
+    setBiomeMaterialWeight(COOL_OCEAN, GRAVEL, 0.5f);
+    setBiomeMaterialWeight(COOL_OCEAN, DIRT, 0.0f);
+
+    setBiomeMaterialWeight(ROCKY_BEACH, DIRT, 0.0f);
+    setBiomeMaterialWeight(ROCKY_BEACH, GRAVEL, 1.0f);
+
+    setBiomeMaterialWeight(TROPICAL_BEACH, DIRT, 0.0f);
+    setBiomeMaterialWeight(TROPICAL_BEACH, SMOOTH_SAND, 1.0f);
 
     setBiomeMaterialWeight(BEACH, DIRT, 0.0f);
     setBiomeMaterialWeight(BEACH, SAND, 1.0f);
@@ -642,6 +714,10 @@ void BiomeUtils::init()
     cudaMemcpyToSymbol(dev_dirVecs2d, DirectionEnums::dirVecs2d.data(), 8 * sizeof(ivec2));
 
     // feature, gridCellSize, gridCellPadding, chancePerGridCell, possibleTopLayers
+    host_biomeFeatureGens[(int)Biome::TROPICAL_BEACH] = {
+        { Feature::PALM_TREE, 48, 3, 0.35f, { {Material::SMOOTH_SAND, 0.3f} } }
+    };
+
     host_biomeFeatureGens[(int)Biome::SAVANNA] = {
         { Feature::ACACIA_TREE, 36, 4, 0.3f, { {Material::DIRT, 0.5f} } }
     };

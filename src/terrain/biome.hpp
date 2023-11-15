@@ -8,13 +8,13 @@
 
 enum class Biome : unsigned char
 {
-    //CORAL_REEF,
-    //ARCHIPELAGO,
-    //WARM_OCEAN,
+    CORAL_REEF,
+    ARCHIPELAGO,
+    WARM_OCEAN,
     COOL_OCEAN,
 
-    //ROCKY_BEACH,
-    //TROPICAL_BEACH,
+    ROCKY_BEACH,
+    TROPICAL_BEACH,
     BEACH,
 
     SAVANNA,
