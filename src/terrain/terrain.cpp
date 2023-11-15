@@ -345,34 +345,34 @@ void Terrain::addZonesToTryErosionSet(Chunk* chunkPtr)
     Zone* zonePtr = chunkPtr->zonePtr;
     zonesToTryErosion.insert(zonePtr); // not possible for this to already have been queued for erosion since this chunk just became ready
 
-    //ivec2 localChunkPos = chunkPtr->worldChunkPos - zonePtr->worldChunkPos;
-    //int startDirIdx;
-    //if (localChunkPos.x < ZONE_SIZE / 2)
-    //{
-    //    startDirIdx = localChunkPos.y < ZONE_SIZE / 2 ? 4 : 6;
-    //}
-    //else
-    //{
-    //    startDirIdx = localChunkPos.y < ZONE_SIZE / 2 ? 0 : 2;
-    //}
-
-    //for (int i = 0; i < 3; ++i)
-    //{
-    //    Zone* neighborZonePtr = zonePtr->neighbors[(startDirIdx + i) % 8];
-    //    if (neighborZonePtr != nullptr && !neighborZonePtr->hasBeenQueuedForErosion)
-    //    {
-    //        zonesToTryErosion.insert(neighborZonePtr);
-    //    }
-    //}
-
-    for (int i = 0; i < 8; ++i)
+    ivec2 localChunkPos = chunkPtr->worldChunkPos - zonePtr->worldChunkPos;
+    int startDirIdx;
+    if (localChunkPos.x < ZONE_SIZE / 2)
     {
-        Zone* neighborZonePtr = zonePtr->neighbors[i];
+        startDirIdx = localChunkPos.y < ZONE_SIZE / 2 ? 4 : 6;
+    }
+    else
+    {
+        startDirIdx = localChunkPos.y < ZONE_SIZE / 2 ? 0 : 2;
+    }
+
+    for (int i = 0; i < 3; ++i)
+    {
+        Zone* neighborZonePtr = zonePtr->neighbors[(startDirIdx + i) % 8];
         if (neighborZonePtr != nullptr && !neighborZonePtr->hasBeenQueuedForErosion)
         {
             zonesToTryErosion.insert(neighborZonePtr);
         }
     }
+
+    //for (int i = 0; i < 8; ++i)
+    //{
+    //    Zone* neighborZonePtr = zonePtr->neighbors[i];
+    //    if (neighborZonePtr != nullptr && !neighborZonePtr->hasBeenQueuedForErosion)
+    //    {
+    //        zonesToTryErosion.insert(neighborZonePtr);
+    //    }
+    //}
 }
 
 ivec2 getNeighborZoneCornerCoordBounds(int offset)
