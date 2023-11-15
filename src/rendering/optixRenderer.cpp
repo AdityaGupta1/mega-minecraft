@@ -1,5 +1,6 @@
 #include "optixRenderer.hpp"
 #include "ShaderList.h"
+#include "rendering/renderingUtils.hpp"
 
 #include <stb_image.h>
 
@@ -29,8 +30,17 @@ OptixRenderer::OptixRenderer(GLFWwindow* window, ivec2* windowSize, Terrain* ter
 
     launchParamsBuffer.alloc(sizeof(OptixParams));
     frameBuffer.alloc(windowSize->x * windowSize->y * sizeof(uint32_t));
-
     launchParams.windowSize = *windowSize;
+    pixels.resize(windowSize->x * windowSize->y);
+
+    glGenVertexArrays(1, &vao);
+    glBindVertexArray(vao);
+
+    fullscreenTri.bufferVBOs();
+
+    initShader();
+
+    initTexture();
     
     createContext();
 }
@@ -509,6 +519,8 @@ void OptixRenderer::optixRenderFrame()
         launchParams.windowSize.y,
         1
     ));
+
+    frameBuffer.retrieve(pixels.data(), windowSize->x * windowSize->y);
 }
 
 void OptixRenderer::setCamera()
@@ -520,9 +532,36 @@ void OptixRenderer::setCamera()
     launchParams.windowSize = glm::ivec2(windowSize->x, windowSize->y);
 }
 
-void OptixRenderer::downloadPixels(uint32_t* host_pixels)
+void OptixRenderer::initShader()
 {
-    frameBuffer.retrieve(host_pixels, windowSize->x * windowSize->y);
-    //cudaMemcpy(host_pixels, launchParams.frame.colorBuffer, windowSize->x * windowSize->y * sizeof(uint32_t), cudaMemcpyDeviceToHost);
-    std::cout << host_pixels[0] << std::endl;
+    bool success = true;
+    success &= passthroughUvsShader.create("shaders/passthrough_uvs.vert.glsl", "shaders/passthrough_uvs.frag.glsl");
+
+    if (RenderingUtils::printGLErrors())
+    {
+        std::cerr << "ERROR: Renderer::initShaders()" << std::endl;
+    }
+}
+
+void OptixRenderer::initTexture()
+{
+    glActiveTexture(GL_TEXTURE0);
+    glGenTextures(1, &tex_pixels);
+    glBindTexture(GL_TEXTURE_2D, tex_pixels);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, windowSize->x, windowSize->y, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels.data());
+
+    passthroughUvsShader.setTexPixels(0);
+}
+
+
+void OptixRenderer::updateFrame()
+{
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, tex_pixels);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, windowSize->x, windowSize->y, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels.data());
+
+    passthroughUvsShader.setTexPixels(0);
+
+    passthroughUvsShader.draw(fullscreenTri);
+    glfwSwapBuffers(window);
 }

@@ -13,7 +13,7 @@ ShaderProgram::ShaderProgram()
       unif_modelMat(-1), unif_viewProjMat(-1), unif_invViewProjMat(-1), unif_viewMat(-1), unif_invViewMat(-1), unif_projMat(-1), unif_sunViewProjMat(-1),
       unif_sunDir(-1), unif_moonDir(-1), unif_fogColor(-1),
       unif_horizontal(-1),
-      tex_blockDiffuse(-1), tex_bufColor(-1), tex_shadowMap(-1), tex_volume(-1), tex_bufBloomColor(-1)
+      tex_blockDiffuse(-1), tex_bufColor(-1), tex_shadowMap(-1), tex_volume(-1), tex_bufBloomColor(-1), tex_pixels(-1)
 {}
 
 void printShaderInfoLog(int shader)
@@ -78,6 +78,7 @@ void ShaderProgram::createUniformVariables()
         tex_volume = glGetUniformLocation(prog, "tex_volume");
     }
     tex_bufBloomColor = glGetUniformLocation(prog, "tex_bufBloomColor");
+    tex_pixels = glGetUniformLocation(prog, "tex_pixels");
 }
 
 bool checkShaderCompiled(GLint shader)
@@ -290,6 +291,12 @@ void ShaderProgram::setTexBufBloomColor(int tex) const
 {
     useMe();
     glUniform1i(tex_bufBloomColor, tex);
+}
+
+void ShaderProgram::setTexPixels(int tex) const
+{
+    useMe();
+    glUniform1i(tex_pixels, tex);
 }
 
 void ShaderProgram::draw(Drawable& d) const

@@ -15,13 +15,15 @@
 #include "player/player.hpp"
 #include "terrain/terrain.hpp"
 #include "util/common.h"
+#include "shaderProgram.hpp"
+#include "fullscreenTri.hpp"
 
 class OptixRenderer
 {
 public:
     OptixRenderer(GLFWwindow* window, ivec2* windowSize, Terrain* terrain, Player* player);
     void optixRenderFrame();
-    void downloadPixels(uint32_t* host_pixels);
+    void updateFrame();
 
 protected:
     GLFWwindow* window{ nullptr };
@@ -85,4 +87,19 @@ protected:
     void createPipeline();
     void buildSBT();
     void setCamera();
+
+    // GL stuff
+
+    ShaderProgram passthroughUvsShader;
+
+    std::vector<uint32_t> pixels;
+
+    FullscreenTri fullscreenTri;
+
+    GLuint vao;
+
+    GLuint tex_pixels;
+
+    void initShader();
+    void initTexture();
 };
