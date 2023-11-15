@@ -67,7 +67,7 @@ extern "C" __global__ void __raygen__render() {
     const uint32_t fbIndex = ix + iy * params.windowSize.x;
 
     const uint32_t rgba = 0xff000000
-        | (r << 0) | (g << 8) | (b << 16);
+        | (r << 0) | (g << 8) | (b << 16);    
 
     params.frame.colorBuffer[fbIndex] = rgba;
 }
@@ -75,8 +75,6 @@ extern "C" __global__ void __raygen__render() {
 extern "C" __global__ void __miss__radiance() {
     float3& prd = *(float3*)getPRD<float3>();
     prd = make_float3(1.0f);
-
-
 }
 
 extern "C" __global__ void __hit__radiance() {

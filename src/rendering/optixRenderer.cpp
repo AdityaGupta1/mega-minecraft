@@ -28,7 +28,9 @@ OptixRenderer::OptixRenderer(GLFWwindow* window, ivec2* windowSize, Terrain* ter
     launchParams.camera.pixelLength = glm::vec2(2 * xscaled / (float)windowSize->x, 2 * yscaled / (float)windowSize->y);
 
     launchParamsBuffer.alloc(sizeof(OptixParams));
-    frameBuffer.alloc(sizeof(windowSize->x * windowSize->y * sizeof(uint32_t)));
+    frameBuffer.alloc(windowSize->x * windowSize->y * sizeof(uint32_t));
+
+    launchParams.windowSize = *windowSize;
     
     createContext();
 }

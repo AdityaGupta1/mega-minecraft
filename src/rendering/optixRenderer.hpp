@@ -73,6 +73,8 @@ protected:
     CUBuffer playerInfoBuffer;
     CUBuffer frameBuffer;
 
+    uint32_t* dev_frame;
+
     void createContext();
     void createTextures();
     void buildChunkAccel(const Chunk* c);
