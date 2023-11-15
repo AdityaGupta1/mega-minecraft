@@ -11,6 +11,7 @@ enum class Biome : unsigned char
     CORAL_REEF,
     ARCHIPELAGO,
     WARM_OCEAN,
+    ICEBERGS,
     COOL_OCEAN,
 
     ROCKY_BEACH,
@@ -89,6 +90,10 @@ enum class Feature : unsigned char
 {
     NONE,
     SPHERE,
+
+    // CORAL (make multiple types of this)
+
+    ICEBERG,
 
     ACACIA_TREE,
 

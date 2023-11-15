@@ -158,6 +158,7 @@ __device__ float getHeight(Biome biome, vec2 pos)
     {
         return 93.f + 18.f * fbm(pos * 0.0055f);
     }
+    case Biome::ICEBERGS:
     case Biome::COOL_OCEAN:
     {
         return 86.f + 22.f * fbm(pos * 0.0065f);
@@ -506,7 +507,8 @@ void BiomeUtils::init()
     biomeWeights(CORAL_REEF) =          { wP, wN, wP, wP, wI, wI };
     biomeWeights(ARCHIPELAGO) =         { wP, wN, wP, wN, wI, wI };
     biomeWeights(WARM_OCEAN) =          { wP, wN, wN, wI, wP, wI };
-    biomeWeights(COOL_OCEAN) =          { wP, wN, wN, wI, wN, wI };
+    biomeWeights(ICEBERGS) =            { wP, wN, wN, wP, wN, wI };
+    biomeWeights(COOL_OCEAN) =          { wP, wN, wN, wN, wN, wI };
 
     biomeWeights(ROCKY_BEACH) =         { wP, wP, wP, wI, wI, wI };
     biomeWeights(TROPICAL_BEACH) =      { wP, wP, wN, wI, wP, wI };
@@ -641,6 +643,9 @@ void BiomeUtils::init()
     setBiomeMaterialWeight(WARM_OCEAN, DIRT, 0.0f);
     setBiomeMaterialWeight(WARM_OCEAN, SAND, 0.7f);
 
+    setBiomeMaterialWeight(ICEBERGS, GRAVEL, 0.5f);
+    setBiomeMaterialWeight(ICEBERGS, DIRT, 0.0f);
+
     setBiomeMaterialWeight(COOL_OCEAN, GRAVEL, 0.5f);
     setBiomeMaterialWeight(COOL_OCEAN, DIRT, 0.0f);
 
@@ -714,6 +719,10 @@ void BiomeUtils::init()
     cudaMemcpyToSymbol(dev_dirVecs2d, DirectionEnums::dirVecs2d.data(), 8 * sizeof(ivec2));
 
     // feature, gridCellSize, gridCellPadding, chancePerGridCell, possibleTopLayers
+    host_biomeFeatureGens[(int)Biome::ICEBERGS] = {
+        { Feature::ICEBERG, 64, 8, 0.30f, {} }
+    };
+
     host_biomeFeatureGens[(int)Biome::TROPICAL_BEACH] = {
         { Feature::PALM_TREE, 48, 3, 0.35f, { {Material::SMOOTH_SAND, 0.3f} } }
     };
@@ -775,11 +784,14 @@ void BiomeUtils::init()
     setFeatureHeightBounds(NONE, 0, 0);
     setFeatureHeightBounds(SPHERE, -6, 6);
 
+    // TODO: revisit
+    setFeatureHeightBounds(ICEBERG, 10, 80); // placed at sea level instead of on the ground
+
     setFeatureHeightBounds(ACACIA_TREE, 0, 15);
 
     setFeatureHeightBounds(REDWOOD_TREE, -5, 75);
 
-    setFeatureHeightBounds(CYPRESS_TREE, -3, 65); // TODO: revisit
+    setFeatureHeightBounds(CYPRESS_TREE, -3, 50);
 
     setFeatureHeightBounds(BIRCH_TREE, 0, 30);
 

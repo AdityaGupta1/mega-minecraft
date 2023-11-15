@@ -207,6 +207,18 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
         *block = Block::GRAVEL;
         return true;
     }
+    case Feature::ICEBERG:
+    {
+        pos.y = worldBlockPos.y - SEA_LEVEL;
+
+        if (sdSphere(pos, 3.f) < 0.f)
+        {
+            *block = Block::BLUE_ICE;
+            return true;
+        }
+
+        return false;
+    }
     case Feature::ACACIA_TREE:
     {
         if (max(abs(floorPos.x), abs(floorPos.z)) > 15)
