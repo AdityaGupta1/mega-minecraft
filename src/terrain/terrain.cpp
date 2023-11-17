@@ -55,6 +55,7 @@ static constexpr int numDevChunkWorldBlockPositions = maxActionTimePerFrame / mi
 
 static constexpr int numHostLayers = maxActionTimePerFrame / actionTimeGenerateLayers;
 static constexpr int numDevLayers = maxActionTimePerFrame / min(actionTimeGenerateLayers, actionTimeFill);
+static constexpr int numDevCaveLayers = maxActionTimePerFrame / actionTimeFill;
 
 static constexpr int numDevGatheredLayers = maxActionTimePerFrame / actionTimeErodeZone;
 static constexpr int numStreams = max(max(numDevBlocks, numDevHeightfields), max(numDevLayers, numDevGatheredLayers)); // TODO: revisit (probably only if I decide to make kernFill operate on multiple chunks at once)
@@ -72,6 +73,7 @@ static ivec2* dev_chunkWorldBlockPositions;
 
 static float* host_layers;
 static float* dev_layers;
+static CaveLayer* dev_caveLayers;
 
 static float* dev_gatheredLayers;
 static float* dev_accumulatedHeights;
@@ -92,6 +94,7 @@ void Terrain::initCuda()
 
     cudaMallocHost((void**)&host_layers, numHostLayers * devLayersSize * sizeof(float));
     cudaMalloc((void**)&dev_layers, numDevLayers * devLayersSize * sizeof(float));
+    cudaMalloc((void**)&dev_caveLayers, numDevCaveLayers * devCaveLayersSize * sizeof(CaveLayer));
 
     cudaMalloc((void**)&dev_gatheredLayers, numDevGatheredLayers * devGatheredLayersSize * sizeof(float));
     cudaMalloc((void**)&dev_accumulatedHeights, numDevGatheredLayers * devAccumulatedHeightsSize * sizeof(float));
@@ -120,6 +123,7 @@ void Terrain::freeCuda()
 
     cudaFreeHost(host_layers);
     cudaFree(dev_layers);
+    cudaFree(dev_caveLayers);
 
     cudaFree(dev_gatheredLayers);
     cudaFree(dev_accumulatedHeights);
@@ -515,6 +519,7 @@ void Terrain::tick(float deltaTime)
 
     int hostLayersIdx = 0;
     int devLayersIdx = 0;
+    int devCaveLayersIdx = 0;
 
     int devGatheredLayersIdx = 0;
     int streamIdx = 0;
@@ -547,12 +552,16 @@ void Terrain::tick(float deltaTime)
             dev_heightfields + (devHeightfieldIdx * devHeightfieldSize),
             dev_biomeWeights + (devHeightfieldIdx * devBiomeWeightsSize),
             dev_layers + (devLayersIdx * devLayersSize),
+            dev_caveLayers + (devCaveLayersIdx * devCaveLayersSize),
             dev_featurePlacements + (devBlocksIdx * devFeaturePlacementsSize),
             streams[streamIdx]
         );
         ++devBlocksIdx;
         ++devHeightfieldIdx;
+
         ++devLayersIdx;
+        ++devCaveLayersIdx;
+
         ++streamIdx;
 
         chunkPtr->setState(ChunkState::FILLED);

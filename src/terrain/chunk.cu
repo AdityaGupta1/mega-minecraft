@@ -16,7 +16,26 @@
 
 Chunk::Chunk(ivec2 worldChunkPos)
     : worldChunkPos(worldChunkPos), worldBlockPos(worldChunkPos.x * 16, 0, worldChunkPos.y * 16)
-{}
+{
+    for (int i = 0; i < 256 * MAX_CAVE_LAYERS_PER_CHUNK; ++i)
+    {
+        caveLayers[i] = { 0, 0 };
+    }
+
+    // TODO: temporary
+    for (int z = 0; z < 16; ++z)
+    {
+        for (int x = 0; x < 16; ++x)
+        {
+            ivec2 worldBlockPos = worldChunkPos * 16 + ivec2(x, z);
+            vec2 noisePos = vec2(worldBlockPos) * 0.0300f;
+            vec2 noiseOut = vec2(glm::simplex(noisePos), glm::simplex(noisePos + vec2(1293.33f, 4920.21f)));
+            int layerStart = (int)(16.f + 8.f * noiseOut.x);
+            int layerEnd = (int)(SEA_LEVEL + 16.f * noiseOut.y);
+            caveLayers[posTo2dIndex(x, z) * MAX_CAVE_LAYERS_PER_CHUNK] = {layerStart, layerEnd};
+        }
+    }
+}
 
 #pragma region state functions
 
@@ -863,18 +882,150 @@ void Chunk::gatherFeaturePlacements()
 
 #pragma region chunk fill
 
+__device__ void chunkFillPlaceBlock(
+    Block* blockPtr,
+    float* shared_biomeWeights,
+    float* shared_layersAndHeight,
+    CaveLayer* shared_caveLayers,
+    int y,
+    float height,
+    ivec3 worldBlockPos,
+    thrust::random::default_random_engine& rng)
+{
+    if (y > height && y > SEA_LEVEL)
+    {
+        *blockPtr = Block::AIR;
+        return;
+    }
+
+    for (int caveLayerIdx = 0; caveLayerIdx < MAX_CAVE_LAYERS_PER_CHUNK; ++caveLayerIdx)
+    {
+        const auto& caveLayer = shared_caveLayers[caveLayerIdx];
+        if (caveLayer.start == caveLayer.end)
+        {
+            break;
+        }
+
+        if (y >= caveLayer.start && y < caveLayer.end)
+        {
+            *blockPtr = Block::AIR;
+            return;
+        }
+    }
+
+    thrust::uniform_real_distribution<float> u01(0, 1);
+
+    Biome randBiome = getRandomBiome(shared_biomeWeights, u01(rng));
+    bool isTopBlock = y >= height - 1.f;
+
+#define doBlockPostProcess() biomeBlockPostProcess(blockPtr, randBiome, worldBlockPos, height, isTopBlock)
+
+    if (y > height && y <= SEA_LEVEL)
+    {
+        *blockPtr = Block::WATER;
+        doBlockPostProcess();
+        return;
+    }
+
+    // at this point, y <= height
+
+    bool wasBlockPreProcessed = biomeBlockPreProcess(blockPtr, randBiome, worldBlockPos, height);
+    if (wasBlockPreProcessed)
+    {
+        doBlockPostProcess();
+        return;
+    }
+
+    int layerIdxStart;
+    if (y >= shared_layersAndHeight[numForwardMaterials])
+    {
+        layerIdxStart = numForwardMaterials;
+    }
+    else
+    {
+        layerIdxStart = 0;
+    }
+
+#if DEBUG_USE_CONTRIBUTION_FILL_METHOD
+    float maxContribution = 0.f;
+    int maxLayerIdx = -1;
+    #pragma unroll
+    for (int layerIdx = layerIdxStart; layerIdx < numMaterials; ++layerIdx)
+    {
+        float layerContributionStart = max(shared_layersAndHeight[layerIdx], (float)y);
+        float layerContributionEnd = min(shared_layersAndHeight[layerIdx + 1], (float)y + 1.f);
+        float layerContribution = layerContributionEnd - layerContributionStart;
+
+        if (layerContribution > maxContribution)
+        {
+            maxContribution = layerContribution;
+            maxLayerIdx = layerIdx;
+        }
+    }
+
+    if (height < y + 0.5f)
+    {
+        block = Block::AIR;
+    }
+    else
+    {
+        block = dev_materialInfos[maxLayerIdx].block;
+
+        bool isTopBlock = height < y + 1.5f;
+        if (isTopBlock)
+        {
+            if (block == Block::DIRT)
+            {
+                const Biome randBiome = getRandomBiome(shared_biomeWeights, u01(rng));
+                block = dev_biomeBlocks[(int)randBiome].grassBlock;
+            }
+        }
+    }
+#else
+    int thisLayerIdx = -1;
+    #pragma unroll
+    for (int layerIdx = layerIdxStart; layerIdx < numMaterials; ++layerIdx)
+    {
+        float layerStart = shared_layersAndHeight[layerIdx];
+        float layerEnd = shared_layersAndHeight[layerIdx + 1];
+
+        if (layerStart <= y && y < layerEnd)
+        {
+            thisLayerIdx = layerIdx;
+            break;
+        }
+    }
+
+    *blockPtr = dev_materialInfos[thisLayerIdx].block;
+
+    if (isTopBlock)
+    {
+        if (*blockPtr == Block::DIRT)
+        {
+            *blockPtr = dev_biomeBlocks[(int)randBiome].grassBlock;
+        }
+    }
+#endif
+
+    doBlockPostProcess();
+
+#undef doBlockPostProcess
+}
+
 __global__ void kernFill(
     Block* blocks,
     float* heightfield,
     float* biomeWeights,
     float* layers,
-    FeaturePlacement* dev_featurePlacements,
+    CaveLayer* caveLayers,
+    FeaturePlacement* featurePlacements,
     int numFeaturePlacements,
     ivec2 allFeaturesHeightBounds,
     ivec3 chunkWorldBlockPos)
 {
-    __shared__ float shared_layersAndHeight[numMaterials + 1];
     __shared__ float shared_biomeWeights[numBiomes];
+    __shared__ float shared_layersAndHeight[numMaterials + 1];
+    __shared__ CaveLayer shared_caveLayers[MAX_CAVE_LAYERS_PER_CHUNK];
 
     const int x = (blockIdx.x * blockDim.x) + threadIdx.x;
     const int y = (blockIdx.y * blockDim.y) + threadIdx.y;
@@ -883,26 +1034,29 @@ __global__ void kernFill(
     const int idx = posTo3dIndex(x, y, z);
     const int idx2d = posTo2dIndex(x, z);
 
+    int loadIdx = threadIdx.y;
     float* loadLocation = nullptr;
     float* storeLocation = nullptr;
-    if (threadIdx.y <= numMaterials)
+    if (loadIdx < numBiomes)
     {
-        loadLocation = threadIdx.y == numMaterials ? (heightfield + idx2d) : (layers + (idx2d) + (256 * threadIdx.y));
-        storeLocation = shared_layersAndHeight + threadIdx.y;
+        loadLocation = biomeWeights + (idx2d) + (256 * loadIdx);
+        storeLocation = shared_biomeWeights + loadIdx;
     }
-    else
+    else if ((loadIdx -= numBiomes) <= numMaterials)
     {
-        const int biomeIdx = threadIdx.y - numMaterials - 1;
-        if (biomeIdx < numBiomes)
-        {
-            loadLocation = biomeWeights + (idx2d) + (256 * biomeIdx);
-            storeLocation = shared_biomeWeights + biomeIdx;
-        }
+        loadLocation = loadIdx == numMaterials ? (heightfield + idx2d) : (layers + (idx2d) + (256 * loadIdx));
+        storeLocation = shared_layersAndHeight + loadIdx;
     }
 
     if (storeLocation != nullptr)
     {
         *storeLocation = *loadLocation;
+    }
+
+    loadIdx -= numMaterials + 1;
+    if (loadIdx >= 0 && loadIdx < MAX_CAVE_LAYERS_PER_CHUNK)
+    {
+        shared_caveLayers[loadIdx] = caveLayers[(MAX_CAVE_LAYERS_PER_CHUNK * idx2d) + loadIdx];
     }
 
     __syncthreads();
@@ -911,99 +1065,9 @@ __global__ void kernFill(
 
     const ivec3 worldBlockPos = chunkWorldBlockPos + ivec3(x, y, z);
     auto rng = makeSeededRandomEngine(worldBlockPos.x, worldBlockPos.y, worldBlockPos.z);
-    thrust::uniform_real_distribution<float> u01(0, 1);
 
-    Block block = Block::AIR;
-    Biome randBiome = getRandomBiome(shared_biomeWeights, u01(rng));
-    bool isTopBlock = false;
-    if (y < height)
-    {
-        bool wasBlockPreProcessed = biomeBlockPreProcess(&block, randBiome, worldBlockPos, height);
-
-        if (!wasBlockPreProcessed)
-        {
-            int layerIdxStart;
-            if (y >= shared_layersAndHeight[numForwardMaterials])
-            {
-                layerIdxStart = numForwardMaterials;
-            }
-            else
-            {
-                layerIdxStart = 0;
-            }
-
-#if DEBUG_USE_CONTRIBUTION_FILL_METHOD
-            float maxContribution = 0.f;
-            int maxLayerIdx = -1;
-            #pragma unroll
-            for (int layerIdx = layerIdxStart; layerIdx < numMaterials; ++layerIdx)
-            {
-                float layerContributionStart = max(shared_layersAndHeight[layerIdx], (float)y);
-                float layerContributionEnd = min(shared_layersAndHeight[layerIdx + 1], (float)y + 1.f);
-                float layerContribution = layerContributionEnd - layerContributionStart;
-
-                if (layerContribution > maxContribution)
-                {
-                    maxContribution = layerContribution;
-                    maxLayerIdx = layerIdx;
-                }
-            }
-
-            if (height < y + 0.5f)
-            {
-                block = Block::AIR;
-            }
-            else
-            {
-                block = dev_materialInfos[maxLayerIdx].block;
-
-                bool isTopBlock = height < y + 1.5f;
-                if (isTopBlock)
-                {
-                    if (block == Block::DIRT)
-                    {
-                        const Biome randBiome = getRandomBiome(shared_biomeWeights, u01(rng));
-                        block = dev_biomeBlocks[(int)randBiome].grassBlock;
-        }
-    }
-}
-#else
-            int thisLayerIdx = -1;
-            #pragma unroll
-            for (int layerIdx = layerIdxStart; layerIdx < numMaterials; ++layerIdx)
-            {
-                float layerStart = shared_layersAndHeight[layerIdx];
-                float layerEnd = shared_layersAndHeight[layerIdx + 1];
-
-                if (layerStart <= y && y < layerEnd)
-                {
-                    thisLayerIdx = layerIdx;
-                    break;
-                }
-            }
-
-            block = dev_materialInfos[thisLayerIdx].block;
-
-            isTopBlock = y >= height - 1.f;
-            if (isTopBlock)
-            {
-                if (block == Block::DIRT)
-                {
-                    block = dev_biomeBlocks[(int)randBiome].grassBlock;
-                }
-            }
-#endif
-        }
-    }
-    else if (y < SEA_LEVEL)
-    {
-        block = Block::WATER;
-    }
-
-    if (block != Block::AIR)
-    {
-        biomeBlockPostProcess(&block, randBiome, worldBlockPos, height, isTopBlock);
-    }
+    Block block;
+    chunkFillPlaceBlock(&block, shared_biomeWeights, shared_layersAndHeight, shared_caveLayers, y, height, worldBlockPos, rng);
 
     if (y < allFeaturesHeightBounds[0] || y > allFeaturesHeightBounds[1])
     {
@@ -1015,7 +1079,7 @@ __global__ void kernFill(
     bool placedFeature = false;
     for (int featureIdx = 0; featureIdx < numFeaturePlacements; ++featureIdx)
     {
-        const auto& featurePlacement = dev_featurePlacements[featureIdx];
+        const auto& featurePlacement = featurePlacements[featureIdx];
 
         if (block != Block::AIR && !featurePlacement.canReplaceBlocks)
         {
@@ -1048,6 +1112,7 @@ void Chunk::fill(
     float* dev_heightfield,
     float* dev_biomeWeights,
     float* dev_layers,
+    CaveLayer* dev_caveLayers,
     FeaturePlacement* dev_featurePlacements, 
     cudaStream_t stream)
 {
@@ -1065,8 +1130,9 @@ void Chunk::fill(
     this->gatheredFeaturePlacements.clear();
 
     cudaMemcpyAsync(dev_heightfield, this->heightfield.data(), 256 * sizeof(float), cudaMemcpyHostToDevice, stream);
-    cudaMemcpyAsync(dev_layers, this->layers.data(), 256 * numMaterials * sizeof(float), cudaMemcpyHostToDevice, stream);
-    cudaMemcpyAsync(dev_biomeWeights, this->biomeWeights.data(), 256 * numBiomes * sizeof(float), cudaMemcpyHostToDevice, stream);
+    cudaMemcpyAsync(dev_biomeWeights, this->biomeWeights.data(), devBiomeWeightsSize * sizeof(float), cudaMemcpyHostToDevice, stream);
+    cudaMemcpyAsync(dev_layers, this->layers.data(), devLayersSize * sizeof(float), cudaMemcpyHostToDevice, stream);
+    cudaMemcpyAsync(dev_caveLayers, this->caveLayers.data(), devCaveLayersSize * sizeof(CaveLayer), cudaMemcpyHostToDevice, stream);
 
     const dim3 blockSize3d(1, 128, 1);
     const dim3 blocksPerGrid3d(16, 3, 16);
@@ -1075,13 +1141,14 @@ void Chunk::fill(
         dev_heightfield,
         dev_biomeWeights,
         dev_layers,
+        dev_caveLayers,
         dev_featurePlacements,
         numFeaturePlacements,
         allFeaturesHeightBounds,
         this->worldBlockPos
     );
     
-    cudaMemcpyAsync(this->blocks.data(), dev_blocks, 98304 * sizeof(Block), cudaMemcpyDeviceToHost, stream);
+    cudaMemcpyAsync(this->blocks.data(), dev_blocks, devBlocksSize * sizeof(Block), cudaMemcpyDeviceToHost, stream);
 
     CudaUtils::checkCUDAError("Chunk::fill() failed");
 }

@@ -59,6 +59,9 @@ public:
     // iteration order = y, z, x
     std::array<float, 256 * numMaterials> layers;
 
+    // iteration order = z, x, y
+    std::array<CaveLayer, 256 * MAX_CAVE_LAYERS_PER_CHUNK> caveLayers;
+
     // iteration order = y, z, x
     std::array<float, 256 * numBiomes> biomeWeights;
 
@@ -125,6 +128,7 @@ public:
         float* dev_heightfield,
         float* dev_biomeWeights,
         float* dev_layers,
+        CaveLayer* dev_caveLayers,
         FeaturePlacement* dev_featurePlacements,
         cudaStream_t stream);
 

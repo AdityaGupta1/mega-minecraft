@@ -42,6 +42,7 @@ static constexpr int devHeightfieldSize = 18 * 18;
 static constexpr int devBiomeWeightsSize = 256 * numBiomes;
 
 static constexpr int devLayersSize = 256 * numMaterials;
+static constexpr int devCaveLayersSize = 256 * MAX_CAVE_LAYERS_PER_CHUNK;
 
 static constexpr int devGatheredLayersSize = EROSION_GRID_NUM_COLS * (numErodedMaterials + 1) + 1;
 static constexpr int devAccumulatedHeightsSize = EROSION_GRID_NUM_COLS;

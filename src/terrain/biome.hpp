@@ -2,6 +2,7 @@
 
 #include "block.hpp"
 
+#define MAX_CAVE_LAYERS_PER_CHUNK 16
 #define MAX_GATHERED_FEATURES_PER_CHUNK 1024
 
 #define SEA_LEVEL 128
@@ -84,6 +85,12 @@ struct MaterialInfo
     float thickness;
     float noiseAmplitudeOrTanAngleOfRepose;
     float noiseScaleOrMaxSlope;
+};
+
+struct CaveLayer
+{
+    int start; // inclusive
+    int end; // exclusive
 };
 
 enum class Feature : unsigned char
