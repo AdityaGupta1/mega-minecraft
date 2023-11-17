@@ -295,7 +295,7 @@ __device__ float getHeight(Biome biome, vec2 pos)
     return SEA_LEVEL;
 }
 
-__device__ bool biomeBlockPreProcess(Block* block, Biome biome, vec3 worldBlockPos, float height)
+__device__ bool biomeBlockPreProcess(Block* blockPtr, Biome biome, vec3 worldBlockPos, float height)
 {
     switch (biome)
     {
@@ -306,7 +306,7 @@ __device__ bool biomeBlockPreProcess(Block* block, Biome biome, vec3 worldBlockP
             float quartzStartHeight = 140.f + 15.f * fbm<3>(vec2(worldBlockPos.x, worldBlockPos.z) * 0.0080f);
             if (worldBlockPos.y > quartzStartHeight)
             {
-                *block = Block::QUARTZ;
+                *blockPtr = Block::QUARTZ;
                 return true;
             }
         }
@@ -318,13 +318,13 @@ __device__ bool biomeBlockPreProcess(Block* block, Biome biome, vec3 worldBlockP
     return false;
 }
 
-__device__ bool biomeBlockPostProcess(Block* block, Biome biome, vec3 worldBlockPos, float height, bool isTopBlock)
+__device__ bool biomeBlockPostProcess(Block* blockPtr, Biome biome, vec3 worldBlockPos, float height, bool isTopBlock)
 {
     switch (biome)
     {
     case Biome::ARCHIPELAGO:
     {
-        if (worldBlockPos.y < SEA_LEVEL)
+        if (worldBlockPos.y < SEA_LEVEL || *blockPtr == Block::WATER)
         {
             return false;
         }
@@ -332,7 +332,7 @@ __device__ bool biomeBlockPostProcess(Block* block, Biome biome, vec3 worldBlock
         float dirtHeight = SEA_LEVEL + 1.5f + 1.7f * fbm<3>(vec2(worldBlockPos.x, worldBlockPos.z) * 0.0065f);
         if (worldBlockPos.y > dirtHeight)
         {
-            *block = isTopBlock ? Block::GRASS : Block::DIRT;
+            *blockPtr = isTopBlock ? Block::GRASS : Block::DIRT;
             return true;
         }
 
@@ -340,9 +340,9 @@ __device__ bool biomeBlockPostProcess(Block* block, Biome biome, vec3 worldBlock
     }
     case Biome::TROPICAL_BEACH:
     {
-        if (isTopBlock && *block != Block::SMOOTH_SAND)
+        if (isTopBlock && *blockPtr != Block::SMOOTH_SAND && *blockPtr != Block::WATER)
         {
-            *block = Block::SMOOTH_SAND;
+            *blockPtr = Block::SMOOTH_SAND;
             return true;
         }
 
@@ -350,9 +350,9 @@ __device__ bool biomeBlockPostProcess(Block* block, Biome biome, vec3 worldBlock
     }
     case Biome::BEACH:
     {
-        if (isTopBlock && *block != Block::SAND)
+        if (isTopBlock && *blockPtr != Block::SAND && *blockPtr != Block::WATER)
         {
-            *block = Block::SAND;
+            *blockPtr = Block::SAND;
             return true;
         }
 
@@ -360,7 +360,7 @@ __device__ bool biomeBlockPostProcess(Block* block, Biome biome, vec3 worldBlock
     }
     case Biome::MESA:
     {
-        if (worldBlockPos.y < 90.f || *block == Block::WATER)
+        if (worldBlockPos.y < 90.f || *blockPtr == Block::WATER)
         {
             return false;
         }
@@ -372,7 +372,7 @@ __device__ bool biomeBlockPostProcess(Block* block, Biome biome, vec3 worldBlock
             return false;
         }
 
-        if (*block == Block::CLAY && worldBlockPos.y < terracottaStartHeight + 20.f)
+        if (*blockPtr == Block::CLAY && worldBlockPos.y < terracottaStartHeight + 20.f)
         {
             return false;
         }
@@ -417,17 +417,17 @@ __device__ bool biomeBlockPostProcess(Block* block, Biome biome, vec3 worldBlock
             terracottaBlock = Block::TERRACOTTA;
         }
 
-        *block = terracottaBlock;
+        *blockPtr = terracottaBlock;
         return true;
     }
     case Biome::FROZEN_WASTELAND:
     {
-        if (*block != Block::WATER)
+        if (*blockPtr != Block::WATER)
         {
             return false;
         }
 
-        *block = Block::PACKED_ICE;
+        *blockPtr = Block::PACKED_ICE;
         return true;
     }
     case Biome::SHREKS_SWAMP:
@@ -437,12 +437,12 @@ __device__ bool biomeBlockPostProcess(Block* block, Biome biome, vec3 worldBlock
             return false;
         }
 
-        if (*block == Block::DIRT || *block == Block::JUNGLE_GRASS)
+        if (*blockPtr == Block::DIRT || *blockPtr == Block::JUNGLE_GRASS)
         {
             float mudEnd = SEA_LEVEL + 0.8f + 1.1f * simplex(vec2(worldBlockPos.x, worldBlockPos.z) * 0.0300f);
             if (worldBlockPos.y < mudEnd)
             {
-                *block = Block::MUD;
+                *blockPtr = Block::MUD;
                 return true;
             }
         }
@@ -451,7 +451,7 @@ __device__ bool biomeBlockPostProcess(Block* block, Biome biome, vec3 worldBlock
     }
     case Biome::TIANZI_MOUNTAINS:
     {
-        if (worldBlockPos.y < 90.f || *block == Block::WATER || *block == Block::DIRT || *block == Block::GRASS)
+        if (worldBlockPos.y < 90.f || *blockPtr == Block::WATER || *blockPtr == Block::DIRT || *blockPtr == Block::GRASS)
         {
             return false;
         }
@@ -463,7 +463,7 @@ __device__ bool biomeBlockPostProcess(Block* block, Biome biome, vec3 worldBlock
             return false;
         }
 
-        *block = Block::SMOOTH_SANDSTONE;
+        *blockPtr = Block::SMOOTH_SANDSTONE;
         return true;
     }
     case Biome::MOUNTAINS:
@@ -479,7 +479,7 @@ __device__ bool biomeBlockPostProcess(Block* block, Biome biome, vec3 worldBlock
             return false;
         }
 
-        *block = Block::SNOW;
+        *blockPtr = Block::SNOW;
         return true;
     }
     }
