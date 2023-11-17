@@ -123,7 +123,8 @@ public:
     void generateFeaturePlacements();
     void gatherFeaturePlacements();
 
-    void fill(
+    static void fill(
+        std::vector<Chunk*>& chunks,
         Block* dev_blocks,
         float* dev_heightfield,
         float* dev_biomeWeights,

@@ -511,9 +511,12 @@ void Terrain::tick(float deltaTime)
     actionTimeLeft = min(actionTimeLeft + (int)(totalActionTimePerSecond * deltaTime), maxActionTimePerFrame);
 
     int devBlocksIdx = 0;
+    int devFeaturePlacementsIdx = 0;
 
     int hostHeightfieldIdx = 0;
     int devHeightfieldIdx = 0;
+    int hostBiomeWeightsIdx = 0;
+    int devBiomeWeightsIdx = 0;
     int hostChunkWorldBlockPositionIdx = 0;
     int devChunkWorldBlockPositionIdx = 0;
 
@@ -540,40 +543,57 @@ void Terrain::tick(float deltaTime)
         actionTimeLeft -= actionTimeCreateAndBufferVbos;
     }
 
-    while (!chunksToFill.empty() && actionTimeLeft >= actionTimeFill)
     {
-        needsUpdateChunks = true;
-
-        auto chunkPtr = chunksToFill.front();
-        chunksToFill.pop();
-
-        chunkPtr->fill(
-            dev_blocks + (devBlocksIdx * devBlocksSize),
-            dev_heightfields + (devHeightfieldIdx * devHeightfieldSize),
-            dev_biomeWeights + (devHeightfieldIdx * devBiomeWeightsSize),
-            dev_layers + (devLayersIdx * devLayersSize),
-            dev_caveLayers + (devCaveLayersIdx * devCaveLayersSize),
-            dev_featurePlacements + (devBlocksIdx * devFeaturePlacementsSize),
-            streams[streamIdx]
-        );
-        ++devBlocksIdx;
-        ++devHeightfieldIdx;
-
-        ++devLayersIdx;
-        ++devCaveLayersIdx;
-
-        ++streamIdx;
-
-        chunkPtr->setState(ChunkState::FILLED);
-        chunkPtr->setNotReadyForQueue();
-
-        checkChunkAndNeighborsForNeedsVbos(chunkPtr);
-        for (const auto& neighborChunkPtr : chunkPtr->neighbors)
+        std::vector<Chunk*> chunks;
+        while (!chunksToFill.empty() && actionTimeLeft >= actionTimeFill)
         {
-            checkChunkAndNeighborsForNeedsVbos(neighborChunkPtr);
+            needsUpdateChunks = true;
+
+            auto chunkPtr = chunksToFill.front();
+            chunksToFill.pop();
+
+            chunks.push_back(chunkPtr);
+
+            chunkPtr->setState(ChunkState::FILLED);
+            chunkPtr->setNotReadyForQueue();
+
+            actionTimeLeft -= actionTimeFill;
         }
 
-        actionTimeLeft -= actionTimeFill;
+        int numChunks = chunks.size();
+        if (numChunks > 0)
+        {
+            Chunk::fill(
+                chunks,
+                dev_blocks + (devBlocksIdx * devBlocksSize),
+                dev_heightfields + (devHeightfieldIdx * devHeightfieldSize),
+                dev_biomeWeights + (devBiomeWeightsIdx * devBiomeWeightsSize),
+                dev_layers + (devLayersIdx * devLayersSize),
+                dev_caveLayers + (devCaveLayersIdx * devCaveLayersSize),
+                dev_featurePlacements + (devFeaturePlacementsIdx * devFeaturePlacementsSize),
+                streams[streamIdx]
+            );
+
+            devBlocksIdx += numChunks;
+            devFeaturePlacementsIdx += numChunks;
+
+            devHeightfieldIdx += numChunks;
+            devBiomeWeightsIdx += numChunks;
+
+            devLayersIdx += numChunks;
+            devCaveLayersIdx += numChunks;
+
+            ++streamIdx;
+        }
+
+        for (const auto chunkPtr : chunks)
+        {
+            checkChunkAndNeighborsForNeedsVbos(chunkPtr);
+            for (const auto& neighborChunkPtr : chunkPtr->neighbors)
+            {
+                checkChunkAndNeighborsForNeedsVbos(neighborChunkPtr);
+            }
+        }
     }
 
     while (!chunksToGatherFeaturePlacements.empty() && actionTimeLeft >= actionTimeGatherFeaturePlacements)
@@ -636,9 +656,9 @@ void Terrain::tick(float deltaTime)
 
             chunks.push_back(chunkPtr);
 
-            addZonesToTryErosionSet(chunkPtr);
-
             chunkPtr->setState(ChunkState::HAS_LAYERS);
+
+            addZonesToTryErosionSet(chunkPtr);
 
             actionTimeLeft -= actionTimeGenerateLayers;
         }
@@ -650,8 +670,8 @@ void Terrain::tick(float deltaTime)
                 chunks,
                 host_heightfields + (hostHeightfieldIdx * devHeightfieldSize),
                 dev_heightfields + (devHeightfieldIdx * devHeightfieldSize),
-                host_biomeWeights + (hostHeightfieldIdx * devBiomeWeightsSize),
-                dev_biomeWeights + (devHeightfieldIdx * devBiomeWeightsSize),
+                host_biomeWeights + (hostBiomeWeightsIdx * devBiomeWeightsSize),
+                dev_biomeWeights + (devBiomeWeightsIdx * devBiomeWeightsSize),
                 host_chunkWorldBlockPositions + (hostChunkWorldBlockPositionIdx),
                 dev_chunkWorldBlockPositions + (devChunkWorldBlockPositionIdx),
                 host_layers + (hostLayersIdx * devLayersSize),
@@ -661,6 +681,8 @@ void Terrain::tick(float deltaTime)
 
             hostHeightfieldIdx += numChunks;
             devHeightfieldIdx += numChunks;
+            hostBiomeWeightsIdx += numChunks;
+            devBiomeWeightsIdx += numChunks;
             hostChunkWorldBlockPositionIdx += numChunks;
             devChunkWorldBlockPositionIdx += numChunks;
 
@@ -708,13 +730,15 @@ void Terrain::tick(float deltaTime)
                 dev_chunkWorldBlockPositions + (devChunkWorldBlockPositionIdx),
                 host_heightfields + (hostHeightfieldIdx * devHeightfieldSize),
                 dev_heightfields + (devHeightfieldIdx * devHeightfieldSize),
-                host_biomeWeights + (hostHeightfieldIdx * devBiomeWeightsSize),
-                dev_biomeWeights + (devHeightfieldIdx * devBiomeWeightsSize),
+                host_biomeWeights + (hostBiomeWeightsIdx * devBiomeWeightsSize),
+                dev_biomeWeights + (devBiomeWeightsIdx * devBiomeWeightsSize),
                 streams[streamIdx]
             );
 
             //hostHeightfieldIdx += numChunks;
             //devHeightfieldIdx += numChunks;
+            //hostBiomeWeightsIdx += numChunks;
+            //devBiomeWeightsIdx += numChunks;
             //hostChunkWorldBlockPositionIdx += numChunks;
             //devChunkWorldBlockPositionIdx += numChunks;
 

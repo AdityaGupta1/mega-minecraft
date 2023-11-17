@@ -1137,6 +1137,7 @@ __global__ void kernFill(
 }
 
 void Chunk::fill(
+    std::vector<Chunk*>& chunks,
     Block* dev_blocks, 
     float* dev_heightfield,
     float* dev_biomeWeights,
@@ -1145,43 +1146,50 @@ void Chunk::fill(
     FeaturePlacement* dev_featurePlacements, 
     cudaStream_t stream)
 {
-    ivec2 allFeaturesHeightBounds = ivec2(384, -1);
-    for (const auto& featurePlacement : this->gatheredFeaturePlacements)
+    const int numChunks = chunks.size();
+
+    for (int i = 0; i < numChunks; ++i)
     {
-        const auto& featureHeightBounds = host_featureHeightBounds[(int)featurePlacement.feature];
-        const ivec2 thisFeatureHeightBounds = ivec2(featurePlacement.pos.y) + featureHeightBounds;
-        allFeaturesHeightBounds[0] = min(allFeaturesHeightBounds[0], thisFeatureHeightBounds[0]);
-        allFeaturesHeightBounds[1] = max(allFeaturesHeightBounds[1], thisFeatureHeightBounds[1]);
+        Chunk* chunkPtr = chunks[i];
+
+        ivec2 allFeaturesHeightBounds = ivec2(384, -1);
+        for (const auto& featurePlacement : chunkPtr->gatheredFeaturePlacements)
+        {
+            const auto& featureHeightBounds = host_featureHeightBounds[(int)featurePlacement.feature];
+            const ivec2 thisFeatureHeightBounds = ivec2(featurePlacement.pos.y) + featureHeightBounds;
+            allFeaturesHeightBounds[0] = min(allFeaturesHeightBounds[0], thisFeatureHeightBounds[0]);
+            allFeaturesHeightBounds[1] = max(allFeaturesHeightBounds[1], thisFeatureHeightBounds[1]);
+        }
+
+        int numFeaturePlacements = min((int)chunkPtr->gatheredFeaturePlacements.size(), MAX_GATHERED_FEATURES_PER_CHUNK);
+        if (numFeaturePlacements < MAX_GATHERED_FEATURES_PER_CHUNK)
+        {
+            chunkPtr->gatheredFeaturePlacements.push_back({ Feature::NONE, vec3(0, -1, 0) });
+            ++numFeaturePlacements;
+        }
+        cudaMemcpyAsync(dev_featurePlacements, chunkPtr->gatheredFeaturePlacements.data(), numFeaturePlacements * sizeof(FeaturePlacement), cudaMemcpyHostToDevice, stream);
+        chunkPtr->gatheredFeaturePlacements.clear();
+
+        cudaMemcpyAsync(dev_heightfield, chunkPtr->heightfield.data(), 256 * sizeof(float), cudaMemcpyHostToDevice, stream);
+        cudaMemcpyAsync(dev_biomeWeights, chunkPtr->biomeWeights.data(), devBiomeWeightsSize * sizeof(float), cudaMemcpyHostToDevice, stream);
+        cudaMemcpyAsync(dev_layers, chunkPtr->layers.data(), devLayersSize * sizeof(float), cudaMemcpyHostToDevice, stream);
+        cudaMemcpyAsync(dev_caveLayers, chunkPtr->caveLayers.data(), devCaveLayersSize * sizeof(CaveLayer), cudaMemcpyHostToDevice, stream);
+
+        const dim3 blockSize3d(1, 128, 1);
+        const dim3 blocksPerGrid3d(16, 3, 16);
+        kernFill<<<blocksPerGrid3d, blockSize3d, 0, stream>>>(
+            dev_blocks,
+            dev_heightfield,
+            dev_biomeWeights,
+            dev_layers,
+            dev_caveLayers,
+            dev_featurePlacements,
+            allFeaturesHeightBounds,
+            chunkPtr->worldBlockPos
+        );
+
+        cudaMemcpyAsync(chunkPtr->blocks.data(), dev_blocks, devBlocksSize * sizeof(Block), cudaMemcpyDeviceToHost, stream);
     }
-
-    int numFeaturePlacements = min((int)this->gatheredFeaturePlacements.size(), MAX_GATHERED_FEATURES_PER_CHUNK);
-    if (numFeaturePlacements < MAX_GATHERED_FEATURES_PER_CHUNK)
-    {
-        this->gatheredFeaturePlacements.push_back({ Feature::NONE, vec3(0, -1, 0) });
-        ++numFeaturePlacements;
-    }
-    cudaMemcpyAsync(dev_featurePlacements, this->gatheredFeaturePlacements.data(), numFeaturePlacements * sizeof(FeaturePlacement), cudaMemcpyHostToDevice, stream);
-    this->gatheredFeaturePlacements.clear();
-
-    cudaMemcpyAsync(dev_heightfield, this->heightfield.data(), 256 * sizeof(float), cudaMemcpyHostToDevice, stream);
-    cudaMemcpyAsync(dev_biomeWeights, this->biomeWeights.data(), devBiomeWeightsSize * sizeof(float), cudaMemcpyHostToDevice, stream);
-    cudaMemcpyAsync(dev_layers, this->layers.data(), devLayersSize * sizeof(float), cudaMemcpyHostToDevice, stream);
-    cudaMemcpyAsync(dev_caveLayers, this->caveLayers.data(), devCaveLayersSize * sizeof(CaveLayer), cudaMemcpyHostToDevice, stream);
-
-    const dim3 blockSize3d(1, 128, 1);
-    const dim3 blocksPerGrid3d(16, 3, 16);
-    kernFill<<<blocksPerGrid3d, blockSize3d, 0, stream>>>(
-        dev_blocks, 
-        dev_heightfield,
-        dev_biomeWeights,
-        dev_layers,
-        dev_caveLayers,
-        dev_featurePlacements,
-        allFeaturesHeightBounds,
-        this->worldBlockPos
-    );
-    
-    cudaMemcpyAsync(this->blocks.data(), dev_blocks, devBlocksSize * sizeof(Block), cudaMemcpyDeviceToHost, stream);
 
     CudaUtils::checkCUDAError("Chunk::fill() failed");
 }
