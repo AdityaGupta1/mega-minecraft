@@ -780,7 +780,32 @@ void Chunk::generateFeaturePlacements()
             const auto& columnBiomeWeights = biomeWeights.data() + idx2d;
 
             const float height = heightfield[idx2d];
-            const ivec3 worldBlockPos = this->worldBlockPos + ivec3(localX, ((int)height) + 1, localZ);
+            int groundHeight = (int)height;
+            const ivec3 worldBlockPos = this->worldBlockPos + ivec3(localX, groundHeight + 1, localZ);
+
+            bool isCave = false;
+            const auto columnCaveLayers = this->caveLayers.data() + (idx2d * MAX_CAVE_LAYERS_PER_CHUNK);
+            for (int caveLayerIdx = 0; caveLayerIdx < MAX_CAVE_LAYERS_PER_CHUNK; ++caveLayerIdx)
+            {
+                const auto& caveLayer = columnCaveLayers[caveLayerIdx];
+
+                if (caveLayer.start == caveLayer.end)
+                {
+                    break;
+                }
+
+                if (groundHeight >= caveLayer.start && groundHeight < caveLayer.end)
+                {
+                    isCave = true;
+                    break;
+                }
+            }
+
+            if (isCave)
+            {
+                continue;
+            }
+
             auto blockRng = makeSeededRandomEngine(worldBlockPos.x, worldBlockPos.y, worldBlockPos.z, 7); // arbitrary w so this rng is different than heightfield rng
             thrust::uniform_real_distribution<float> u01(0, 1);
 
