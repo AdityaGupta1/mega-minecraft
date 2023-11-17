@@ -1044,7 +1044,6 @@ __global__ void kernFill(
     float* layers,
     CaveLayer* caveLayers,
     FeaturePlacement* featurePlacements,
-    int numFeaturePlacements,
     ivec2 allFeaturesHeightBounds,
     ivec3 chunkWorldBlockPos)
 {
@@ -1102,9 +1101,14 @@ __global__ void kernFill(
 
     Block featureBlock;
     bool placedFeature = false;
-    for (int featureIdx = 0; featureIdx < numFeaturePlacements; ++featureIdx)
+    for (int featureIdx = 0; featureIdx < MAX_GATHERED_FEATURES_PER_CHUNK; ++featureIdx)
     {
         const auto& featurePlacement = featurePlacements[featureIdx];
+
+        if (featurePlacement.pos.y == -1)
+        {
+            break;
+        }
 
         if (block != Block::AIR && !featurePlacement.canReplaceBlocks)
         {
@@ -1151,6 +1155,11 @@ void Chunk::fill(
     }
 
     int numFeaturePlacements = min((int)this->gatheredFeaturePlacements.size(), MAX_GATHERED_FEATURES_PER_CHUNK);
+    if (numFeaturePlacements < MAX_GATHERED_FEATURES_PER_CHUNK)
+    {
+        this->gatheredFeaturePlacements.push_back({ Feature::NONE, vec3(0, -1, 0) });
+        ++numFeaturePlacements;
+    }
     cudaMemcpyAsync(dev_featurePlacements, this->gatheredFeaturePlacements.data(), numFeaturePlacements * sizeof(FeaturePlacement), cudaMemcpyHostToDevice, stream);
     this->gatheredFeaturePlacements.clear();
 
@@ -1168,7 +1177,6 @@ void Chunk::fill(
         dev_layers,
         dev_caveLayers,
         dev_featurePlacements,
-        numFeaturePlacements,
         allFeaturesHeightBounds,
         this->worldBlockPos
     );

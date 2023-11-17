@@ -51,3 +51,12 @@ with page-locked memory (seconds)
 7.87
 7.55
 7.88
+
+-------------------------------------------------------
+
+separate cudaMemcpy calls for each chunk fill (seconds)
+
+
+
+combined cudaMemcpy calls for host to device transfer (seconds)
+

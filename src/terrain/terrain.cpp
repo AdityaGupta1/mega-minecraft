@@ -45,6 +45,7 @@ std::chrono::system_clock::time_point start;
 #endif
 
 static constexpr int numDevBlocks = maxActionTimePerFrame / actionTimeFill;
+static constexpr int numDevFeaturePlacements = numDevBlocks;
 
 static constexpr int numHostHeightfields = maxActionTimePerFrame / min(actionTimeGenerateHeightfield, actionTimeGenerateLayers);
 static constexpr int numDevHeightfields = maxActionTimePerFrame / min(actionTimeGenerateHeightfield, min(actionTimeGenerateLayers, actionTimeFill));
@@ -66,8 +67,7 @@ static FeaturePlacement* dev_featurePlacements;
 static float* host_heightfields;
 static float* dev_heightfields;
 static float* host_biomeWeights;
-static float* dev_biomeWeights; // TODO: may need to set numDevBiomeWeights = max(numDevHeightfields, numDevLayers)
-                                // probably fine for now since biome weights are always used in tandem with heightfield
+static float* dev_biomeWeights;
 static ivec2* host_chunkWorldBlockPositions;
 static ivec2* dev_chunkWorldBlockPositions;
 
@@ -83,7 +83,7 @@ static std::array<cudaStream_t, numStreams> streams;
 void Terrain::initCuda()
 {
     cudaMalloc((void**)&dev_blocks, numDevBlocks * devBlocksSize * sizeof(Block));
-    cudaMalloc((void**)&dev_featurePlacements, numDevBlocks * devFeaturePlacementsSize * sizeof(FeaturePlacement));
+    cudaMalloc((void**)&dev_featurePlacements, numDevFeaturePlacements * devFeaturePlacementsSize * sizeof(FeaturePlacement));
 
     cudaMallocHost((void**)&host_heightfields, numHostHeightfields * devHeightfieldSize * sizeof(float));
     cudaMalloc((void**)&dev_heightfields, numDevHeightfields * devHeightfieldSize * sizeof(float));
