@@ -1274,6 +1274,7 @@ void Chunk::createVBOs()
                             break;
                         case TransparencyType::X_SHAPED:
                             shouldDisplay = true;
+                            break;
                         }
 
                         if (!shouldDisplay)
