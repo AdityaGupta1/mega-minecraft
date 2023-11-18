@@ -2,7 +2,7 @@
 
 #include "block.hpp"
 
-#define MAX_CAVE_LAYERS_PER_CHUNK 16
+#define MAX_CAVE_LAYERS_PER_COLUMN 16
 #define MAX_GATHERED_FEATURES_PER_CHUNK 1024
 
 #define SEA_LEVEL 128

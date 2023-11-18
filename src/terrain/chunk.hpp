@@ -22,6 +22,7 @@ enum class ChunkState : unsigned char
     NEEDS_LAYERS,
     HAS_LAYERS,
     NEEDS_EROSION,
+    NEEDS_CAVES,
     NEEDS_FEATURE_PLACEMENTS,
     NEEDS_GATHER_FEATURE_PLACEMENTS,
     READY_TO_FILL, // this and 5x5 neighborhood all have feature placements
@@ -60,7 +61,7 @@ public:
     std::array<float, 256 * numMaterials> layers;
 
     // iteration order = z, x, y
-    std::array<CaveLayer, 256 * MAX_CAVE_LAYERS_PER_CHUNK> caveLayers;
+    std::array<CaveLayer, 256 * MAX_CAVE_LAYERS_PER_COLUMN> caveLayers;
 
     // iteration order = y, z, x
     std::array<float, 256 * numBiomes> biomeWeights;
@@ -119,6 +120,14 @@ public:
         cudaStream_t stream);
 
     static void erodeZone(Zone* zonePtr, float* dev_gatheredLayers, float* dev_accumulatedHeights, cudaStream_t stream);
+
+    static void generateCaves(
+        std::vector<Chunk*>& chunks,
+        ivec2* host_chunkWorldBlockPositions,
+        ivec2* dev_chunkWorldBlockPositions,
+        CaveLayer* host_caveLayers,
+        CaveLayer* dev_caveLayers,
+        cudaStream_t stream);
 
     void generateFeaturePlacements();
     void gatherFeaturePlacements();

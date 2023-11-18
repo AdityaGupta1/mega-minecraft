@@ -21,6 +21,7 @@ static constexpr int actionTimeGenerateHeightfield        = 3;
 static constexpr int actionTimeGatherHeightfield          = 2;
 static constexpr int actionTimeGenerateLayers             = 5;
 static constexpr int actionTimeErodeZone                  = 400;
+static constexpr int actionTimeGenerateCaves              = 5;
 static constexpr int actionTimeGenerateFeaturePlacements  = 3;
 static constexpr int actionTimeGatherFeaturePlacements    = 5;
 static constexpr int actionTimeFill                       = 8;
@@ -52,16 +53,16 @@ static constexpr int numHostHeightfields = maxActionTimePerFrame / min(actionTim
 static constexpr int numDevHeightfields = maxActionTimePerFrame / min(actionTimeGenerateHeightfield, min(actionTimeGenerateLayers, actionTimeFill));
 static constexpr int numHostBiomeWeights = numHostHeightfields;
 static constexpr int numDevBiomeWeights = numDevHeightfields;
-static constexpr int numHostChunkWorldBlockPositions = numHostHeightfields;
-static constexpr int numDevChunkWorldBlockPositions = maxActionTimePerFrame / min(actionTimeGenerateHeightfield, actionTimeGenerateLayers);
+static constexpr int numHostChunkWorldBlockPositions = maxActionTimePerFrame / min(actionTimeGenerateHeightfield, min(actionTimeGenerateLayers, actionTimeGenerateCaves));
+static constexpr int numDevChunkWorldBlockPositions = maxActionTimePerFrame / min(actionTimeGenerateHeightfield, min(actionTimeGenerateLayers, actionTimeGenerateCaves));
 
 static constexpr int numHostLayers = maxActionTimePerFrame / min(actionTimeGenerateLayers, actionTimeFill);
 static constexpr int numDevLayers = maxActionTimePerFrame / min(actionTimeGenerateLayers, actionTimeFill);
-static constexpr int numHostCaveLayers = maxActionTimePerFrame / actionTimeFill;
-static constexpr int numDevCaveLayers = maxActionTimePerFrame / actionTimeFill;
+static constexpr int numHostCaveLayers = maxActionTimePerFrame / min(actionTimeGenerateCaves, actionTimeFill);
+static constexpr int numDevCaveLayers = maxActionTimePerFrame / min(actionTimeGenerateCaves, actionTimeFill);
 
 static constexpr int numDevGatheredLayers = maxActionTimePerFrame / actionTimeErodeZone;
-static constexpr int numStreams = max(max(numDevBlocks, numDevHeightfields), max(numDevLayers, numDevGatheredLayers)); // TODO: revisit (probably only if I decide to make kernFill operate on multiple chunks at once)
+static constexpr int numStreams = 4 + numDevGatheredLayers;
 
 static Block* host_blocks;
 static Block* dev_blocks;
@@ -315,6 +316,10 @@ void Terrain::updateChunk(int dx, int dz)
     case ChunkState::NEEDS_LAYERS:
         chunkPtr->setNotReadyForQueue();
         chunksToGenerateLayers.push(chunkPtr);
+        return;
+    case ChunkState::NEEDS_CAVES:
+        chunkPtr->setNotReadyForQueue();
+        chunksToGenerateCaves.push(chunkPtr);
         return;
     case ChunkState::NEEDS_FEATURE_PLACEMENTS:
         chunkPtr->setNotReadyForQueue();
@@ -641,6 +646,44 @@ void Terrain::tick(float deltaTime)
         actionTimeLeft -= actionTimeGenerateFeaturePlacements;
     }
 
+    {
+        std::vector<Chunk*> chunks;
+        while (!chunksToGenerateCaves.empty() && actionTimeLeft >= actionTimeGenerateCaves)
+        {
+            needsUpdateChunks = true;
+
+            auto chunkPtr = chunksToGenerateCaves.front();
+            chunksToGenerateCaves.pop();
+
+            chunks.push_back(chunkPtr);
+
+            chunkPtr->setState(ChunkState::NEEDS_FEATURE_PLACEMENTS);
+
+            actionTimeLeft -= actionTimeGenerateCaves;
+        }
+
+        int numChunks = chunks.size();
+        if (numChunks > 0)
+        {
+            Chunk::generateCaves(
+                chunks,
+                host_chunkWorldBlockPositions + (hostChunkWorldBlockPositionIdx),
+                dev_chunkWorldBlockPositions + (devChunkWorldBlockPositionIdx),
+                host_caveLayers + (hostCaveLayersIdx * devCaveLayersSize),
+                dev_caveLayers + (devCaveLayersIdx * devCaveLayersSize),
+                streams[streamIdx]
+            );
+
+            hostChunkWorldBlockPositionIdx += numChunks;
+            devChunkWorldBlockPositionIdx += numChunks;
+
+            hostCaveLayersIdx += numChunks;
+            devCaveLayersIdx += numChunks;
+
+            ++streamIdx;
+        }
+    }
+
     while (!zonesToErode.empty() && actionTimeLeft >= actionTimeErodeZone)
     {
         needsUpdateChunks = true;
@@ -659,7 +702,7 @@ void Terrain::tick(float deltaTime)
 
         for (const auto& chunkPtr : zonePtr->chunks)
         {
-            chunkPtr->setState(ChunkState::NEEDS_FEATURE_PLACEMENTS);
+            chunkPtr->setState(ChunkState::NEEDS_CAVES);
         }
 
         actionTimeLeft -= actionTimeErodeZone;

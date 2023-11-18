@@ -16,26 +16,7 @@
 
 Chunk::Chunk(ivec2 worldChunkPos)
     : worldChunkPos(worldChunkPos), worldBlockPos(worldChunkPos.x * 16, 0, worldChunkPos.y * 16)
-{
-    for (int i = 0; i < 256 * MAX_CAVE_LAYERS_PER_CHUNK; ++i)
-    {
-        caveLayers[i] = { 0, 0 };
-    }
-
-    // TODO: temporary
-    for (int z = 0; z < 16; ++z)
-    {
-        for (int x = 0; x < 16; ++x)
-        {
-            ivec2 worldBlockPos = worldChunkPos * 16 + ivec2(x, z);
-            vec2 noisePos = vec2(worldBlockPos) * 0.0300f;
-            vec2 noiseOut = vec2(glm::simplex(noisePos), glm::simplex(noisePos + vec2(1293.33f, 4920.21f)));
-            int layerStart = (int)(16.f + 8.f * noiseOut.x);
-            int layerEnd = (int)(SEA_LEVEL + 16.f * noiseOut.y);
-            caveLayers[posTo2dIndex(x, z) * MAX_CAVE_LAYERS_PER_CHUNK] = {layerStart, layerEnd};
-        }
-    }
-}
+{}
 
 #pragma region state functions
 
@@ -766,6 +747,82 @@ void Chunk::fixBackwardStratifiedLayers()
 
 #pragma endregion
 
+#pragma region caves
+
+__global__ void kernGenerateCaves(
+    ivec2* chunkWorldBlockPositions, 
+    CaveLayer* caveLayers)
+{
+    __shared__ bool shared_isFilled[384];
+
+    const int globalX = (blockIdx.x * blockDim.x) + threadIdx.x;
+    
+    const int chunkIdx = globalX / 16;
+    const int x = globalX - (chunkIdx * 16);
+    const int y = (blockIdx.y * blockDim.y) + threadIdx.y;
+    const int z = (blockIdx.z * blockDim.z) + threadIdx.z;
+
+    const int idx2d = posTo2dIndex(x, z);
+
+    const vec2 worldPos = chunkWorldBlockPositions[chunkIdx] + ivec2(x, z);
+
+    CaveLayer* columnCaveLayers = caveLayers + (256 * MAX_CAVE_LAYERS_PER_COLUMN * chunkIdx) + (MAX_CAVE_LAYERS_PER_COLUMN * idx2d);
+
+    if (threadIdx.y != 0)
+    {
+        return;
+    }
+
+    vec2 noisePos = vec2(worldPos) * 0.0300f;
+    vec2 noiseOut = vec2(glm::simplex(noisePos), glm::simplex(noisePos + vec2(1293.33f, 4920.21f)));
+    int layerStart = (int)(16.f + 8.f * noiseOut.x);
+    int layerEnd = (int)(SEA_LEVEL + 16.f * noiseOut.y);
+    columnCaveLayers[0] = { layerStart, layerEnd };
+}
+
+void Chunk::generateCaves(
+    std::vector<Chunk*>& chunks,
+    ivec2* host_chunkWorldBlockPositions,
+    ivec2* dev_chunkWorldBlockPositions,
+    CaveLayer* host_caveLayers,
+    CaveLayer* dev_caveLayers,
+    cudaStream_t stream)
+{
+    const int numChunks = chunks.size();
+
+    for (int i = 0; i < numChunks; ++i)
+    {
+        Chunk* chunkPtr = chunks[i];
+
+        ivec3 worldBlockPos = chunkPtr->worldBlockPos;
+        host_chunkWorldBlockPositions[i] = ivec2(worldBlockPos.x, worldBlockPos.z);
+    }
+
+    cudaMemcpyAsync(dev_chunkWorldBlockPositions, host_chunkWorldBlockPositions, numChunks * sizeof(ivec2), cudaMemcpyHostToDevice, stream);
+
+    cudaMemsetAsync(dev_caveLayers, 0, numChunks * devCaveLayersSize * sizeof(CaveLayer), stream);
+
+    const dim3 blockSize3d(1, 384, 1);
+    const dim3 blocksPerGrid3d(numChunks * 16, 1, 16);
+    kernGenerateCaves<<<blocksPerGrid3d, blockSize3d, 0, stream>>>(
+        dev_chunkWorldBlockPositions,
+        dev_caveLayers
+    );
+
+    cudaMemcpyAsync(host_caveLayers, dev_caveLayers, numChunks * devCaveLayersSize * sizeof(CaveLayer), cudaMemcpyDeviceToHost, stream);
+
+    cudaStreamSynchronize(stream);
+
+    for (int i = 0; i < numChunks; ++i)
+    {
+        Chunk* chunkPtr = chunks[i];
+
+        std::memcpy(chunkPtr->caveLayers.data(), host_caveLayers + (i * devCaveLayersSize), devCaveLayersSize * sizeof(CaveLayer));
+    }
+}
+
+#pragma endregion
+
 #pragma region feature placements
 
 // TODO: maybe revisit and try to optimize this by calculating thicknesses in a separate pass with better memory access patterns
@@ -784,8 +841,8 @@ void Chunk::generateFeaturePlacements()
             const ivec3 worldBlockPos = this->worldBlockPos + ivec3(localX, groundHeight + 1, localZ);
 
             bool isCave = false;
-            const auto columnCaveLayers = this->caveLayers.data() + (idx2d * MAX_CAVE_LAYERS_PER_CHUNK);
-            for (int caveLayerIdx = 0; caveLayerIdx < MAX_CAVE_LAYERS_PER_CHUNK; ++caveLayerIdx)
+            const auto columnCaveLayers = this->caveLayers.data() + (idx2d * MAX_CAVE_LAYERS_PER_COLUMN);
+            for (int caveLayerIdx = 0; caveLayerIdx < MAX_CAVE_LAYERS_PER_COLUMN; ++caveLayerIdx)
             {
                 const auto& caveLayer = columnCaveLayers[caveLayerIdx];
 
@@ -923,7 +980,7 @@ __device__ void chunkFillPlaceBlock(
         return;
     }
 
-    for (int caveLayerIdx = 0; caveLayerIdx < MAX_CAVE_LAYERS_PER_CHUNK; ++caveLayerIdx)
+    for (int caveLayerIdx = 0; caveLayerIdx < MAX_CAVE_LAYERS_PER_COLUMN; ++caveLayerIdx)
     {
         const auto& caveLayer = shared_caveLayers[caveLayerIdx];
         if (caveLayer.start == caveLayer.end)
@@ -1049,7 +1106,7 @@ __global__ void kernFill(
 {
     __shared__ float shared_biomeWeights[numBiomes];
     __shared__ float shared_layersAndHeight[numMaterials + 1];
-    __shared__ CaveLayer shared_caveLayers[MAX_CAVE_LAYERS_PER_CHUNK];
+    __shared__ CaveLayer shared_caveLayers[MAX_CAVE_LAYERS_PER_COLUMN];
 
     const int x = (blockIdx.x * blockDim.x) + threadIdx.x;
     const int y = (blockIdx.y * blockDim.y) + threadIdx.y;
@@ -1078,9 +1135,9 @@ __global__ void kernFill(
     }
 
     loadIdx -= numMaterials + 1;
-    if (loadIdx >= 0 && loadIdx < MAX_CAVE_LAYERS_PER_CHUNK)
+    if (loadIdx >= 0 && loadIdx < MAX_CAVE_LAYERS_PER_COLUMN)
     {
-        shared_caveLayers[loadIdx] = caveLayers[(MAX_CAVE_LAYERS_PER_CHUNK * idx2d) + loadIdx];
+        shared_caveLayers[loadIdx] = caveLayers[(MAX_CAVE_LAYERS_PER_COLUMN * idx2d) + loadIdx];
     }
 
     __syncthreads();
