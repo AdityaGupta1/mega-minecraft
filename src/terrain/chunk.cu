@@ -12,7 +12,7 @@
 #define DEBUG_SKIP_EROSION 0
 #define DEBUG_USE_CONTRIBUTION_FILL_METHOD 0
 
-//#define DEBUG_BIOME_OVERRIDE Biome::ICEBERGS
+#define DEBUG_BIOME_OVERRIDE Biome::PLAINS
 
 Chunk::Chunk(ivec2 worldChunkPos)
     : worldChunkPos(worldChunkPos), worldBlockPos(worldChunkPos.x * 16, 0, worldChunkPos.y * 16)
@@ -749,6 +749,38 @@ void Chunk::fixBackwardStratifiedLayers()
 
 #pragma region caves
 
+__device__ bool shouldGenerateCaveAtBlock(ivec3 worldPos)
+{
+    if (worldPos.y == 0)
+    {
+        return false;
+    }
+
+    //vec3 noisePos = vec3(worldPos) * 0.0070f;
+    //float topHeightRatio = smoothstep(135.f, 80.f, (float)worldPos.y);
+    //float bottomHeightRatio = smoothstep(5.f, 20.f, (float)worldPos.y);
+
+    //vec3 noiseOffset = fbm3From3<4>(noisePos * 0.4000f) * 1.3f;
+
+    //float worleyEdgeDist;
+    //worley(noisePos * vec3(1.f, 2.5f, 1.f) + noiseOffset, nullptr, &worleyEdgeDist);
+
+    //float worleyEdgeThreshold = 0.07f + 0.03f * fbm<3>(noisePos * 4.f);
+    //worleyEdgeThreshold *= topHeightRatio * bottomHeightRatio;
+    //if (worleyEdgeDist < worleyEdgeThreshold)
+    //{
+    //    return true;
+    //}
+
+    vec3 noisePos = vec3(worldPos) * 0.0050f;
+    if (specialCaveNoise(noisePos, 0.015f))
+    {
+        return true;
+    }
+
+    return false;
+}
+
 // TODO: pass in heightfield and skip evaluating noise if y > max height
 __global__ void kernGenerateCaves(
     ivec2* chunkWorldBlockPositions, 
@@ -767,22 +799,9 @@ __global__ void kernGenerateCaves(
     const int idx2d = posTo2dIndex(x, z);
 
     const ivec2 chunkWorldBlockPos = chunkWorldBlockPositions[chunkIdx];
-    const vec3 worldPos = ivec3(chunkWorldBlockPos.x + x, y, chunkWorldBlockPos.y + z);
+    const ivec3 worldPos = ivec3(chunkWorldBlockPos.x + x, y, chunkWorldBlockPos.y + z);
 
-    int isThisFilled = 0;
-    if (y == 0)
-    {
-        isThisFilled = 1;
-    }
-    else
-    {
-        vec3 noisePos = worldPos * 0.0200f;
-        float caveNoise = glm::simplex(noisePos);
-        if (caveNoise > 0.f)
-        {
-            isThisFilled = 1;
-        }
-    }
+    int isThisFilled = shouldGenerateCaveAtBlock(worldPos) ? 0 : 1;
     shared_isFilled[y] = isThisFilled;
 
     __syncthreads();
@@ -1040,6 +1059,20 @@ __device__ void chunkFillPlaceBlock(
         return;
     }
 
+    thrust::uniform_real_distribution<float> u01(0, 1);
+
+    Biome randBiome = getRandomBiome(shared_biomeWeights, u01(rng));
+    bool isTopBlock = y >= height - 1.f;
+
+#define doBlockPostProcess() biomeBlockPostProcess(blockPtr, randBiome, worldBlockPos, height, isTopBlock)
+
+    if (y > height && y <= SEA_LEVEL)
+    {
+        *blockPtr = Block::WATER;
+        doBlockPostProcess();
+        return;
+    }
+
     for (int caveLayerIdx = 0; caveLayerIdx < MAX_CAVE_LAYERS_PER_COLUMN; ++caveLayerIdx)
     {
         const auto& caveLayer = shared_caveLayers[caveLayerIdx];
@@ -1053,20 +1086,6 @@ __device__ void chunkFillPlaceBlock(
             *blockPtr = Block::AIR;
             return;
         }
-    }
-
-    thrust::uniform_real_distribution<float> u01(0, 1);
-
-    Biome randBiome = getRandomBiome(shared_biomeWeights, u01(rng));
-    bool isTopBlock = y >= height - 1.f;
-
-#define doBlockPostProcess() biomeBlockPostProcess(blockPtr, randBiome, worldBlockPos, height, isTopBlock)
-
-    if (y > height && y <= SEA_LEVEL)
-    {
-        *blockPtr = Block::WATER;
-        doBlockPostProcess();
-        return;
     }
 
     // at this point, y <= height

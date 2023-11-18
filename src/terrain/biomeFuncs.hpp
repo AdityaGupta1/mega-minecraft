@@ -93,7 +93,7 @@ __device__ float getSingleBiomeNoise(vec2 pos, float noiseScale, vec2 offset, fl
 
 __device__ BiomeNoise getBiomeNoise(const vec2 worldPos)
 {
-    const vec2 noiseOffset = fbm2<3>(worldPos * 0.015f) * 20.f;
+    const vec2 noiseOffset = fbm2From2<3>(worldPos * 0.015f) * 20.f;
     const vec2 biomeNoisePos = (worldPos + noiseOffset) * overallBiomeScale;
 
     BiomeNoise noise;
@@ -181,7 +181,7 @@ __device__ float getHeight(Biome biome, vec2 pos)
     case Biome::SAVANNA:
     {
         vec2 noiseOffsetPos = pos * 0.0040f;
-        vec2 noiseOffset = fbm2<5>(noiseOffsetPos) * 100.f;
+        vec2 noiseOffset = fbm2From2<5>(noiseOffsetPos) * 100.f;
 
         vec2 noisePos = pos + noiseOffset;
 
@@ -198,8 +198,9 @@ __device__ float getHeight(Biome biome, vec2 pos)
     {
         pos *= 0.7f;
         vec2 noiseOffsetPos = pos * 0.0050f;
-        vec2 noiseOffset = fbm2<5>(noiseOffsetPos) * 300.f;
-        float riverNoise = worleyEdgeDist((pos + noiseOffset) * 0.0030f);
+        vec2 noiseOffset = fbm2From2<5>(noiseOffsetPos) * 300.f;
+        float riverNoise;
+        worley((pos + noiseOffset) * 0.0030f, nullptr, &riverNoise);
 
         float baseHeight = 122.f;
         baseHeight += 10.f * smoothstep(0.00f, 0.05f, riverNoise);
@@ -221,7 +222,7 @@ __device__ float getHeight(Biome biome, vec2 pos)
     }
     case Biome::SPARSE_DESERT:
     {
-        vec2 noiseOffset = simplex2(pos * 0.0080f) * 20.0f;
+        vec2 noiseOffset = simplex2From2(pos * 0.0080f) * 20.0f;
         float dunesNoise = powf(worley((pos + noiseOffset) * 0.0160f), 2.f) * 18.f;
         return 132.f + 4.f * fbm<4>(pos * 0.0070f) + dunesNoise;
     }
@@ -232,7 +233,7 @@ __device__ float getHeight(Biome biome, vec2 pos)
     }
     case Biome::TIANZI_MOUNTAINS:
     {
-        vec2 noiseOffset = simplex2(pos * 0.0800f) * 3.0f;
+        vec2 noiseOffset = simplex2From2(pos * 0.0800f) * 3.0f;
         vec2 noisePos = (pos + noiseOffset) * 0.0300f;
 
         float worley1 = smoothstep(0.45f, 0.35f, worley(noisePos)) * 0.8f;
@@ -262,7 +263,8 @@ __device__ float getHeight(Biome biome, vec2 pos)
         float towersBaseNoise = simplex(pos * 0.0030f);
 
         vec3 worleyColor;
-        float towersWorleyNoise = worleyEdgeDist(pos * 0.0700f, &worleyColor);
+        float towersWorleyNoise;
+        worley(pos * 0.0700f, &worleyColor, &towersWorleyNoise);
         towersWorleyNoise = smoothstep(0.10f, 0.15f, towersWorleyNoise);
         towersWorleyNoise *= 0.4f + 1.2f * worleyColor.r;
         float towersHeight = 60.f * towersWorleyNoise * smoothstep(0.70f, 0.74f, towersBaseNoise);

@@ -4,49 +4,8 @@
 #include "biome.hpp"
 #include "util/rng.hpp"
 #include "util/utils.hpp"
-#include <glm/gtx/component_wise.hpp>
 #include "biomeFuncs.hpp"
 #include <glm/gtx/vector_angle.hpp>
-
-#pragma region utility functions
-
-__device__ int manhattanDistance(ivec3 a, ivec3 b)
-{
-    return compAdd(abs(a - b));
-}
-
-template<class T>
-__device__ bool isInRange(T v, T min, T max)
-{
-    return v >= min && v <= max;
-}
-
-template<class T>
-__device__ bool isPosInRange(T pos, T corner1, T corner2)
-{
-    T minPos = min(corner1, corner2);
-    T maxPos = max(corner1, corner2);
-    return pos.x >= minPos.x && pos.x <= maxPos.x 
-        && pos.y >= minPos.y && pos.y <= maxPos.y
-        && pos.z >= minPos.z && pos.z <= maxPos.z;
-}
-
-__device__ float saturate(float v)
-{
-    return clamp(v, 0.f, 1.f);
-}
-
-__device__ float isSaturated(float v)
-{
-    return v >= 0.f && v <= 1.f;
-}
-
-__device__ float getRatio(float v, float minVal, float maxVal)
-{
-    return (v - minVal) / (maxVal - minVal);
-}
-
-#pragma endregion
 
 #pragma region SDFs
 
@@ -101,19 +60,6 @@ __device__ void deCasteljau(vec3* ctrlPts, vec3* spline)
 
         spline[i] = ctrlPtsCopy[0];
     }
-}
-
-__device__ bool calculateLineParams(const vec3 pos, const vec3 linePos1, const vec3 linePos2, float* ratio, float* distFromLine)
-{
-    vec3 vecLine = linePos2 - linePos1;
-
-    vec3 pointPos = pos - linePos1;
-    *ratio = dot(pointPos, vecLine) / dot(vecLine, vecLine);
-
-    vec3 pointLine = vecLine * (*ratio);
-    *distFromLine = distance(pointPos, pointLine);
-
-    return isSaturated(*ratio);
 }
 
 __device__ bool isInRasterizedLine(const ivec3 floorPos, const vec3 linePos1, const vec3 linePos2)
