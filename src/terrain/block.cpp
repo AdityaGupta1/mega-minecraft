@@ -12,6 +12,7 @@ void BlockUtils::init()
     blockDatas[(int)Block::AIR] = { BlockUvs(), TransparencyType::TRANSPARENT };
 
     blockDatas[(int)Block::WATER] = { BlockUvs(ivec2(15, 15)), TransparencyType::TRANSPARENT };
+    blockDatas[(int)Block::LAVA] = { BlockUvs(ivec2(14, 15)), TransparencyType::OPAQUE }; // not sure if this should be transparent
 
     blockDatas[(int)Block::BEDROCK] = { BlockUvs(ivec2(0, 5)) };
 

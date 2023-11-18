@@ -119,7 +119,12 @@ public:
         float* dev_layers,
         cudaStream_t stream);
 
-    static void erodeZone(Zone* zonePtr, float* dev_gatheredLayers, float* dev_accumulatedHeights, cudaStream_t stream);
+    static void erodeZone(
+        Zone* zonePtr,
+        float* host_gatheredLayers,
+        float* dev_gatheredLayers, 
+        float* dev_accumulatedHeights, 
+        cudaStream_t stream);
 
     static void generateCaves(
         std::vector<Chunk*>& chunks,

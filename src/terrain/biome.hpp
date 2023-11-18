@@ -6,6 +6,7 @@
 #define MAX_GATHERED_FEATURES_PER_CHUNK 1024
 
 #define SEA_LEVEL 128
+#define LAVA_LEVEL 8
 
 enum class Biome : unsigned char
 {
@@ -89,6 +90,8 @@ struct MaterialInfo
 
 struct CaveLayer
 {
+    CaveLayer() = default;
+
     int start; // exclusive
     int end; // inclusive
 };

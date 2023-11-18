@@ -7,6 +7,7 @@ enum class Block : unsigned char
     AIR,
 
     WATER,
+    LAVA,
 
     BEDROCK,
 

@@ -11,6 +11,7 @@
 
 static constexpr int chunkVbosGenRadius = 16;
 static constexpr int chunkMaxGenRadius = chunkVbosGenRadius + (ZONE_SIZE * 2);
+static constexpr int zoneKeepRadius = chunkMaxGenRadius + ((3 * ZONE_SIZE) / 2);
 
 // TODO: get better estimates for these
 // ================================================================================
@@ -61,6 +62,7 @@ static constexpr int numDevLayers = maxActionTimePerFrame / min(actionTimeGenera
 static constexpr int numHostCaveLayers = maxActionTimePerFrame / min(actionTimeGenerateCaves, actionTimeFill);
 static constexpr int numDevCaveLayers = maxActionTimePerFrame / min(actionTimeGenerateCaves, actionTimeFill);
 
+static constexpr int numHostGatheredLayers = maxActionTimePerFrame / actionTimeErodeZone;
 static constexpr int numDevGatheredLayers = maxActionTimePerFrame / actionTimeErodeZone;
 static constexpr int numStreams = 4 + numDevGatheredLayers;
 
@@ -80,6 +82,7 @@ static float* dev_layers;
 static CaveLayer* host_caveLayers;
 static CaveLayer* dev_caveLayers;
 
+static float* host_gatheredLayers;
 static float* dev_gatheredLayers;
 static float* dev_accumulatedHeights;
 
@@ -103,6 +106,7 @@ void Terrain::initCuda()
     cudaMallocHost((void**)&host_caveLayers, numHostCaveLayers * devCaveLayersSize * sizeof(CaveLayer));
     cudaMalloc((void**)&dev_caveLayers, numDevCaveLayers * devCaveLayersSize * sizeof(CaveLayer));
 
+    cudaMallocHost((void**)&host_gatheredLayers, numHostGatheredLayers * devGatheredLayersSize * sizeof(float));
     cudaMalloc((void**)&dev_gatheredLayers, numDevGatheredLayers * devGatheredLayersSize * sizeof(float));
     cudaMalloc((void**)&dev_accumulatedHeights, numDevGatheredLayers * devAccumulatedHeightsSize * sizeof(float));
 
@@ -134,6 +138,7 @@ void Terrain::freeCuda()
     cudaFreeHost(host_caveLayers);
     cudaFree(dev_caveLayers);
 
+    cudaFreeHost(host_gatheredLayers);
     cudaFree(dev_gatheredLayers);
     cudaFree(dev_accumulatedHeights);
 
@@ -462,8 +467,31 @@ bool isZoneReadyForErosion(Zone* zonePtr)
 
 void Terrain::updateZones()
 {
+    std::unordered_set<ivec2, Utils::PosHash> zonesToDestroy;
+    for (const auto& zonePair : this->zones)
+    {
+        const auto zoneWorldChunkPos = zonePair.first;
+
+        ivec2 distVec = zoneWorldChunkPos - this->currentChunkPos;
+        int dist = max(distVec.x, distVec.y);
+        if (dist > zoneKeepRadius)
+        {
+            zonesToDestroy.insert(zoneWorldChunkPos);
+        }
+    }
+
+    for (const auto& zoneWorldChunkPos : zonesToDestroy)
+    {
+        this->zones.erase(zoneWorldChunkPos);
+    }
+
     for (const auto& zonePtr : zonesToTryErosion)
     {
+        if (zonesToDestroy.find(zonePtr->worldChunkPos) != zonesToDestroy.end())
+        {
+            continue;
+        }
+
         if (isZoneReadyForErosion(zonePtr))
         {
             zonesToErode.push(zonePtr);
@@ -516,8 +544,8 @@ void Terrain::tick(float deltaTime)
 
     if (needsUpdateChunks)
     {
-        updateChunks();
         updateZones();
+        updateChunks();
         needsUpdateChunks = false;
     }
 
@@ -539,6 +567,7 @@ void Terrain::tick(float deltaTime)
     int hostCaveLayersIdx = 0;
     int devCaveLayersIdx = 0;
 
+    int hostGatheredLayersIdx = 0;
     int devGatheredLayersIdx = 0;
     int streamIdx = 0;
 
@@ -693,11 +722,14 @@ void Terrain::tick(float deltaTime)
 
         Chunk::erodeZone(
             zonePtr,
+            host_gatheredLayers + (hostGatheredLayersIdx * devGatheredLayersSize),
             dev_gatheredLayers + (devGatheredLayersIdx * devGatheredLayersSize),
             dev_accumulatedHeights + (devGatheredLayersIdx * devAccumulatedHeightsSize),
             streams[streamIdx]
         );
+        ++hostGatheredLayersIdx;
         ++devGatheredLayersIdx;
+
         ++streamIdx;
 
         for (const auto& chunkPtr : zonePtr->chunks)

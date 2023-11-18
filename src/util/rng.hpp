@@ -82,11 +82,6 @@ __host__ __device__ thrust::default_random_engine makeSeededRandomEngine(int x, 
     return thrust::default_random_engine(h);
 }
 
-__host__ __device__ thrust::default_random_engine makeSeededRandomEngine(vec3 v)
-{
-    return makeSeededRandomEngine(v.x, v.y, v.z);
-}
-
 __host__ __device__ thrust::default_random_engine makeSeededRandomEngine(int x, int y, int z, int w)
 {
     int h = hash((1 << 31) | (x << 22) | (y << 11) | w) ^ hash(z);

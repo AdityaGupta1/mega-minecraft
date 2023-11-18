@@ -12,7 +12,7 @@
 #define DEBUG_SKIP_EROSION 0
 #define DEBUG_USE_CONTRIBUTION_FILL_METHOD 0
 
-#define DEBUG_BIOME_OVERRIDE Biome::PLAINS
+//#define DEBUG_BIOME_OVERRIDE Biome::PLAINS
 
 Chunk::Chunk(ivec2 worldChunkPos)
     : worldChunkPos(worldChunkPos), worldBlockPos(worldChunkPos.x * 16, 0, worldChunkPos.y * 16)
@@ -655,15 +655,19 @@ void copyLayers(Zone* zonePtr, float* gatheredLayers, bool toGatheredLayers)
     }
 }
 
-void Chunk::erodeZone(Zone* zonePtr, float* dev_gatheredLayers, float* dev_accumulatedHeights, cudaStream_t stream)
+__host__ void Chunk::erodeZone(
+    Zone* zonePtr,
+    float* host_gatheredLayers,
+    float* dev_gatheredLayers,
+    float* dev_accumulatedHeights,
+    cudaStream_t stream)
 {
 #if !DEBUG_SKIP_EROSION
-    float* gatheredLayers = new float[gatheredLayersBaseSize];
-    copyLayers(zonePtr, gatheredLayers, true);
+    copyLayers(zonePtr, host_gatheredLayers, true);
     zonePtr->gatheredChunks.clear();
 
     int gatheredLayersSizeBytes = gatheredLayersBaseSize * sizeof(float);
-    cudaMemcpyAsync(dev_gatheredLayers, gatheredLayers, gatheredLayersSizeBytes, cudaMemcpyHostToDevice, stream);
+    cudaMemcpyAsync(dev_gatheredLayers, host_gatheredLayers, gatheredLayersSizeBytes, cudaMemcpyHostToDevice, stream);
 
     float flagDidChange;
     float* dev_flagDidChange = dev_gatheredLayers + gatheredLayersBaseSize;
@@ -700,13 +704,12 @@ void Chunk::erodeZone(Zone* zonePtr, float* dev_gatheredLayers, float* dev_accum
         while (flagDidChange != 0);
     }
 
-    cudaMemcpyAsync(gatheredLayers, dev_gatheredLayers, gatheredLayersSizeBytes, cudaMemcpyDeviceToHost, stream);
+    cudaMemcpyAsync(host_gatheredLayers, dev_gatheredLayers, gatheredLayersSizeBytes, cudaMemcpyDeviceToHost, stream);
 
     cudaStreamSynchronize(stream); // all data needs to be copied back to gatheredLayers before calling copyLayers()
                                    // explicit synchronization here may not be necessary (seems to work without it) but it gives peace of mind
 
-    copyLayers(zonePtr, gatheredLayers, false);
-    delete[] gatheredLayers;
+    copyLayers(zonePtr, host_gatheredLayers, false);
 #else
     zonePtr->gatheredChunks.clear();
 #endif
@@ -756,16 +759,20 @@ __device__ bool shouldGenerateCaveAtBlock(ivec3 worldPos)
         return false;
     }
 
-    vec3 noisePos = vec3(worldPos) * 0.0100f;
-    float topHeightRatio = smoothstep(135.f, 80.f, (float)worldPos.y);
+    vec3 noisePos = vec3(worldPos) * 0.0090f;
+    float topHeightRatio = smoothstep(142.f, 80.f, (float)worldPos.y);
     float bottomHeightRatio = smoothstep(5.f, 20.f, (float)worldPos.y);
 
-    vec3 noiseOffset = fbm3From3<4>(noisePos * 0.4000f) * 1.3f;
+    vec3 noiseOffset = fbm3From3<4>(noisePos * 0.5000f) * 1.4f;
 
     float caveNoise = specialCaveNoise(noisePos * vec3(1.f, 1.8f, 1.f) + noiseOffset);
 
-    float worleyEdgeThreshold = 0.20f + 0.12f * fbm<3>(noisePos * 4.f);
-    worleyEdgeThreshold *= (0.3f + 0.7f * topHeightRatio) * (0.3f + 0.7f * bottomHeightRatio);
+    float worleyEdgeThreshold = 0.24f + 0.12f * fbm<4>(noisePos * 4.f);
+
+    float hugeCaveNoise = smoothstep(0.3f, 0.45f, fbm<4>(noisePos * 0.0700f));
+    worleyEdgeThreshold *= (1.f + 1.4f * hugeCaveNoise);
+
+    worleyEdgeThreshold *= (0.1f + 0.9f * topHeightRatio) * (0.3f + 0.7f * bottomHeightRatio);
     if (caveNoise < worleyEdgeThreshold)
     {
         return true;
@@ -844,7 +851,7 @@ __global__ void kernGenerateCaves(
     }
 }
 
-void Chunk::generateCaves(
+__host__ void Chunk::generateCaves(
     std::vector<Chunk*>& chunks,
     ivec2* host_chunkWorldBlockPositions,
     ivec2* dev_chunkWorldBlockPositions,
@@ -1076,7 +1083,7 @@ __device__ void chunkFillPlaceBlock(
 
         if (y >= caveLayer.start && y < caveLayer.end)
         {
-            *blockPtr = Block::AIR;
+            *blockPtr = (y <= LAVA_LEVEL) ? Block::LAVA : Block::AIR;
             return;
         }
     }
