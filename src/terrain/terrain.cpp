@@ -23,7 +23,7 @@ static constexpr int actionTimeGenerateLayers             = 5;
 static constexpr int actionTimeErodeZone                  = 600;
 static constexpr int actionTimeGenerateFeaturePlacements  = 3;
 static constexpr int actionTimeGatherFeaturePlacements    = 5;
-static constexpr int actionTimeFill                       = 12;
+static constexpr int actionTimeFill                       = 8;
 static constexpr int actionTimeCreateAndBufferVbos        = 120;
 // ================================================================================
 
@@ -44,23 +44,26 @@ bool finishedTiming = false;
 std::chrono::system_clock::time_point start;
 #endif
 
+static constexpr int numHostBlocks = maxActionTimePerFrame / actionTimeFill;
 static constexpr int numDevBlocks = maxActionTimePerFrame / actionTimeFill;
 static constexpr int numDevFeaturePlacements = numDevBlocks;
 
-static constexpr int numHostHeightfields = maxActionTimePerFrame / min(actionTimeGenerateHeightfield, actionTimeGenerateLayers);
+static constexpr int numHostHeightfields = maxActionTimePerFrame / min(actionTimeGenerateHeightfield, min(actionTimeGenerateLayers, actionTimeFill));
 static constexpr int numDevHeightfields = maxActionTimePerFrame / min(actionTimeGenerateHeightfield, min(actionTimeGenerateLayers, actionTimeFill));
 static constexpr int numHostBiomeWeights = numHostHeightfields;
 static constexpr int numDevBiomeWeights = numDevHeightfields;
 static constexpr int numHostChunkWorldBlockPositions = numHostHeightfields;
 static constexpr int numDevChunkWorldBlockPositions = maxActionTimePerFrame / min(actionTimeGenerateHeightfield, actionTimeGenerateLayers);
 
-static constexpr int numHostLayers = maxActionTimePerFrame / actionTimeGenerateLayers;
+static constexpr int numHostLayers = maxActionTimePerFrame / min(actionTimeGenerateLayers, actionTimeFill);
 static constexpr int numDevLayers = maxActionTimePerFrame / min(actionTimeGenerateLayers, actionTimeFill);
+static constexpr int numHostCaveLayers = maxActionTimePerFrame / actionTimeFill;
 static constexpr int numDevCaveLayers = maxActionTimePerFrame / actionTimeFill;
 
 static constexpr int numDevGatheredLayers = maxActionTimePerFrame / actionTimeErodeZone;
 static constexpr int numStreams = max(max(numDevBlocks, numDevHeightfields), max(numDevLayers, numDevGatheredLayers)); // TODO: revisit (probably only if I decide to make kernFill operate on multiple chunks at once)
 
+static Block* host_blocks;
 static Block* dev_blocks;
 static FeaturePlacement* dev_featurePlacements;
 
@@ -73,6 +76,7 @@ static ivec2* dev_chunkWorldBlockPositions;
 
 static float* host_layers;
 static float* dev_layers;
+static CaveLayer* host_caveLayers;
 static CaveLayer* dev_caveLayers;
 
 static float* dev_gatheredLayers;
@@ -82,6 +86,7 @@ static std::array<cudaStream_t, numStreams> streams;
 
 void Terrain::initCuda()
 {
+    cudaMallocHost((void**)&host_blocks, numHostBlocks * devBlocksSize * sizeof(Block));
     cudaMalloc((void**)&dev_blocks, numDevBlocks * devBlocksSize * sizeof(Block));
     cudaMalloc((void**)&dev_featurePlacements, numDevFeaturePlacements * devFeaturePlacementsSize * sizeof(FeaturePlacement));
 
@@ -94,6 +99,7 @@ void Terrain::initCuda()
 
     cudaMallocHost((void**)&host_layers, numHostLayers * devLayersSize * sizeof(float));
     cudaMalloc((void**)&dev_layers, numDevLayers * devLayersSize * sizeof(float));
+    cudaMallocHost((void**)&host_caveLayers, numHostCaveLayers * devCaveLayersSize * sizeof(CaveLayer));
     cudaMalloc((void**)&dev_caveLayers, numDevCaveLayers * devCaveLayersSize * sizeof(CaveLayer));
 
     cudaMalloc((void**)&dev_gatheredLayers, numDevGatheredLayers * devGatheredLayersSize * sizeof(float));
@@ -111,6 +117,7 @@ void Terrain::initCuda()
 
 void Terrain::freeCuda()
 {
+    cudaFreeHost(host_blocks);
     cudaFree(dev_blocks);
     cudaFree(dev_featurePlacements);
 
@@ -123,6 +130,7 @@ void Terrain::freeCuda()
 
     cudaFreeHost(host_layers);
     cudaFree(dev_layers);
+    cudaFreeHost(host_caveLayers);
     cudaFree(dev_caveLayers);
 
     cudaFree(dev_gatheredLayers);
@@ -510,6 +518,7 @@ void Terrain::tick(float deltaTime)
 
     actionTimeLeft = min(actionTimeLeft + (int)(totalActionTimePerSecond * deltaTime), maxActionTimePerFrame);
 
+    int hostBlocksIdx = 0;
     int devBlocksIdx = 0;
     int devFeaturePlacementsIdx = 0;
 
@@ -522,6 +531,7 @@ void Terrain::tick(float deltaTime)
 
     int hostLayersIdx = 0;
     int devLayersIdx = 0;
+    int hostCaveLayersIdx = 0;
     int devCaveLayersIdx = 0;
 
     int devGatheredLayersIdx = 0;
@@ -565,22 +575,32 @@ void Terrain::tick(float deltaTime)
         {
             Chunk::fill(
                 chunks,
-                dev_blocks + (devBlocksIdx * devBlocksSize),
+                host_heightfields + (hostHeightfieldIdx * devHeightfieldSize),
                 dev_heightfields + (devHeightfieldIdx * devHeightfieldSize),
+                host_biomeWeights + (hostBiomeWeightsIdx * devHeightfieldSize),
                 dev_biomeWeights + (devBiomeWeightsIdx * devBiomeWeightsSize),
+                host_layers + (hostLayersIdx * devLayersSize),
                 dev_layers + (devLayersIdx * devLayersSize),
+                host_caveLayers + (hostCaveLayersIdx * devCaveLayersSize),
                 dev_caveLayers + (devCaveLayersIdx * devCaveLayersSize),
                 dev_featurePlacements + (devFeaturePlacementsIdx * devFeaturePlacementsSize),
+                host_blocks + (hostBlocksIdx * devBlocksSize),
+                dev_blocks + (devBlocksIdx * devBlocksSize),
                 streams[streamIdx]
             );
 
+            hostBlocksIdx += numChunks;
             devBlocksIdx += numChunks;
             devFeaturePlacementsIdx += numChunks;
 
+            hostHeightfieldIdx += numChunks;
             devHeightfieldIdx += numChunks;
+            hostBiomeWeightsIdx += numChunks;
             devBiomeWeightsIdx += numChunks;
 
+            hostLayersIdx += numChunks;
             devLayersIdx += numChunks;
+            hostCaveLayersIdx += numChunks;
             devCaveLayersIdx += numChunks;
 
             ++streamIdx;

@@ -1138,15 +1138,35 @@ __global__ void kernFill(
 
 void Chunk::fill(
     std::vector<Chunk*>& chunks,
-    Block* dev_blocks, 
-    float* dev_heightfield,
+    float* host_heightfields,
+    float* dev_heightfields,
+    float* host_biomeWeights,
     float* dev_biomeWeights,
+    float* host_layers,
     float* dev_layers,
+    CaveLayer* host_caveLayers,
     CaveLayer* dev_caveLayers,
-    FeaturePlacement* dev_featurePlacements, 
+    FeaturePlacement* dev_featurePlacements,
+    Block* host_blocks,
+    Block* dev_blocks,
     cudaStream_t stream)
 {
     const int numChunks = chunks.size();
+
+    for (int i = 0; i < numChunks; ++i)
+    {
+        Chunk* chunkPtr = chunks[i];
+
+        std::memcpy(host_heightfields + (i * 256), chunkPtr->heightfield.data(), 256 * sizeof(float));
+        std::memcpy(host_biomeWeights + (i * devBiomeWeightsSize), chunkPtr->biomeWeights.data(), devBiomeWeightsSize * sizeof(float));
+        std::memcpy(host_layers + (i * devLayersSize), chunkPtr->layers.data(), devLayersSize * sizeof(float));
+        std::memcpy(host_caveLayers + (i * devCaveLayersSize), chunkPtr->caveLayers.data(), devCaveLayersSize * sizeof(CaveLayer));
+    }
+
+    cudaMemcpyAsync(dev_heightfields, host_heightfields, numChunks * 256 * sizeof(float), cudaMemcpyHostToDevice, stream);
+    cudaMemcpyAsync(dev_biomeWeights, host_biomeWeights, numChunks * devBiomeWeightsSize * sizeof(float), cudaMemcpyHostToDevice, stream);
+    cudaMemcpyAsync(dev_layers, host_layers, numChunks * devLayersSize * sizeof(float), cudaMemcpyHostToDevice, stream);
+    cudaMemcpyAsync(dev_caveLayers, host_caveLayers, numChunks * devCaveLayersSize * sizeof(CaveLayer), cudaMemcpyHostToDevice, stream);
 
     for (int i = 0; i < numChunks; ++i)
     {
@@ -1167,28 +1187,32 @@ void Chunk::fill(
             chunkPtr->gatheredFeaturePlacements.push_back({ Feature::NONE, vec3(0, -1, 0) });
             ++numFeaturePlacements;
         }
-        cudaMemcpyAsync(dev_featurePlacements, chunkPtr->gatheredFeaturePlacements.data(), numFeaturePlacements * sizeof(FeaturePlacement), cudaMemcpyHostToDevice, stream);
+        cudaMemcpyAsync(dev_featurePlacements + (i * MAX_GATHERED_FEATURES_PER_CHUNK), chunkPtr->gatheredFeaturePlacements.data(), numFeaturePlacements * sizeof(FeaturePlacement), cudaMemcpyHostToDevice, stream);
         chunkPtr->gatheredFeaturePlacements.clear();
-
-        cudaMemcpyAsync(dev_heightfield, chunkPtr->heightfield.data(), 256 * sizeof(float), cudaMemcpyHostToDevice, stream);
-        cudaMemcpyAsync(dev_biomeWeights, chunkPtr->biomeWeights.data(), devBiomeWeightsSize * sizeof(float), cudaMemcpyHostToDevice, stream);
-        cudaMemcpyAsync(dev_layers, chunkPtr->layers.data(), devLayersSize * sizeof(float), cudaMemcpyHostToDevice, stream);
-        cudaMemcpyAsync(dev_caveLayers, chunkPtr->caveLayers.data(), devCaveLayersSize * sizeof(CaveLayer), cudaMemcpyHostToDevice, stream);
 
         const dim3 blockSize3d(1, 128, 1);
         const dim3 blocksPerGrid3d(16, 3, 16);
         kernFill<<<blocksPerGrid3d, blockSize3d, 0, stream>>>(
-            dev_blocks,
-            dev_heightfield,
-            dev_biomeWeights,
-            dev_layers,
-            dev_caveLayers,
-            dev_featurePlacements,
+            dev_blocks + (i * devBlocksSize),
+            dev_heightfields + (i * 256),
+            dev_biomeWeights + (i * devBiomeWeightsSize),
+            dev_layers + (i * devLayersSize),
+            dev_caveLayers + (i * devCaveLayersSize),
+            dev_featurePlacements + (i * MAX_GATHERED_FEATURES_PER_CHUNK),
             allFeaturesHeightBounds,
             chunkPtr->worldBlockPos
         );
+    }
 
-        cudaMemcpyAsync(chunkPtr->blocks.data(), dev_blocks, devBlocksSize * sizeof(Block), cudaMemcpyDeviceToHost, stream);
+    cudaMemcpyAsync(host_blocks, dev_blocks, numChunks * devBlocksSize * sizeof(Block), cudaMemcpyDeviceToHost, stream);
+
+    cudaStreamSynchronize(stream);
+
+    for (int i = 0; i < numChunks; ++i)
+    {
+        Chunk* chunkPtr = chunks[i];
+
+        std::memcpy(chunkPtr->blocks.data(), host_blocks + (i * devBlocksSize), devBlocksSize * sizeof(Block));
     }
 
     CudaUtils::checkCUDAError("Chunk::fill() failed");

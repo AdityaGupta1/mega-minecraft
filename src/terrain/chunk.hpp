@@ -125,12 +125,17 @@ public:
 
     static void fill(
         std::vector<Chunk*>& chunks,
-        Block* dev_blocks,
-        float* dev_heightfield,
+        float* host_heightfields,
+        float* dev_heightfields,
+        float* host_biomeWeights,
         float* dev_biomeWeights,
+        float* host_layers,
         float* dev_layers,
+        CaveLayer* host_caveLayers,
         CaveLayer* dev_caveLayers,
         FeaturePlacement* dev_featurePlacements,
+        Block* host_blocks,
+        Block* dev_blocks,
         cudaStream_t stream);
 
     void createVBOs();

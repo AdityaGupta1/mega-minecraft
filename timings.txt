@@ -69,3 +69,13 @@ separate cudaMemcpy calls for each chunk fill (seconds)
 
 combined cudaMemcpy calls for host to device transfer (seconds)
 
+7.43
+7.38
+7.70
+7.44
+7.74
+7.47
+7.87
+7.73
+7.75
+7.38
