@@ -2,7 +2,7 @@
 
 #include "block.hpp"
 
-#define MAX_CAVE_LAYERS_PER_COLUMN 16
+#define MAX_CAVE_LAYERS_PER_COLUMN 32
 #define MAX_GATHERED_FEATURES_PER_CHUNK 1024
 
 #define SEA_LEVEL 128
@@ -89,8 +89,8 @@ struct MaterialInfo
 
 struct CaveLayer
 {
-    int start; // inclusive
-    int end; // exclusive
+    int start; // exclusive
+    int end; // inclusive
 };
 
 enum class Feature : unsigned char

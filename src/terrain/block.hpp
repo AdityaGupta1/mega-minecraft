@@ -8,6 +8,8 @@ enum class Block : unsigned char
 
     WATER,
 
+    BEDROCK,
+
     STONE,
     DIRT,
     GRASS,

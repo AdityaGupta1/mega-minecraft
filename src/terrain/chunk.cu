@@ -673,7 +673,7 @@ void Chunk::erodeZone(Zone* zonePtr, float* dev_gatheredLayers, float* dev_accum
     const dim3 blocksPerGrid2d(blocksPerGrid, blocksPerGrid);
 
     thrust::device_ptr<float> dev_ptr(dev_accumulatedHeights);
-    thrust::fill(dev_ptr, dev_ptr + EROSION_GRID_NUM_COLS, 0.f);
+    thrust::fill_n(dev_ptr, EROSION_GRID_NUM_COLS, 0.f);
 
     for (int layerIdx = numErodedMaterials - 1; layerIdx >= 0; --layerIdx)
     {
@@ -749,11 +749,13 @@ void Chunk::fixBackwardStratifiedLayers()
 
 #pragma region caves
 
+// TODO: pass in heightfield and skip evaluating noise if y > max height
 __global__ void kernGenerateCaves(
     ivec2* chunkWorldBlockPositions, 
     CaveLayer* caveLayers)
 {
-    __shared__ bool shared_isFilled[384];
+    __shared__ int shared_isFilled[384];
+    __shared__ int shared_flipHeights[384];
 
     const int globalX = (blockIdx.x * blockDim.x) + threadIdx.x;
     
@@ -764,20 +766,70 @@ __global__ void kernGenerateCaves(
 
     const int idx2d = posTo2dIndex(x, z);
 
-    const vec2 worldPos = chunkWorldBlockPositions[chunkIdx] + ivec2(x, z);
+    const ivec2 chunkWorldBlockPos = chunkWorldBlockPositions[chunkIdx];
+    const vec3 worldPos = ivec3(chunkWorldBlockPos.x + x, y, chunkWorldBlockPos.y + z);
 
-    CaveLayer* columnCaveLayers = caveLayers + (256 * MAX_CAVE_LAYERS_PER_COLUMN * chunkIdx) + (MAX_CAVE_LAYERS_PER_COLUMN * idx2d);
+    int isThisFilled = 0;
+    if (y == 0)
+    {
+        isThisFilled = 1;
+    }
+    else
+    {
+        vec3 noisePos = worldPos * 0.0200f;
+        float caveNoise = glm::simplex(noisePos);
+        if (caveNoise > 0.f)
+        {
+            isThisFilled = 1;
+        }
+    }
+    shared_isFilled[y] = isThisFilled;
 
-    if (threadIdx.y != 0)
+    __syncthreads();
+
+    int isNextFilled = y < 383 ? shared_isFilled[y + 1] : 0;
+    shared_flipHeights[y] = (isThisFilled != isNextFilled) ? y : -1;
+
+    __syncthreads();
+
+    if (y >= 12)
     {
         return;
     }
 
-    vec2 noisePos = vec2(worldPos) * 0.0300f;
-    vec2 noiseOut = vec2(glm::simplex(noisePos), glm::simplex(noisePos + vec2(1293.33f, 4920.21f)));
-    int layerStart = (int)(16.f + 8.f * noiseOut.x);
-    int layerEnd = (int)(SEA_LEVEL + 16.f * noiseOut.y);
-    columnCaveLayers[0] = { layerStart, layerEnd };
+    const int startLoadIdx = 32 * y;
+    int endLoadIdx = startLoadIdx;
+    // TODO: see if this causes bank conflicts (pretty sure it does), could be fixable by making shared_flipHeights size 33 * 12
+    for (int i = startLoadIdx; i < startLoadIdx + 32; ++i)
+    {
+        int flipHeight = shared_flipHeights[i];
+        if (flipHeight != -1)
+        {
+            shared_flipHeights[endLoadIdx] = flipHeight;
+            ++endLoadIdx;
+        }
+    }
+
+    const int numFlips = endLoadIdx - startLoadIdx;
+    int startStoreIdx = 0;
+
+    // add up numFlips from all threads with lower y and store into startStoreIdx
+    // TODO: replace with parallel version
+    for (int srcLane = 0; srcLane < 12; ++srcLane)
+    {
+        int srcLaneNumFlips = __shfl_sync(0x00000fffu, numFlips, srcLane);
+        if (srcLane < y)
+        {
+            startStoreIdx += srcLaneNumFlips;
+        }
+    }
+
+    int* columnCaveLayersInts = (int*)(caveLayers + (256 * MAX_CAVE_LAYERS_PER_COLUMN * chunkIdx) + (MAX_CAVE_LAYERS_PER_COLUMN * idx2d));
+
+    for (int i = 0; i < numFlips; ++i)
+    {
+        columnCaveLayersInts[startStoreIdx + i] = shared_flipHeights[startLoadIdx + i];
+    }
 }
 
 void Chunk::generateCaves(
@@ -800,7 +852,9 @@ void Chunk::generateCaves(
 
     cudaMemcpyAsync(dev_chunkWorldBlockPositions, host_chunkWorldBlockPositions, numChunks * sizeof(ivec2), cudaMemcpyHostToDevice, stream);
 
-    cudaMemsetAsync(dev_caveLayers, 0, numChunks * devCaveLayersSize * sizeof(CaveLayer), stream);
+    thrust::device_ptr<CaveLayer> dev_ptr(dev_caveLayers);
+    CaveLayer defaultCaveLayer = { 384, 384 };
+    thrust::fill_n(dev_ptr, numChunks * devCaveLayersSize, defaultCaveLayer);
 
     const dim3 blockSize3d(1, 384, 1);
     const dim3 blocksPerGrid3d(numChunks * 16, 1, 16);
@@ -846,12 +900,12 @@ void Chunk::generateFeaturePlacements()
             {
                 const auto& caveLayer = columnCaveLayers[caveLayerIdx];
 
-                if (caveLayer.start == caveLayer.end)
+                if (caveLayer.start == 384)
                 {
                     break;
                 }
 
-                if (groundHeight >= caveLayer.start && groundHeight < caveLayer.end)
+                if (groundHeight > caveLayer.start && groundHeight <= caveLayer.end)
                 {
                     isCave = true;
                     break;
@@ -974,6 +1028,12 @@ __device__ void chunkFillPlaceBlock(
     ivec3 worldBlockPos,
     thrust::random::default_random_engine& rng)
 {
+    if (y == 0)
+    {
+        *blockPtr = Block::BEDROCK;
+        return;
+    }
+
     if (y > height && y > SEA_LEVEL)
     {
         *blockPtr = Block::AIR;

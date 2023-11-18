@@ -13,6 +13,8 @@ void BlockUtils::init()
 
     blockDatas[(int)Block::WATER] = { BlockUvs(ivec2(15, 15)), TransparencyType::TRANSPARENT };
 
+    blockDatas[(int)Block::BEDROCK] = { BlockUvs(ivec2(0, 5)) };
+
     blockDatas[(int)Block::STONE] = { BlockUvs(ivec2(3, 0)).setRandomFlip() };
     blockDatas[(int)Block::DIRT] = { BlockUvs(ivec2(0, 0)).setRandomRotation() };
     blockDatas[(int)Block::GRASS] = { BlockUvs(ivec2(1, 0), ivec2(2, 0), ivec2(0, 0)).setRandomRotation(false, true, true) };
