@@ -21,7 +21,7 @@ typedef Record<void*>     MissRecord;
 typedef Record<ChunkData> HitGroupRecord;
 
 OptixRenderer::OptixRenderer(GLFWwindow* window, ivec2* windowSize, Terrain* terrain, Player* player) 
-    : window(window), windowSize(windowSize), terrain(terrain), player(player)
+    : window(window), windowSize(windowSize), terrain(terrain), player(player), vao(-1), tex_pixels(-1)
 {
     const float fovy = 26.f;
     float yscaled = tan(fovy * (PI / 180));
@@ -545,23 +545,19 @@ void OptixRenderer::initShader()
 
 void OptixRenderer::initTexture()
 {
-    glActiveTexture(GL_TEXTURE0);
     glGenTextures(1, &tex_pixels);
     glBindTexture(GL_TEXTURE_2D, tex_pixels);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, windowSize->x, windowSize->y, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels.data());
 
-    passthroughUvsShader.setTexPixels(0);
+    passthroughUvsShader.setTexBufColor(0);
 }
 
 
 void OptixRenderer::updateFrame()
 {
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, tex_pixels);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, windowSize->x, windowSize->y, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels.data());
-
-    passthroughUvsShader.setTexPixels(0);
-
     passthroughUvsShader.draw(fullscreenTri);
     glfwSwapBuffers(window);
 }
