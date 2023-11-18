@@ -756,24 +756,17 @@ __device__ bool shouldGenerateCaveAtBlock(ivec3 worldPos)
         return false;
     }
 
-    //vec3 noisePos = vec3(worldPos) * 0.0070f;
-    //float topHeightRatio = smoothstep(135.f, 80.f, (float)worldPos.y);
-    //float bottomHeightRatio = smoothstep(5.f, 20.f, (float)worldPos.y);
+    vec3 noisePos = vec3(worldPos) * 0.0100f;
+    float topHeightRatio = smoothstep(135.f, 80.f, (float)worldPos.y);
+    float bottomHeightRatio = smoothstep(5.f, 20.f, (float)worldPos.y);
 
-    //vec3 noiseOffset = fbm3From3<4>(noisePos * 0.4000f) * 1.3f;
+    vec3 noiseOffset = fbm3From3<4>(noisePos * 0.4000f) * 1.3f;
 
-    //float worleyEdgeDist;
-    //worley(noisePos * vec3(1.f, 2.5f, 1.f) + noiseOffset, nullptr, &worleyEdgeDist);
+    float caveNoise = specialCaveNoise(noisePos * vec3(1.f, 1.8f, 1.f) + noiseOffset);
 
-    //float worleyEdgeThreshold = 0.07f + 0.03f * fbm<3>(noisePos * 4.f);
-    //worleyEdgeThreshold *= topHeightRatio * bottomHeightRatio;
-    //if (worleyEdgeDist < worleyEdgeThreshold)
-    //{
-    //    return true;
-    //}
-
-    vec3 noisePos = vec3(worldPos) * 0.0050f;
-    if (specialCaveNoise(noisePos, 0.015f))
+    float worleyEdgeThreshold = 0.20f + 0.12f * fbm<3>(noisePos * 4.f);
+    worleyEdgeThreshold *= (0.3f + 0.7f * topHeightRatio) * (0.3f + 0.7f * bottomHeightRatio);
+    if (caveNoise < worleyEdgeThreshold)
     {
         return true;
     }

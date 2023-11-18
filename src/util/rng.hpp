@@ -230,75 +230,46 @@ __device__ float worley(vec2 pos, vec3* colorPtr = nullptr, float* edgeDistPtr =
     return minDist1;
 }
 
-__device__ vec3 caveGridPoint(ivec3 corner, float padding)
+// idea comes from here: https://github.com/superfluke/WorleyCaves/blob/master/src/main/java/fluke/worleycaves/util/WorleyUtil.java#L315-L374
+// not sure why minDist3 and minDist1 are swapped in the final return statement though
+__device__ float specialCaveNoise(vec3 pos)
 {
-    return vec3(corner) + vec3(padding) + ((1.f - 2.f * padding) * rand3From3(corner));
-}
+    ivec3 uvInt = ivec3(floor(pos));
+    vec3 uvFract = fract(pos);
 
-__device__ bool specialCaveNoise(vec3 pos, float threshold)
-{
-    ivec3 thisIntPos = ivec3(floor(pos));
-    vec3 thisFractPos = fract(pos);
-    vec3 thisRandPos = caveGridPoint(thisIntPos, threshold);
-
-    if (distance(thisFractPos, thisRandPos) < threshold)
+    float minDist1 = FLT_MAX;
+    float minDist2 = FLT_MAX;
+    float minDist3 = FLT_MAX;
+    for (int x = -1; x <= 1; ++x)
     {
-        return true;
-    }
-
-    thrust::uniform_real_distribution<float> u01(0, 1);
-
-    for (int dx1 = -1; dx1 <= 1; ++dx1)
-    {
-        for (int dy1 = -1; dy1 <= 1; ++dy1)
+        for (int y = -1; y <= 1; ++y)
         {
-            for (int dz1 = -1; dz1 <= 1; ++dz1)
+            for (int z = -1; z <= 1; ++z)
             {
-                ivec3 neighborOffset1 = ivec3(dx1, dy1, dz1);
-                ivec3 neighborIntPos1 = thisIntPos + neighborOffset1;
-                vec3 neighborRandPos1 = vec3(neighborOffset1) + caveGridPoint(neighborIntPos1, threshold);
-
-                if (distance(thisFractPos, neighborRandPos1) < threshold)
+                ivec3 neighbor = ivec3(x, y, z);
+                vec3 point = rand3From3(uvInt + neighbor);
+                vec3 diff = vec3(neighbor) + point - uvFract;
+                float dist = length(diff);
+                if (dist < minDist1)
                 {
-                    return true;
+                    minDist3 = minDist2;
+                    minDist2 = minDist1;
+                    minDist1 = dist;
                 }
-
-                float ratio, distFromLine;
-                if (calculateLineParams(thisFractPos, thisRandPos, neighborRandPos1, &ratio, &distFromLine) && distFromLine < threshold)
+                else if (dist < minDist2)
                 {
-                    return true;
+                    minDist3 = minDist2;
+                    minDist2 = dist;
                 }
-
-                for (int dx2 = -1; dx2 <= 1; ++dx2)
+                else if (dist < minDist3)
                 {
-                    for (int dy2 = -1; dy2 <= 1; ++dy2)
-                    {
-                        for (int dz2 = -1; dz2 <= 1; ++dz2)
-                        {
-                            ivec3 neighborOffset2 = ivec3(dx2, dy2, dz2);
-                            ivec3 neighborIntPos2 = thisIntPos + neighborOffset2;
-
-                            //auto rng = makeSeededRandomEngine(neighborIntPos1 + neighborIntPos2);
-                            //if (u01(rng) < 0.7f)
-                            //{
-                            //    continue;
-                            //}
-
-                            vec3 neighborRandPos2 = vec3(neighborOffset2) + rand3From3(neighborIntPos2);
-
-                            float ratio, distFromLine;
-                            if (calculateLineParams(thisFractPos, neighborRandPos1, neighborRandPos2, &ratio, &distFromLine) && distFromLine < threshold)
-                            {
-                                return true;
-                            }
-                        }
-                    }
+                    minDist3 = dist;
                 }
             }
         }
     }
 
-    return false;
+    return minDist3 / minDist1 - 1.f;
 }
 
 #pragma endregion
