@@ -386,15 +386,6 @@ void Terrain::addZonesToTryErosionSet(Chunk* chunkPtr)
             zonesToTryErosion.insert(neighborZonePtr);
         }
     }
-
-    //for (int i = 0; i < 8; ++i)
-    //{
-    //    Zone* neighborZonePtr = zonePtr->neighbors[i];
-    //    if (neighborZonePtr != nullptr && !neighborZonePtr->hasBeenQueuedForErosion)
-    //    {
-    //        zonesToTryErosion.insert(neighborZonePtr);
-    //    }
-    //}
 }
 
 ivec2 getNeighborZoneCornerCoordBounds(int offset)
