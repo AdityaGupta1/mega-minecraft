@@ -29,6 +29,7 @@ struct Texture
 struct OptixParams
 {
     int numPixelSamples = 1;
+    int padding;
     glm::ivec2 windowSize;
     struct {
         glm::vec3 position;

@@ -67,7 +67,7 @@ extern "C" __global__ void __raygen__render() {
     const int b = 0;
 
     // and write to frame buffer ...
-    const uint32_t fbIndex = ix + iy * 1920; // TODO: don't hardcode this
+    const uint32_t fbIndex = ix + iy * params.windowSize.x;
 
     const uint32_t rgba = 0xff000000
         | (r << 0) | (g << 8) | (b << 16);    
