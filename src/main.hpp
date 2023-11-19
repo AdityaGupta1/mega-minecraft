@@ -38,7 +38,7 @@ std::unique_ptr<Player> player;
 //====================================
 
 bool init(int argc, char** argv);
-void initGame();
+void constructTerrainAndPlayer();
 
 //====================================
 // Main

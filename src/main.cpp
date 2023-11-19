@@ -75,7 +75,7 @@ bool init(int argc, char **argv) {
     BlockUtils::init();
     BiomeUtils::init();
 
-    initGame();
+    constructTerrainAndPlayer();
 
     optix = std::make_unique<OptixRenderer>(window, &windowSize, terrain.get(), player.get());
     //renderer = std::make_unique<Renderer>(window, &windowSize, terrain.get(), player.get());
@@ -84,10 +84,12 @@ bool init(int argc, char **argv) {
         return false;
     */
 
+    terrain->init(); // call after creating CUDA context in OptixRenderer
+
     return true;
 }
 
-void initGame() 
+void constructTerrainAndPlayer()
 {
     terrain = std::make_unique<Terrain>();
     player = std::make_unique<Player>();

@@ -71,6 +71,8 @@ public:
     Terrain();
     ~Terrain();
 
+    void init();
+
     void tick();
 
     void draw(const ShaderProgram& prog, const Player* player);

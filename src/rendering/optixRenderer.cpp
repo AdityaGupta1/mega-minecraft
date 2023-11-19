@@ -23,15 +23,20 @@ typedef Record<ChunkData> HitGroupRecord;
 OptixRenderer::OptixRenderer(GLFWwindow* window, ivec2* windowSize, Terrain* terrain, Player* player) 
     : window(window), windowSize(windowSize), terrain(terrain), player(player), vao(-1), tex_pixels(-1)
 {
+    createContext();
+
     const float fovy = 26.f;
     float yscaled = tan(fovy * (PI / 180));
     float xscaled = (yscaled * windowSize->x) / windowSize->y;
     launchParams.camera.pixelLength = glm::vec2(2 * xscaled / (float)windowSize->x, 2 * yscaled / (float)windowSize->y);
+    setCamera();
 
     launchParamsBuffer.alloc(sizeof(OptixParams));
     frameBuffer.alloc(windowSize->x * windowSize->y * sizeof(uint32_t));
     launchParams.windowSize = *windowSize;
     pixels.resize(windowSize->x * windowSize->y);
+
+    cudaStreamCreate(&stream);
 
     glGenVertexArrays(1, &vao);
     glBindVertexArray(vao);
@@ -41,22 +46,25 @@ OptixRenderer::OptixRenderer(GLFWwindow* window, ivec2* windowSize, Terrain* ter
     initShader();
 
     initTexture();
-    
-    createContext();
 }
 
 void OptixRenderer::createContext()
 {
-    cudaFree(0);
+    cuCtxCreate(&cudaContext, 0, 0);
+
+    //cudaFree(0);
     OPTIX_CHECK(optixInit());
     OptixDeviceContextOptions options = {};
+    options.logCallbackLevel = 4;
+    options.validationMode = OPTIX_DEVICE_CONTEXT_VALIDATION_MODE_ALL;
+
     OPTIX_CHECK(optixDeviceContextCreate(cudaContext, &options, &optixContext));
     createModule();
     createProgramGroups();
-    for (const Chunk* c : terrain->getDrawableChunks()) {
-       buildChunkAccel(c);
-    }
-    buildRootAccel();
+    //for (const Chunk* c : terrain->getDrawableChunks()) {
+    //   buildChunkAccel(c);
+    //}
+    //buildRootAccel();
     createPipeline();
     createTextures();
     buildSBT();
@@ -509,7 +517,8 @@ void OptixRenderer::optixRenderFrame()
     launchParams.frame.frameId++;
 
     OPTIX_CHECK(optixLaunch(/*! pipeline we're launching launch: */
-        pipeline, 0,
+        pipeline,
+        stream,
         /*! parameters and SBT */
         launchParamsBuffer.dev_ptr(),
         launchParamsBuffer.size(),
@@ -519,6 +528,9 @@ void OptixRenderer::optixRenderFrame()
         launchParams.windowSize.y,
         1
     ));
+
+    //printf("framebuffer byte size: %u\n", frameBuffer.byteSize);
+    //printf("window x * y: %d\n", launchParams.windowSize.x * launchParams.windowSize.y);
 
     frameBuffer.retrieve(pixels.data(), windowSize->x * windowSize->y);
 }

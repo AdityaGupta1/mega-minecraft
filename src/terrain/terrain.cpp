@@ -34,13 +34,16 @@ static constexpr int actionTimeCreateAndBufferVbos        = totalActionTime / 4;
 // ================================================================================
 
 Terrain::Terrain()
-{
-    initCuda();
-}
+{}
 
 Terrain::~Terrain()
 {
     freeCuda();
+}
+
+void Terrain::init()
+{
+    initCuda();
 }
 
 #if DEBUG_TIME_CHUNK_FILL

@@ -45,7 +45,6 @@ extern "C" __global__ void __raygen__render() {
         - camera.up * camera.pixelLength.y * ((float)iy - (float)params.windowSize.y * 0.5f)
     );
 
-
     optixTrace(params.rootHandle,
         camera.position,
         rayDir,
@@ -59,12 +58,16 @@ extern "C" __global__ void __raygen__render() {
         0,             // missSBTIndex 
         u0, u1);
 
-    const int r = int(255.99f * pixelColorPRD.x);
-    const int g = int(255.99f * pixelColorPRD.y);
-    const int b = int(255.99f * pixelColorPRD.z);
+    //const int r = int(255.99f * pixelColorPRD.x);
+    //const int g = int(255.99f * pixelColorPRD.y);
+    //const int b = int(255.99f * pixelColorPRD.z);
+
+    const int r = int((ix / 1920.f) * 255.99f);
+    const int g = int((iy / 1080.f) * 255.99f);
+    const int b = 0;
 
     // and write to frame buffer ...
-    const uint32_t fbIndex = ix + iy * params.windowSize.x;
+    const uint32_t fbIndex = ix + iy * 1920; // TODO: don't hardcode this
 
     const uint32_t rgba = 0xff000000
         | (r << 0) | (g << 8) | (b << 16);    
@@ -74,7 +77,7 @@ extern "C" __global__ void __raygen__render() {
 
 extern "C" __global__ void __miss__radiance() {
     float3& prd = *(float3*)getPRD<float3>();
-    prd = make_float3(1.0f);
+    prd = make_float3(1.f, 0.5f, 0.f);
 }
 
 extern "C" __global__ void __hit__radiance() {
@@ -87,4 +90,5 @@ extern "C" __global__ void __hit__radiance() {
 
     float3& prd = *(float3*)getPRD<float3>();
     prd = v.nor;
+
 }

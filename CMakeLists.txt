@@ -42,7 +42,7 @@ find_package(OpenGL REQUIRED)
 if(UNIX)
     find_package(glfw3 REQUIRED)
     find_package(GLEW REQUIRED)
-    list(APPEND LIBRARIES glfw ${GLEW_LIBRARIES} ${OPENGL_gl_LIBRARY})
+    list(APPEND LIBRARIES cuda glfw ${GLEW_LIBRARIES} ${OPENGL_gl_LIBRARY})
 else(UNIX)
     set(EXTERNAL "external")
 
@@ -56,7 +56,7 @@ else(UNIX)
 
     add_definitions(${GLEW_DEFINITIONS})
     include_directories(${GLEW_INCLUDE_DIR} ${GLFW_INCLUDE_DIR})
-    list(APPEND LIBRARIES ${GLEW_LIBRARY} ${GLFW_LIBRARY} ${OPENGL_LIBRARY})
+    list(APPEND LIBRARIES cuda ${GLEW_LIBRARY} ${GLFW_LIBRARY} ${OPENGL_LIBRARY})
 endif(UNIX)
 
 set(GLM_ROOT_DIR "external")
