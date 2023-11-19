@@ -47,6 +47,12 @@ OptixRenderer::OptixRenderer(GLFWwindow* window, ivec2* windowSize, Terrain* ter
 
     initTexture();
 }
+static void context_log_cb(unsigned int level,
+    const char* tag,
+    const char* message,
+    void*) {
+    fprintf(stderr, "[%2d][%12s]: %s\n", (int)level, tag, message);
+}
 
 void OptixRenderer::createContext()
 {
@@ -59,12 +65,10 @@ void OptixRenderer::createContext()
     options.validationMode = OPTIX_DEVICE_CONTEXT_VALIDATION_MODE_ALL;
 
     OPTIX_CHECK(optixDeviceContextCreate(cudaContext, &options, &optixContext));
+    OPTIX_CHECK(optixDeviceContextSetLogCallback
+    (optixContext, context_log_cb, nullptr, 4));
     createModule();
     createProgramGroups();
-    //for (const Chunk* c : terrain->getDrawableChunks()) {
-    //   buildChunkAccel(c);
-    //}
-    //buildRootAccel();
     createPipeline();
     createTextures();
     buildSBT();
@@ -511,6 +515,11 @@ void OptixRenderer::buildSBT()
 void OptixRenderer::optixRenderFrame()
 {
     if (launchParams.windowSize.x == 0) return;
+
+    for (const Chunk* c : terrain->getDrawableChunks()) {
+       buildChunkAccel(c);
+    }
+    buildRootAccel();
 
     launchParams.frame.colorBuffer = (uint32_t*) frameBuffer.dev_ptr();
     launchParamsBuffer.populate(&launchParams, 1);
