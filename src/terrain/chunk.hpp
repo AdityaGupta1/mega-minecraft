@@ -128,6 +128,10 @@ public:
 
     static void generateCaves(
         std::vector<Chunk*>& chunks,
+        float* host_heightfields,
+        float* dev_heightfields,
+        float* host_biomeWeights,
+        float* dev_biomeWeights,
         ivec2* host_chunkWorldBlockPositions,
         ivec2* dev_chunkWorldBlockPositions,
         CaveLayer* host_caveLayers,

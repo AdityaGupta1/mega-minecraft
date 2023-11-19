@@ -752,15 +752,16 @@ void Chunk::fixBackwardStratifiedLayers()
 
 #pragma region caves
 
-__device__ bool shouldGenerateCaveAtBlock(ivec3 worldPos)
+__device__ bool shouldGenerateCaveAtBlock(ivec3 worldPos, float maxHeight, float oceanAndBeachWeight)
 {
-    if (worldPos.y == 0)
+    if (worldPos.y == 0 || worldPos.y > max(maxHeight, (float)SEA_LEVEL) + 4.f)
     {
         return false;
     }
 
     vec3 noisePos = vec3(worldPos) * 0.0090f;
-    float topHeightRatio = smoothstep(142.f, 80.f, (float)worldPos.y);
+    float topRatioYOffset = oceanAndBeachWeight * 50.f;
+    float topHeightRatio = smoothstep(142.f, 95.f, (float)worldPos.y + topRatioYOffset);
     float bottomHeightRatio = smoothstep(5.f, 20.f, (float)worldPos.y);
 
     vec3 noiseOffset = fbm3From3<4>(noisePos * 0.5000f) * 1.4f;
@@ -773,7 +774,7 @@ __device__ bool shouldGenerateCaveAtBlock(ivec3 worldPos)
     worleyEdgeThreshold *= (1.f + 1.4f * hugeCaveNoise);
 
     worleyEdgeThreshold *= (topHeightRatio) * (0.3f + 0.7f * bottomHeightRatio);
-    if (caveNoise < worleyEdgeThreshold)
+    if (worleyEdgeThreshold > 0.04f && caveNoise < worleyEdgeThreshold)
     {
         return true;
     }
@@ -782,7 +783,7 @@ __device__ bool shouldGenerateCaveAtBlock(ivec3 worldPos)
     vec2 ravineWorleyOffset = 0.03f * fbm2From2<4>(ravineNoisePos * 10.f);
     vec3 ravineWorleyColor;
     float ravineWorley = worley(ravineNoisePos + ravineWorleyOffset, &ravineWorleyColor);
-    constexpr float ravineWorleyThreshold = 0.12f;
+    const float ravineWorleyThreshold = 0.12f * (1.f - oceanAndBeachWeight);
     if (ravineWorley < ravineWorleyThreshold)
     {
         float ravineTop = 120.f + 24.f * ravineWorleyColor.x;
@@ -807,9 +808,14 @@ __device__ bool shouldGenerateCaveAtBlock(ivec3 worldPos)
 
 // TODO: pass in heightfield and skip evaluating noise if y > max height
 __global__ void kernGenerateCaves(
+    float* heightfield,
+    float* biomeWeights,
     ivec2* chunkWorldBlockPositions, 
     CaveLayer* caveLayers)
 {
+    __shared__ float shared_maxHeight;
+    __shared__ float shared_oceanAndBeachWeight;
+
     __shared__ int shared_isFilled[384];
     __shared__ int shared_flipHeights[384];
 
@@ -825,7 +831,25 @@ __global__ void kernGenerateCaves(
     const ivec2 chunkWorldBlockPos = chunkWorldBlockPositions[chunkIdx];
     const ivec3 worldPos = ivec3(chunkWorldBlockPos.x + x, y, chunkWorldBlockPos.y + z);
 
-    int isThisFilled = shouldGenerateCaveAtBlock(worldPos) ? 0 : 1;
+    if (y == 0)
+    {
+        shared_oceanAndBeachWeight = 0.f;
+    } else if (y == 1)
+    {
+        shared_maxHeight = heightfield[256 * chunkIdx + idx2d];
+    }
+
+    __syncthreads();
+
+    if (y < numOceanAndBeachBiomes)
+    {
+        float biomeWeight = biomeWeights[devBiomeWeightsSize * chunkIdx + 256 * y + idx2d];
+        atomicAdd(&shared_oceanAndBeachWeight, biomeWeight);
+    }
+
+    __syncthreads();
+
+    int isThisFilled = shouldGenerateCaveAtBlock(worldPos, shared_maxHeight, shared_oceanAndBeachWeight) ? 0 : 1;
     shared_isFilled[y] = isThisFilled;
 
     __syncthreads();
@@ -877,6 +901,10 @@ __global__ void kernGenerateCaves(
 
 __host__ void Chunk::generateCaves(
     std::vector<Chunk*>& chunks,
+    float* host_heightfields,
+    float* dev_heightfields,
+    float* host_biomeWeights,
+    float* dev_biomeWeights,
     ivec2* host_chunkWorldBlockPositions,
     ivec2* dev_chunkWorldBlockPositions,
     CaveLayer* host_caveLayers,
@@ -889,10 +917,17 @@ __host__ void Chunk::generateCaves(
     {
         Chunk* chunkPtr = chunks[i];
 
+        std::memcpy(host_heightfields + (i * 256), chunkPtr->heightfield.data(), 256 * sizeof(float));
+        chunkPtr->gatheredHeightfield.clear();
+
+        std::memcpy(host_biomeWeights + (i * devBiomeWeightsSize), chunkPtr->biomeWeights.data(), devBiomeWeightsSize * sizeof(float));
+
         ivec3 worldBlockPos = chunkPtr->worldBlockPos;
         host_chunkWorldBlockPositions[i] = ivec2(worldBlockPos.x, worldBlockPos.z);
     }
 
+    cudaMemcpyAsync(dev_heightfields, host_heightfields, numChunks * 256 * sizeof(float), cudaMemcpyHostToDevice, stream);
+    cudaMemcpyAsync(dev_biomeWeights, host_biomeWeights, numChunks * devBiomeWeightsSize * sizeof(float), cudaMemcpyHostToDevice, stream);
     cudaMemcpyAsync(dev_chunkWorldBlockPositions, host_chunkWorldBlockPositions, numChunks * sizeof(ivec2), cudaMemcpyHostToDevice, stream);
 
     thrust::device_ptr<CaveLayer> dev_ptr(dev_caveLayers);
@@ -902,6 +937,8 @@ __host__ void Chunk::generateCaves(
     const dim3 blockSize3d(1, 384, 1);
     const dim3 blocksPerGrid3d(numChunks * 16, 1, 16);
     kernGenerateCaves<<<blocksPerGrid3d, blockSize3d, 0, stream>>>(
+        dev_heightfields,
+        dev_biomeWeights,
         dev_chunkWorldBlockPositions,
         dev_caveLayers
     );
@@ -1083,6 +1120,16 @@ __device__ void chunkFillPlaceBlock(
         return;
     }
 
+    bool isOcean = false;
+    for (int biomeIdx = 0; biomeIdx < numOceanBiomes; ++biomeIdx)
+    {
+        if (shared_biomeWeights[biomeIdx] > 0.f)
+        {
+            isOcean = true;
+            break;
+        }
+    }
+
     thrust::uniform_real_distribution<float> u01(0, 1);
 
     Biome randBiome = getRandomBiome(shared_biomeWeights, u01(rng));
@@ -1094,16 +1141,6 @@ __device__ void chunkFillPlaceBlock(
     {
         *blockPtr = Block::WATER;
         doBlockPostProcess();
-
-        bool isOcean = false;
-        for (int biomeIdx = 0; biomeIdx < numOceanBiomes; ++biomeIdx)
-        {
-            if (shared_biomeWeights[biomeIdx] > 0.f)
-            {
-                isOcean = true;
-                break;
-            }
-        }
 
         if (isOcean)
         {

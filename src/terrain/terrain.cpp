@@ -50,8 +50,8 @@ static constexpr int numHostBlocks = maxActionTimePerFrame / actionTimeFill;
 static constexpr int numDevBlocks = maxActionTimePerFrame / actionTimeFill;
 static constexpr int numDevFeaturePlacements = numDevBlocks;
 
-static constexpr int numHostHeightfields = maxActionTimePerFrame / min(actionTimeGenerateHeightfield, min(actionTimeGenerateLayers, actionTimeFill));
-static constexpr int numDevHeightfields = maxActionTimePerFrame / min(actionTimeGenerateHeightfield, min(actionTimeGenerateLayers, actionTimeFill));
+static constexpr int numHostHeightfields = maxActionTimePerFrame / min(min(actionTimeGenerateHeightfield, actionTimeGenerateLayers), min(actionTimeGenerateCaves, actionTimeFill));
+static constexpr int numDevHeightfields = maxActionTimePerFrame / min(min(actionTimeGenerateHeightfield, actionTimeGenerateLayers), min(actionTimeGenerateCaves, actionTimeFill));
 static constexpr int numHostBiomeWeights = numHostHeightfields;
 static constexpr int numDevBiomeWeights = numDevHeightfields;
 static constexpr int numHostChunkWorldBlockPositions = maxActionTimePerFrame / min(actionTimeGenerateHeightfield, min(actionTimeGenerateLayers, actionTimeGenerateCaves));
@@ -602,7 +602,7 @@ void Terrain::tick(float deltaTime)
                 chunks,
                 host_heightfields + (hostHeightfieldIdx * devHeightfieldSize),
                 dev_heightfields + (devHeightfieldIdx * devHeightfieldSize),
-                host_biomeWeights + (hostBiomeWeightsIdx * devHeightfieldSize),
+                host_biomeWeights + (hostBiomeWeightsIdx * devBiomeWeightsSize),
                 dev_biomeWeights + (devBiomeWeightsIdx * devBiomeWeightsSize),
                 host_layers + (hostLayersIdx * devLayersSize),
                 dev_layers + (devLayersIdx * devLayersSize),
@@ -687,6 +687,10 @@ void Terrain::tick(float deltaTime)
         {
             Chunk::generateCaves(
                 chunks,
+                host_heightfields + (hostHeightfieldIdx * devHeightfieldSize),
+                dev_heightfields + (devHeightfieldIdx * devHeightfieldSize),
+                host_biomeWeights + (hostBiomeWeightsIdx * devBiomeWeightsSize),
+                dev_biomeWeights + (devBiomeWeightsIdx * devBiomeWeightsSize),
                 host_chunkWorldBlockPositions + (hostChunkWorldBlockPositionIdx),
                 dev_chunkWorldBlockPositions + (devChunkWorldBlockPositionIdx),
                 host_caveLayers + (hostCaveLayersIdx * devCaveLayersSize),
@@ -694,6 +698,10 @@ void Terrain::tick(float deltaTime)
                 streams[streamIdx]
             );
 
+            hostHeightfieldIdx += numChunks;
+            devHeightfieldIdx += numChunks;
+            hostBiomeWeightsIdx += numChunks;
+            devBiomeWeightsIdx += numChunks;
             hostChunkWorldBlockPositionIdx += numChunks;
             devChunkWorldBlockPositionIdx += numChunks;
 
