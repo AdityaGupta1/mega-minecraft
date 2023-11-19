@@ -40,6 +40,7 @@ enum class Biome : unsigned char
 };
 
 static constexpr int numBiomes = (int)Biome::MOUNTAINS + 1;
+static constexpr int numOceanBiomes = (int)Biome::COOL_OCEAN + 1;
 
 struct BiomeBlocks
 {

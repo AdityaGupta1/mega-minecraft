@@ -1094,13 +1094,27 @@ __device__ void chunkFillPlaceBlock(
     {
         *blockPtr = Block::WATER;
         doBlockPostProcess();
-        return;
+
+        bool isOcean = false;
+        for (int biomeIdx = 0; biomeIdx < numOceanBiomes; ++biomeIdx)
+        {
+            if (shared_biomeWeights[biomeIdx] > 0.f)
+            {
+                isOcean = true;
+                break;
+            }
+        }
+
+        if (isOcean)
+        {
+            return;
+        }
     }
 
     for (int caveLayerIdx = 0; caveLayerIdx < MAX_CAVE_LAYERS_PER_COLUMN; ++caveLayerIdx)
     {
         const auto& caveLayer = shared_caveLayers[caveLayerIdx];
-        if (caveLayer.start == caveLayer.end)
+        if (caveLayer.start == 384)
         {
             break;
         }
@@ -1112,7 +1126,10 @@ __device__ void chunkFillPlaceBlock(
         }
     }
 
-    // at this point, y <= height
+    if (y > height)
+    {
+        return;
+    }
 
     bool wasBlockPreProcessed = biomeBlockPreProcess(blockPtr, randBiome, worldBlockPos, height);
     if (wasBlockPreProcessed)
