@@ -9,6 +9,10 @@
 #include <glm/gtx/string_cast.hpp>
 #include "defines.hpp"
 
+#define DEBUG_TIME_CHUNK_FILL 1
+
+#define DESTROY_ZONES 0 // disabled because it causes crashes
+
 static constexpr int chunkVbosGenRadius = 16;
 static constexpr int chunkMaxGenRadius = chunkVbosGenRadius + (ZONE_SIZE * 2);
 static constexpr int zoneKeepRadius = chunkMaxGenRadius + ((3 * ZONE_SIZE) / 2);
@@ -458,6 +462,7 @@ bool isZoneReadyForErosion(Zone* zonePtr)
 
 void Terrain::updateZones()
 {
+#if DESTROY_ZONES
     std::unordered_set<ivec2, Utils::PosHash> zonesToDestroy;
     for (const auto& zonePair : this->zones)
     {
@@ -475,13 +480,16 @@ void Terrain::updateZones()
     {
         this->zones.erase(zoneWorldChunkPos);
     }
+#endif
 
     for (const auto& zonePtr : zonesToTryErosion)
     {
+#if DESTROY_ZONES
         if (zonesToDestroy.find(zonePtr->worldChunkPos) != zonesToDestroy.end())
         {
             continue;
         }
+#endif
 
         if (isZoneReadyForErosion(zonePtr))
         {
