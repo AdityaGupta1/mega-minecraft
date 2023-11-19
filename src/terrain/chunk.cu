@@ -772,10 +772,34 @@ __device__ bool shouldGenerateCaveAtBlock(ivec3 worldPos)
     float hugeCaveNoise = smoothstep(0.3f, 0.45f, fbm<4>(noisePos * 0.0700f));
     worleyEdgeThreshold *= (1.f + 1.4f * hugeCaveNoise);
 
-    worleyEdgeThreshold *= (0.1f + 0.9f * topHeightRatio) * (0.3f + 0.7f * bottomHeightRatio);
+    worleyEdgeThreshold *= (topHeightRatio) * (0.3f + 0.7f * bottomHeightRatio);
     if (caveNoise < worleyEdgeThreshold)
     {
         return true;
+    }
+
+    vec2 ravineNoisePos = vec2(worldPos.x, worldPos.z) * 0.0020f;
+    vec2 ravineWorleyOffset = 0.03f * fbm2From2<4>(ravineNoisePos * 10.f);
+    vec3 ravineWorleyColor;
+    float ravineWorley = worley(ravineNoisePos + ravineWorleyOffset, &ravineWorleyColor);
+    constexpr float ravineWorleyThreshold = 0.12f;
+    if (ravineWorley < ravineWorleyThreshold)
+    {
+        float ravineTop = 120.f + 24.f * ravineWorleyColor.x;
+        float ravineRatio = 1.f - (ravineWorley / ravineWorleyThreshold);
+
+        float ravineDepth = 60.f + 26.f * fbm<4>(ravineNoisePos * 8.f + vec2(8391.32f, 4821.39f));
+        ravineDepth *= smoothstep(0.f, 0.3f, ravineRatio);
+
+        float ravineWaveNoiseOffset = 4.f * fbm<4>(ravineNoisePos * 3.f + vec2(5129.32f, 1392.49f));
+        float ravineWaveNoise = sin((ravineNoisePos.x + ravineNoisePos.y) * 15.f + ravineWaveNoiseOffset);
+        ravineWaveNoise = smoothstep(0.4f, 0.6f, ravineWaveNoise);
+        ravineDepth *= ravineWaveNoise;
+
+        if (ravineDepth > 0.0001f && worldPos.y > ravineTop - ravineDepth)
+        {
+            return true;
+        }
     }
 
     return false;
