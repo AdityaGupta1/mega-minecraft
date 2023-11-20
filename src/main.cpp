@@ -87,6 +87,7 @@ bool init(int argc, char **argv) {
     }
 #else
     optix = std::make_unique<OptixRenderer>(window, &windowSize, terrain.get(), player.get());
+    terrain->setOptixRenderer(optix.get());
 #endif
 
     terrain->init(); // call after creating CUDA context in OptixRenderer

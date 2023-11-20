@@ -28,23 +28,24 @@ struct Texture
 
 struct OptixParams
 {
-    int numPixelSamples = 1;
-    int padding;
-    glm::ivec2 windowSize;
-    struct {
-        glm::vec3 position;
-        glm::vec3 forward;
-        glm::vec3 up;
-        glm::vec3 right;
-        glm::vec2 pixelLength;
-    } camera;
+    OptixTraversableHandle rootHandle;
 
     struct {
-        int frameId;
         uint32_t* colorBuffer;
         uint32_t* normalBuffer;
+        int frameId;
     } frame;
-    OptixTraversableHandle rootHandle;
+
+    int numPixelSamples = 1;
+    int2 windowSize;
+
+    struct {
+        float3 position;
+        float3 forward;
+        float3 up;
+        float3 right;
+        float2 pixelLength;
+    } camera;
 };
 
 struct PRD {

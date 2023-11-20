@@ -18,6 +18,9 @@
 #include "shaderProgram.hpp"
 #include "fullscreenTri.hpp"
 
+class Terrain;
+class Chunk;
+
 class OptixRenderer
 {
 public:
@@ -79,8 +82,12 @@ protected:
 
     void createContext();
     void createTextures();
+
+public:
     void buildChunkAccel(const Chunk* c);
     void buildRootAccel();
+
+protected:
     std::vector<char> readData(std::string const& filename);
     void createModule();
     void createProgramGroups();

@@ -58,13 +58,13 @@ extern "C" __global__ void __raygen__render() {
         0,             // missSBTIndex 
         u0, u1);
 
-    //const int r = int(255.99f * pixelColorPRD.x);
-    //const int g = int(255.99f * pixelColorPRD.y);
-    //const int b = int(255.99f * pixelColorPRD.z);
+    const int r = int(255.99f * pixelColorPRD.x);
+    const int g = int(255.99f * pixelColorPRD.y);
+    const int b = int(255.99f * pixelColorPRD.z);
 
-    const int r = int((ix / 1920.f) * 255.99f);
-    const int g = int((iy / 1080.f) * 255.99f);
-    const int b = 0;
+    //const int r = int(255.99f * (ix / (float)(params.windowSize.x)));
+    //const int g = int(255.99f * (iy / (float)(params.windowSize.y)));
+    //const int b = 0;
 
     // and write to frame buffer ...
     const uint32_t fbIndex = ix + iy * params.windowSize.x;
@@ -77,18 +77,19 @@ extern "C" __global__ void __raygen__render() {
 
 extern "C" __global__ void __miss__radiance() {
     float3& prd = *(float3*)getPRD<float3>();
-    prd = make_float3(1.f, 0.5f, 0.f);
+    const auto& camera = params.camera;
+    //prd = make_float3(1.f, 0.5f, 0.f);
+    prd = (camera.forward + 1.f) * 0.5f;
 }
 
 extern "C" __global__ void __hit__radiance() {
-    ChunkData* chunk = (ChunkData*)optixGetSbtDataPointer();
+    //ChunkData* chunk = (ChunkData*)optixGetSbtDataPointer();
 
-    const int   primID = optixGetPrimitiveIndex();
-    const int    vert_idx_offset = primID * 3;
+    //const int primID = optixGetPrimitiveIndex();
+    //const int vert_idx_offset = primID * 3;
 
-    Vertex v = chunk->verts[chunk->idx[vert_idx_offset]];
+    //Vertex v = chunk->verts[chunk->idx[vert_idx_offset]];
 
     float3& prd = *(float3*)getPRD<float3>();
-    prd = v.nor;
-
+    prd = make_float3(0.f, 0.5, 1.f);
 }

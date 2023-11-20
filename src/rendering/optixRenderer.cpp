@@ -28,12 +28,12 @@ OptixRenderer::OptixRenderer(GLFWwindow* window, ivec2* windowSize, Terrain* ter
     const float fovy = 26.f;
     float yscaled = tan(fovy * (PI / 180));
     float xscaled = (yscaled * windowSize->x) / windowSize->y;
-    launchParams.camera.pixelLength = glm::vec2(2 * xscaled / (float)windowSize->x, 2 * yscaled / (float)windowSize->y);
+    launchParams.camera.pixelLength = make_float2(2 * xscaled / (float)windowSize->x, 2 * yscaled / (float)windowSize->y);
     setCamera();
 
     launchParamsBuffer.alloc(sizeof(OptixParams));
     frameBuffer.alloc(windowSize->x * windowSize->y * sizeof(uint32_t));
-    launchParams.windowSize = *windowSize;
+    launchParams.windowSize = make_int2(windowSize->x, windowSize->y);
     pixels.resize(windowSize->x * windowSize->y);
 
     cudaStreamCreate(&stream);
@@ -149,6 +149,8 @@ void OptixRenderer::createTextures()
 void OptixRenderer::buildRootAccel()
 {
     chunkInstancesBuffer.initFromVector(chunkInstances);
+
+    printf("building root accel: %d\n", chunkInstances.size());
     
     rootIAS.buildInput = {};
     rootIAS.buildInput.type = OPTIX_BUILD_INPUT_TYPE_INSTANCES;
@@ -173,7 +175,6 @@ void OptixRenderer::buildRootAccel()
 
 void OptixRenderer::buildChunkAccel(const Chunk* c)
 {
-    printf("starting\n");
     // copy mesh data to device
     CUBuffer dev_vertices;
     CUBuffer dev_indices;
@@ -225,7 +226,6 @@ void OptixRenderer::buildChunkAccel(const Chunk* c)
         1,  // num_build_inputs
         &gasBufferSizes
     ));
-    printf("computed memeory usage\n");
 
     CUBuffer compactedSizeBuffer;
     compactedSizeBuffer.alloc(sizeof(uint64_t));
@@ -255,7 +255,6 @@ void OptixRenderer::buildChunkAccel(const Chunk* c)
 
         &emitDesc, 1
     ));
-    printf("built accel structure\n");
 
     cudaDeviceSynchronize();
 
@@ -276,7 +275,6 @@ void OptixRenderer::buildChunkAccel(const Chunk* c)
         gasBuffer.dev_ptr(),
         gasBuffer.size(),
         &gasHandle));
-    printf("compacted\n");
 
     // cleanup
     //outputBuffer.free();
@@ -522,10 +520,12 @@ void OptixRenderer::optixRenderFrame()
 {
     if (launchParams.windowSize.x == 0) return;
 
-    for (const Chunk* c : terrain->getDrawableChunks()) {
-       buildChunkAccel(c);
-    }
-    buildRootAccel();
+    setCamera();
+
+    //for (const Chunk* c : terrain->getDrawableChunks()) {
+    //   buildChunkAccel(c);
+    //}
+    //buildRootAccel();
 
     launchParams.frame.colorBuffer = (uint32_t*) frameBuffer.dev_ptr();
     launchParamsBuffer.populate(&launchParams, 1);
@@ -550,13 +550,18 @@ void OptixRenderer::optixRenderFrame()
     frameBuffer.retrieve(pixels.data(), windowSize->x * windowSize->y);
 }
 
+inline float3 vec3ToFloat3(glm::vec3 v)
+{
+    return make_float3(v.x, v.y, v.z);
+}
+
 void OptixRenderer::setCamera()
 {
-    launchParams.camera.forward = player->getForward();
-    launchParams.camera.up = player->getUp();
-    launchParams.camera.right = player->getRight();
-    launchParams.camera.position = player->getPos();
-    launchParams.windowSize = glm::ivec2(windowSize->x, windowSize->y);
+    launchParams.camera.forward = vec3ToFloat3(player->getForward());
+    launchParams.camera.up = vec3ToFloat3(player->getUp());
+    launchParams.camera.right = vec3ToFloat3(player->getRight());
+    launchParams.camera.position = vec3ToFloat3(player->getPos());
+    launchParams.windowSize = make_int2(windowSize->x, windowSize->y);
 }
 
 void OptixRenderer::initShader()

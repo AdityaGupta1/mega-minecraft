@@ -12,6 +12,7 @@
 #include <mutex>
 #include "player/player.hpp"
 #include "biome.hpp"
+#include "rendering/optixRenderer.hpp"
 
 #define ZONE_SIZE 12 // changing this may have disastrous consequences
 #define EROSION_GRID_SIDE_LENGTH_BLOCKS (ZONE_SIZE * 2 * 16)
@@ -19,6 +20,7 @@
 
 using namespace glm;
 
+class OptixRenderer;
 class Chunk;
 
 struct Zone
@@ -49,6 +51,8 @@ static constexpr int devAccumulatedHeightsSize = EROSION_GRID_NUM_COLS;
 
 class Terrain {
 private:
+    OptixRenderer* optixRenderer;
+
     std::vector<ivec2> spiral;
 
     std::unordered_map<ivec2, std::unique_ptr<Zone>, Utils::PosHash> zones;
@@ -92,6 +96,7 @@ public:
     Terrain();
     ~Terrain();
 
+    void setOptixRenderer(OptixRenderer* optixRenderer);
     void init();
 
     void tick(float deltaTime);

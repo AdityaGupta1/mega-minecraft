@@ -13,7 +13,7 @@
 
 #define DESTROY_ZONES 0 // disabled because it causes crashes
 
-static constexpr int chunkVbosGenRadius = 16;
+static constexpr int chunkVbosGenRadius = 1;
 static constexpr int chunkMaxGenRadius = chunkVbosGenRadius + (ZONE_SIZE * 2);
 static constexpr int zoneKeepRadius = chunkMaxGenRadius + ((3 * ZONE_SIZE) / 2);
 
@@ -41,6 +41,11 @@ Terrain::Terrain()
 Terrain::~Terrain()
 {
     freeCuda();
+}
+
+void Terrain::setOptixRenderer(OptixRenderer* optixRenderer)
+{
+    this->optixRenderer = optixRenderer;
 }
 
 void Terrain::init()
@@ -576,6 +581,9 @@ void Terrain::tick(float deltaTime)
     int devGatheredLayersIdx = 0;
     int streamIdx = 0;
 
+#if !DEBUG_USE_GL_RENDERER
+    bool didCreateVbos = false;
+#endif
     while (!chunksToCreateAndBufferVbos.empty() && actionTimeLeft >= actionTimeCreateAndBufferVbos)
     {
         needsUpdateChunks = true;
@@ -586,7 +594,9 @@ void Terrain::tick(float deltaTime)
         chunkPtr->createVBOs();
 #if DEBUG_USE_GL_RENDERER
         chunkPtr->bufferVBOs();
-// TODO: #else create GAS
+#else
+        optixRenderer->buildChunkAccel(chunkPtr);
+        didCreateVbos = true;
 #endif
         drawableChunks.insert(chunkPtr);
         chunkPtr->setState(ChunkState::DRAWABLE);
@@ -595,7 +605,12 @@ void Terrain::tick(float deltaTime)
         actionTimeLeft -= actionTimeCreateAndBufferVbos;
     }
 
-    // TODO: update IAS here if previous while loop ran
+#if !DEBUG_USE_GL_RENDERER
+    if (didCreateVbos)
+    {
+        optixRenderer->buildRootAccel();
+    }
+#endif
 
     {
         std::vector<Chunk*> chunks;

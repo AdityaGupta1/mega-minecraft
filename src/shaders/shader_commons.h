@@ -29,8 +29,17 @@ struct Texture
 
 struct OptixParams
 {
+    OptixTraversableHandle rootHandle;
+
+    struct {
+        uint32_t* colorBuffer;
+        uint32_t* normalBuffer;
+        int frameId;
+    } frame;
+
     int numPixelSamples = 1;
     int2 windowSize;
+
     struct {
         float3 position;
         float3 forward;
@@ -38,13 +47,6 @@ struct OptixParams
         float3 right;
         float2 pixelLength;
     } camera;
-
-    struct {
-        int frameId;
-        uint32_t* colorBuffer;
-        uint32_t* normalBuffer;
-    } frame;
-    OptixTraversableHandle rootHandle;
 };
 
 struct PRD {

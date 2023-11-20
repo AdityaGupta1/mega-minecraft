@@ -50,6 +50,8 @@ struct CUBuffer {
 
     template<typename T>
     void initFromVector(const std::vector<T>& v) {
+        if (d_ptr)
+            free();
         alloc(v.size() * sizeof(T));
         CUDA_CHECK(cudaMemcpy(d_ptr, v.data(), byteSize, cudaMemcpyHostToDevice));
     }
