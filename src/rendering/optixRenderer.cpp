@@ -201,7 +201,7 @@ void OptixRenderer::buildChunkAccel(const Chunk* c)
     
     triangleInput.triangleArray.indexFormat         = OPTIX_INDICES_FORMAT_UNSIGNED_INT3;
     triangleInput.triangleArray.indexStrideInBytes  = sizeof(glm::uvec3);
-    triangleInput.triangleArray.numIndexTriplets    = (int)c->idx.size();
+    triangleInput.triangleArray.numIndexTriplets    = (int)c->idx.size() / 3;
     triangleInput.triangleArray.indexBuffer         = d_indices;
     
     uint32_t triangleInputFlags[1] = { 0 };
@@ -241,7 +241,7 @@ void OptixRenderer::buildChunkAccel(const Chunk* c)
     outputBuffer.alloc(gasBufferSizes.outputSizeInBytes);
 
     OPTIX_CHECK(optixAccelBuild(optixContext,
-        /* stream */0,
+        0/*stream*/,
         &accelOptions,
         &triangleInput,
         1,
@@ -257,6 +257,8 @@ void OptixRenderer::buildChunkAccel(const Chunk* c)
     ));
     printf("built accel structure\n");
 
+    cudaDeviceSynchronize();
+
     // I don't think you can free the device vertices and indices, cause GAS needs to access this
     //dev_vertices.free();
     //dev_indices.free();
@@ -269,7 +271,7 @@ void OptixRenderer::buildChunkAccel(const Chunk* c)
 
     gasBuffer.alloc(compactedSize);
     OPTIX_CHECK(optixAccelCompact(optixContext,
-        /*stream:*/0,
+        0/*stream*/,
         gasHandle,
         gasBuffer.dev_ptr(),
         gasBuffer.size(),
