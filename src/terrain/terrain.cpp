@@ -586,6 +586,7 @@ void Terrain::tick(float deltaTime)
         chunkPtr->createVBOs();
 #if DEBUG_USE_GL_RENDERER
         chunkPtr->bufferVBOs();
+// TODO: #else create GAS
 #endif
         drawableChunks.insert(chunkPtr);
         chunkPtr->setState(ChunkState::DRAWABLE);
@@ -593,6 +594,8 @@ void Terrain::tick(float deltaTime)
 
         actionTimeLeft -= actionTimeCreateAndBufferVbos;
     }
+
+    // TODO: update IAS here if previous while loop ran
 
     {
         std::vector<Chunk*> chunks;
