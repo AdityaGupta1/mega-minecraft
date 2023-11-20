@@ -191,7 +191,6 @@ void OptixRenderer::buildChunkAccel(const Chunk* c)
     CUdeviceptr d_vertices = dev_vertices.dev_ptr();
     CUdeviceptr d_indices  = dev_indices.dev_ptr();
 
-
     OptixBuildInput triangleInput = {};
     triangleInput.type = OPTIX_BUILD_INPUT_TYPE_TRIANGLES;
       
@@ -401,10 +400,12 @@ void OptixRenderer::createProgramGroups()
     OptixProgramGroupDesc hitDesc = {};
     hitDesc.kind = OPTIX_PROGRAM_GROUP_KIND_HITGROUP;
     hitDesc.hitgroup.moduleCH = modules[0];
-    hitDesc.hitgroup.entryFunctionNameCH = "__hit__radiance";
+    hitDesc.hitgroup.entryFunctionNameCH = "__closesthit__radiance";
+    hitDesc.hitgroup.moduleAH = modules[0];
+    hitDesc.hitgroup.entryFunctionNameAH = "__anyhit__radiance";
     OPTIX_CHECK(optixProgramGroupCreate(
         optixContext,
-        &missDesc,
+        &hitDesc,
         1,  // num program groups
         &pgOptions,
         log, &sizeof_log,

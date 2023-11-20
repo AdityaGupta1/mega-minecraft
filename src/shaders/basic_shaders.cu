@@ -82,7 +82,7 @@ extern "C" __global__ void __miss__radiance() {
     prd = (camera.forward + 1.f) * 0.5f;
 }
 
-extern "C" __global__ void __hit__radiance() {
+extern "C" __global__ void __closesthit__radiance() {
     //ChunkData* chunk = (ChunkData*)optixGetSbtDataPointer();
 
     //const int primID = optixGetPrimitiveIndex();
@@ -92,6 +92,12 @@ extern "C" __global__ void __hit__radiance() {
 
     float3& prd = *(float3*)getPRD<float3>();
     prd = make_float3(0.f, 0.5, 1.f);
+}
+
+extern "C" __global__ void __anyhit__radiance()
+{
+
+}
 }
 
 extern "C" __global__ void __exception__all()
