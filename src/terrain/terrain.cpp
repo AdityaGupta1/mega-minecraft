@@ -582,7 +582,9 @@ void Terrain::tick(float deltaTime)
         chunksToCreateAndBufferVbos.pop();
 
         chunkPtr->createVBOs();
+#if DEBUG_USE_GL_RENDERER
         chunkPtr->bufferVBOs();
+#endif
         drawableChunks.insert(chunkPtr);
         chunkPtr->setState(ChunkState::DRAWABLE);
         chunkPtr->setNotReadyForQueue();

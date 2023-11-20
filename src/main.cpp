@@ -3,7 +3,7 @@
 #include "terrain/block.hpp"
 #include "defines.hpp"
 
-#define USE_GL_RENDERER 0
+#define DEBUG_START_IN_FREE_CAM_MODE 0
 
 int main(int argc, char* argv[]) {
   if (init(argc, argv)) {
@@ -79,7 +79,7 @@ bool init(int argc, char **argv) {
 
     constructTerrainAndPlayer();
 
-#if USE_GL_RENDERER
+#if DEBUG_USE_GL_RENDERER
     renderer = std::make_unique<Renderer>(window, &windowSize, terrain.get(), player.get());
     if (!renderer->init())
     {
@@ -363,7 +363,7 @@ void tick(float deltaTime)
     }
     terrain->tick(deltaTime);
 
-#if USE_GL_RENDERER
+#if DEBUG_USE_GL_RENDERER
     renderer->draw(deltaTime, viewMatChanged, windowSizeChanged);
 #else
     optix->optixRenderFrame();
