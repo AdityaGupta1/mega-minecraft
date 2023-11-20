@@ -2,8 +2,10 @@
 
 Drawable::Drawable()
     : bufIdx(-1), bufVerts(-1), bufFullscreenTriInfo(-1)
-{
-}
+{}
+
+Drawable::~Drawable()
+{}
 
 void Drawable::destroyVBOs()
 {

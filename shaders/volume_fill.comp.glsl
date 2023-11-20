@@ -73,7 +73,7 @@ void main()
     float layerThickness = volumeZPosToDepth(screenCoords.z + (1.f / 128.f)) - linearDepth;
 
     float dustDensity = getDensity(vec3(worldPos));
-    float scattering = 0.03 * dustDensity * layerThickness;
+    float scattering = 0.015f * dustDensity * layerThickness;
     //float absorption = 0.0f;
 
     vec3 viewDirection = normalize(vec3(worldPos) - vec3(camPos));

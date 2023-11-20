@@ -9,14 +9,20 @@ static std::array<BlockData, numBlocks> blockDatas;
 
 void BlockUtils::init()
 {
-    blockDatas[(int)Block::AIR] = { BlockUvs(), TransparencyType::TRANSPARENT_BLOCK };
+    blockDatas[(int)Block::AIR] = { BlockUvs(), TransparencyType::T_TRANSPARENT };
+
+    blockDatas[(int)Block::WATER] = { BlockUvs(ivec2(15, 15)), TransparencyType::T_TRANSPARENT };
+    blockDatas[(int)Block::LAVA] = { BlockUvs(ivec2(14, 15)), TransparencyType::T_OPAQUE }; // not sure if this should be transparent
+
+    blockDatas[(int)Block::BEDROCK] = { BlockUvs(ivec2(0, 5)) };
+
     blockDatas[(int)Block::STONE] = { BlockUvs(ivec2(3, 0)).setRandomFlip() };
     blockDatas[(int)Block::DIRT] = { BlockUvs(ivec2(0, 0)).setRandomRotation() };
     blockDatas[(int)Block::GRASS] = { BlockUvs(ivec2(1, 0), ivec2(2, 0), ivec2(0, 0)).setRandomRotation(false, true, true) };
     blockDatas[(int)Block::SAND] = { BlockUvs(ivec2(4, 0)).setRandomRotation() };
     blockDatas[(int)Block::GRAVEL] = { BlockUvs(ivec2(5, 0)).setRandomRotation() };
     blockDatas[(int)Block::MYCELIUM] = { BlockUvs(ivec2(6, 0), ivec2(7, 0), ivec2(0, 0)).setRandomRotation(false, true, true) };
-    blockDatas[(int)Block::SNOW] = { BlockUvs(ivec2(8, 0)).setRandomRotation() };
+    blockDatas[(int)Block::SNOW] = { BlockUvs(ivec2(8, 0)) };
     blockDatas[(int)Block::SNOWY_GRASS] = { BlockUvs(ivec2(9, 0), ivec2(8, 0), ivec2(0, 0)).setRandomRotation(false, true, true) };
     blockDatas[(int)Block::MUSHROOM_STEM] = { BlockUvs(ivec2(10, 0)) };
     blockDatas[(int)Block::MUSHROOM_UNDERSIDE] = { BlockUvs(ivec2(11, 0)).setRandomFlip() };
@@ -39,9 +45,41 @@ void BlockUtils::init()
     blockDatas[(int)Block::RAFFLESIA_CENTER] = { BlockUvs(ivec2(3, 2)) };
     blockDatas[(int)Block::RAFFLESIA_SPIKES] = { BlockUvs(ivec2(4, 2)) };
     blockDatas[(int)Block::RAFFLESIA_STEM] = { BlockUvs(ivec2(5, 2)) };
-    //blockDatas[(int)Block::JUNGLE_LOG] = { BlockUvs(ivec2(7, 2), ivec2(8, 2)) };
-    blockDatas[(int)Block::JUNGLE_LOG] = { BlockUvs(ivec2(7, 2)) };
-    blockDatas[(int)Block::JUNGLE_LEAVES] = { BlockUvs(ivec2(6, 2)), TransparencyType::SEMI_TRANSPARENT };
+    blockDatas[(int)Block::JUNGLE_WOOD] = { BlockUvs(ivec2(8, 2)) };
+    blockDatas[(int)Block::JUNGLE_LEAVES_PLAIN] = { BlockUvs(ivec2(6, 2)), TransparencyType::T_SEMI_TRANSPARENT };
+    blockDatas[(int)Block::JUNGLE_LEAVES_FRUITS] = { BlockUvs(ivec2(7, 2)), TransparencyType::T_SEMI_TRANSPARENT };
+    blockDatas[(int)Block::CACTUS] = { BlockUvs(ivec2(10, 2)) };
+    blockDatas[(int)Block::PALM_WOOD] = { BlockUvs(ivec2(11, 2)) };
+    blockDatas[(int)Block::PALM_LEAVES] = { BlockUvs(ivec2(13, 2)), TransparencyType::T_SEMI_TRANSPARENT };
+    blockDatas[(int)Block::MAGENTA_CRYSTAL] = { BlockUvs(ivec2(0, 3)), TransparencyType::T_TRANSPARENT };
+    blockDatas[(int)Block::CYAN_CRYSTAL] = { BlockUvs(ivec2(1, 3)), TransparencyType::T_TRANSPARENT };
+    blockDatas[(int)Block::GREEN_CRYSTAL] = { BlockUvs(ivec2(2, 3)), TransparencyType::T_TRANSPARENT };
+    blockDatas[(int)Block::SMOOTH_SAND] = { BlockUvs(ivec2(3, 3)) };
+    blockDatas[(int)Block::TERRACOTTA] = { BlockUvs(ivec2(4, 3)) };
+    blockDatas[(int)Block::YELLOW_TERRACOTTA] = { BlockUvs(ivec2(5, 3)) };
+    blockDatas[(int)Block::ORANGE_TERRACOTTA] = { BlockUvs(ivec2(6, 3)) };
+    blockDatas[(int)Block::PURPLE_TERRACOTTA] = { BlockUvs(ivec2(7, 3)) };
+    blockDatas[(int)Block::RED_TERRACOTTA] = { BlockUvs(ivec2(8, 3)) };
+    blockDatas[(int)Block::WHITE_TERRACOTTA] = { BlockUvs(ivec2(9, 3)) };
+    blockDatas[(int)Block::QUARTZ] = { BlockUvs(ivec2(10, 3)) };
+    blockDatas[(int)Block::ICE] = { BlockUvs(ivec2(11, 3)), TransparencyType::T_TRANSPARENT };
+    blockDatas[(int)Block::PACKED_ICE] = { BlockUvs(ivec2(12, 3)) };
+    blockDatas[(int)Block::BLUE_ICE] = { BlockUvs(ivec2(13, 3)) };
+    blockDatas[(int)Block::SAVANNA_GRASS] = { BlockUvs(ivec2(14, 2), ivec2(15, 2), ivec2(0, 0)).setRandomRotation(false, true, true) };
+    blockDatas[(int)Block::BIRCH_WOOD] = { BlockUvs(ivec2(14, 3)) };
+    blockDatas[(int)Block::BIRCH_LEAVES] = { BlockUvs(ivec2(0, 4)), TransparencyType::T_SEMI_TRANSPARENT };
+    blockDatas[(int)Block::YELLOW_BIRCH_LEAVES] = { BlockUvs(ivec2(1, 4)), TransparencyType::T_SEMI_TRANSPARENT };
+    blockDatas[(int)Block::ORANGE_BIRCH_LEAVES] = { BlockUvs(ivec2(2, 4)), TransparencyType::T_SEMI_TRANSPARENT };
+    blockDatas[(int)Block::ACACIA_WOOD] = { BlockUvs(ivec2(3, 4)) };
+    blockDatas[(int)Block::ACACIA_LEAVES] = { BlockUvs(ivec2(5, 4)), TransparencyType::T_SEMI_TRANSPARENT };
+    blockDatas[(int)Block::SMOOTH_SANDSTONE] = { BlockUvs(ivec2(8, 1)) };
+    blockDatas[(int)Block::PINE_WOOD] = { BlockUvs(ivec2(6, 4)) };
+    blockDatas[(int)Block::PINE_LEAVES_1] = { BlockUvs(ivec2(8, 4)), TransparencyType::T_SEMI_TRANSPARENT };
+    blockDatas[(int)Block::PINE_LEAVES_2] = { BlockUvs(ivec2(9, 4)), TransparencyType::T_SEMI_TRANSPARENT };
+    blockDatas[(int)Block::REDWOOD_WOOD] = { BlockUvs(ivec2(10, 4)) };
+    blockDatas[(int)Block::REDWOOD_LEAVES] = { BlockUvs(ivec2(12, 4)), TransparencyType::T_SEMI_TRANSPARENT };
+    blockDatas[(int)Block::CYPRESS_WOOD] = { BlockUvs(ivec2(13, 4)) };
+    blockDatas[(int)Block::CYPRESS_LEAVES] = { BlockUvs(ivec2(15, 4)), TransparencyType::T_SEMI_TRANSPARENT };
 }
 
 BlockData BlockUtils::getBlockData(Block block)

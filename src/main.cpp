@@ -3,6 +3,8 @@
 #include "terrain/block.hpp"
 #include "defines.hpp"
 
+#define USE_GL_RENDERER 0
+
 int main(int argc, char* argv[]) {
   if (init(argc, argv)) {
     mainLoop();
@@ -77,12 +79,15 @@ bool init(int argc, char **argv) {
 
     constructTerrainAndPlayer();
 
-    optix = std::make_unique<OptixRenderer>(window, &windowSize, terrain.get(), player.get());
-    //renderer = std::make_unique<Renderer>(window, &windowSize, terrain.get(), player.get());
-    /*if (!renderer->init())
+#if USE_GL_RENDERER
+    renderer = std::make_unique<Renderer>(window, &windowSize, terrain.get(), player.get());
+    if (!renderer->init())
     {
         return false;
-    */
+    }
+#else
+    optix = std::make_unique<OptixRenderer>(window, &windowSize, terrain.get(), player.get());
+#endif
 
     terrain->init(); // call after creating CUDA context in OptixRenderer
 
@@ -136,7 +141,8 @@ void errorCallback(int error, const char* description) {
 
 glm::ivec3 playerMovement = glm::ivec3(0);
 glm::vec3 playerMovementSensitivity = glm::vec3(10.0f, 8.0f, 10.0f);
-float playerMovementMultiplier = 1.f;
+bool shiftPressed = false;
+bool altPressed = false;
 
 #if DEBUG_START_IN_FREE_CAM_MODE
 bool freeCam = true;
@@ -210,11 +216,21 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
     case GLFW_KEY_LEFT_SHIFT:
         if (action == GLFW_PRESS)
         {
-            playerMovementMultiplier = 8.f;
+            shiftPressed = true;
         }
         else if (action == GLFW_RELEASE)
         {
-            playerMovementMultiplier = 1.f;
+            shiftPressed = false;
+        }
+        break;
+    case GLFW_KEY_LEFT_ALT:
+        if (action == GLFW_PRESS)
+        {
+            altPressed = true;
+        }
+        else if (action == GLFW_RELEASE)
+        {
+            altPressed = false;
         }
         break;
     case GLFW_KEY_C:
@@ -236,7 +252,15 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
     case GLFW_KEY_O:
         if (action == GLFW_RELEASE)
         {
-            terrain->debugPrintCurrentChunkState();
+            const vec3 playerPos = player->getPos();
+            terrain->debugPrintCurrentChunkInfo(vec2(playerPos.x, playerPos.z));
+        }
+        break;
+    case GLFW_KEY_V:
+        if (action == GLFW_RELEASE)
+        {
+            const vec3 playerPos = player->getPos();
+            terrain->debugPrintCurrentZoneInfo(vec2(playerPos.x, playerPos.z));
         }
         break;
     case GLFW_KEY_L:
@@ -246,11 +270,26 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
             terrain->debugPrintCurrentColumnLayers(vec2(playerPos.x, playerPos.z));
         }
         break;
+    case GLFW_KEY_X:
+        if (action == GLFW_RELEASE)
+        {
+            const vec3 playerPos = player->getPos();
+            terrain->debugForceGatherHeightfield(vec2(playerPos.x, playerPos.z));
+        }
+        break;
     case GLFW_KEY_F:
         if (action == GLFW_RELEASE)
         {
             freeCam = !freeCam;
         }
+        break;
+    case GLFW_KEY_K:
+        if (action == GLFW_PRESS)
+        {
+            auto playerPos = player->getPos();
+            printf("player position: (%.2f, %.2f, %.2f)\n", playerPos.x, playerPos.y, playerPos.z);
+        }
+        break;
     }
 }
 
@@ -298,6 +337,21 @@ void tick(float deltaTime)
             playerMovementNormalized = playerMovement;
         }
 
+        float playerMovementMultiplier = 1.f;
+        if (shiftPressed)
+        {
+            playerMovementMultiplier *= 8.f;
+
+            if (altPressed)
+            {
+                playerMovementMultiplier *= 4.f;
+            }
+        }
+        else if (altPressed)
+        {
+            playerMovementMultiplier *= 0.25f;
+        }
+
         player->move(glm::vec3(playerMovementNormalized) * playerMovementSensitivity * playerMovementMultiplier * deltaTime);
     }
     bool viewMatChanged;
@@ -307,10 +361,14 @@ void tick(float deltaTime)
     {
         terrain->setCurrentChunkPos(Utils::worldPosToChunkPos(player->getPos()));
     }
-    terrain->tick();
+    terrain->tick(deltaTime);
 
-    //renderer->draw(deltaTime, viewMatChanged, windowSizeChanged);
+#if USE_GL_RENDERER
+    renderer->draw(deltaTime, viewMatChanged, windowSizeChanged);
+#else
     optix->optixRenderFrame();
     optix->updateFrame();
+#endif
+
     windowSizeChanged = false;
 }

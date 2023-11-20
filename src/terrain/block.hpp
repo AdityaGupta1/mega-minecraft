@@ -5,6 +5,12 @@
 enum class Block : unsigned char
 {
     AIR,
+
+    WATER,
+    LAVA,
+
+    BEDROCK,
+
     STONE,
     DIRT,
     GRASS,
@@ -34,18 +40,51 @@ enum class Block : unsigned char
     RAFFLESIA_CENTER,
     RAFFLESIA_SPIKES,
     RAFFLESIA_STEM,
-    JUNGLE_LOG,
-    JUNGLE_LEAVES
+    JUNGLE_WOOD,
+    JUNGLE_LEAVES_PLAIN,
+    JUNGLE_LEAVES_FRUITS,
+    CACTUS,
+    PALM_WOOD,
+    PALM_LEAVES,
+    MAGENTA_CRYSTAL,
+    CYAN_CRYSTAL,
+    GREEN_CRYSTAL,
+    SMOOTH_SAND,
+    TERRACOTTA,
+    YELLOW_TERRACOTTA,
+    ORANGE_TERRACOTTA,
+    PURPLE_TERRACOTTA,
+    RED_TERRACOTTA,
+    WHITE_TERRACOTTA,
+    QUARTZ,
+    ICE,
+    PACKED_ICE,
+    BLUE_ICE,
+    SAVANNA_GRASS,
+    BIRCH_WOOD,
+    BIRCH_LEAVES,
+    YELLOW_BIRCH_LEAVES,
+    ORANGE_BIRCH_LEAVES,
+    ACACIA_WOOD,
+    ACACIA_LEAVES,
+    SMOOTH_SANDSTONE,
+    PINE_WOOD,
+    PINE_LEAVES_1,
+    PINE_LEAVES_2,
+    REDWOOD_WOOD,
+    REDWOOD_LEAVES,
+    CYPRESS_WOOD,
+    CYPRESS_LEAVES
 };
 
-static constexpr int numBlocks = (int)Block::JUNGLE_LEAVES + 1;
+static constexpr int numBlocks = (int)Block::CYPRESS_LEAVES + 1;
 
 struct SideUv
 {
     SideUv() = default;
     SideUv(glm::ivec2 uv) : uv(uv) {}
 
-    glm::ivec2 uv;
+    glm::ivec2 uv{ 0 };
     bool randRot{ false };
     bool randFlip{ false };
 };
@@ -92,16 +131,16 @@ struct BlockUvs
 
 enum class TransparencyType : unsigned char
 {
-    OPAQUE_BLOCK,
-    SEMI_TRANSPARENT, // e.g. leaves
-    TRANSPARENT_BLOCK, // e.g. glass
-    X_SHAPED // e.g. flowers, tall grass
+    T_OPAQUE,
+    T_SEMI_TRANSPARENT, // e.g. leaves
+    T_TRANSPARENT, // e.g. glass
+    T_X_SHAPED // e.g. flowers, tall grass
 };
 
 struct BlockData
 {
     BlockUvs uvs;
-    TransparencyType transparency{ TransparencyType::OPAQUE_BLOCK };
+    TransparencyType transparency{ TransparencyType::T_OPAQUE };
 };
 
 namespace BlockUtils

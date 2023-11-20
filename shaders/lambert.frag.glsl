@@ -58,6 +58,11 @@ float calculateShadow() {
 void main() {
     vec4 diffuseCol = texture(tex_blockDiffuse, fs_uv);
 
+    if (diffuseCol.a == 0)
+    {
+        discard;
+    }
+
     float sunFactor = u_sunDir.w;
     float moonFactor = u_moonDir.w;
 

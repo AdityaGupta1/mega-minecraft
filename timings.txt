@@ -1,0 +1,81 @@
+// ================================================================================
+static constexpr int totalActionTimePerSecond = 32000;
+static constexpr int maxActionTimePerFrame = 600;
+// ================================================================================
+static constexpr int actionTimeGenerateHeightfield        = 3;
+static constexpr int actionTimeGatherHeightfield          = 2;
+static constexpr int actionTimeGenerateLayers             = 5;
+static constexpr int actionTimeErodeZone                  = 600;
+static constexpr int actionTimeGenerateFeaturePlacements  = 3;
+static constexpr int actionTimeGatherFeaturePlacements    = 5;
+static constexpr int actionTimeFill                       = 12;
+static constexpr int actionTimeCreateAndBufferVbos        = 120;
+// ================================================================================
+
+without page-locked memory (seconds)
+7.45
+7.83
+7.95
+7.92
+7.96
+7.59
+7.68
+7.88
+7.55
+7.82
+7.85
+7.87
+7.59
+7.50
+7.88
+7.91
+7.92
+7.93
+
+with page-locked memory (seconds)
+7.71
+7.68
+7.49
+7.78
+7.84
+7.87
+7.86
+7.83
+7.52
+7.54
+7.51
+7.50
+7.50
+7.83
+7.82
+7.87
+7.55
+7.88
+
+-------------------------------------------------------
+
+separate cudaMemcpy calls for each chunk fill (seconds)
+
+7.39
+7.44
+7.63
+7.73
+7.90
+7.99
+7.57
+7.66
+7.70
+7.67
+
+combined cudaMemcpy calls for host to device transfer (seconds)
+
+7.43
+7.38
+7.70
+7.44
+7.74
+7.47
+7.87
+7.73
+7.75
+7.38

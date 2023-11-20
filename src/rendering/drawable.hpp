@@ -13,6 +13,7 @@ protected:
 
 public:
     Drawable();
+    virtual ~Drawable();
 
     virtual void bufferVBOs() = 0;
     void destroyVBOs();

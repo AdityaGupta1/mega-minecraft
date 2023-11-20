@@ -2,10 +2,33 @@
 
 #include "block.hpp"
 
-#define MAX_FEATURES_PER_CHUNK 256
+#define MAX_CAVE_LAYERS_PER_COLUMN 32
+#define MAX_GATHERED_FEATURES_PER_CHUNK 1024
+
+#define SEA_LEVEL 128
+#define LAVA_LEVEL 8
 
 enum class Biome : unsigned char
 {
+    CORAL_REEF,
+    ARCHIPELAGO,
+    WARM_OCEAN,
+    ICEBERGS,
+    COOL_OCEAN,
+
+    ROCKY_BEACH,
+    TROPICAL_BEACH,
+    BEACH,
+
+    SAVANNA,
+    MESA,
+    FROZEN_WASTELAND,
+    REDWOOD_FOREST,
+    SHREKS_SWAMP,
+    SPARSE_DESERT,
+    LUSH_BIRCH_FOREST,
+    TIANZI_MOUNTAINS,
+
     JUNGLE,
     RED_DESERT,
     PURPLE_MUSHROOMS,
@@ -17,10 +40,12 @@ enum class Biome : unsigned char
 };
 
 static constexpr int numBiomes = (int)Biome::MOUNTAINS + 1;
+static constexpr int numOceanBiomes = (int)Biome::COOL_OCEAN + 1;
+static constexpr int numOceanAndBeachBiomes = (int)Biome::BEACH + 1;
 
 struct BiomeBlocks
 {
-    Block grassBlock{ Block::GRASS };
+    Block grassBlock{ Block::DIRT };
 };
 
 enum class Material : unsigned char
@@ -33,6 +58,7 @@ enum class Material : unsigned char
     TUFF,
     CALCITE,
     GRANITE,
+    TERRACOTTA,
     MARBLE,
     ANDESITE,
     
@@ -46,10 +72,12 @@ enum class Material : unsigned char
     MUD,
     DIRT,
     RED_SAND,
-    SAND
+    SAND,
+    SMOOTH_SAND,
+    SNOW
 };
 
-static constexpr int numMaterials = (int)Material::SAND + 1;
+static constexpr int numMaterials = (int)Material::SNOW + 1;
 static constexpr int numStratifiedMaterials = (int)Material::SANDSTONE + 1;
 static constexpr int numForwardMaterials = (int)Material::ANDESITE + 1;
 static constexpr int numErodedMaterials = numMaterials - numStratifiedMaterials;
@@ -62,40 +90,82 @@ struct MaterialInfo
     float noiseScaleOrMaxSlope;
 };
 
+struct CaveLayer
+{
+    CaveLayer() = default;
+
+    int start; // exclusive
+    int end; // inclusive
+};
+
 enum class Feature : unsigned char
 {
     NONE,
     SPHERE,
+
+    // CORAL (make multiple types of this)
+
+    ICEBERG,
+
+    ACACIA_TREE,
+
+    REDWOOD_TREE,
+
+    CYPRESS_TREE,
+
+    BIRCH_TREE,
+
+    PINE_TREE,
+    PINE_SHRUB,
+
+    RAFFLESIA,
+    LARGE_JUNGLE_TREE,
+    SMALL_JUNGLE_TREE,
+    TINY_JUNGLE_TREE,
+
+    // TINY_PURPLE_MUSHROOM
+    // SMALL_PURPLE_MUSHROOM
     PURPLE_MUSHROOM,
-    RAFFLESIA
-    // JUNGLE_TREE
-    // PALM_TREE
-    // POND (not sure if this should go here or somewhere else)
-    // CACTUS
-    // CRYSTAL
+
+    CRYSTAL,
+
+    PALM_TREE,
+    
+    //JOSHUA_TREE,
+    CACTUS
+    
+    //POND (not sure if this should go here or somewhere else)
 };
 
-static constexpr int numFeatures = (int)Feature::PURPLE_MUSHROOM + 1;
+static constexpr int numFeatures = (int)Feature::CACTUS + 1;
+
+struct FeatureGenTopLayer
+{
+    Material material;
+    float minThickness{ 0.0f };
+};
 
 struct FeatureGen
 {
     Feature feature;
-    float chancePerBlock;
+    int gridCellSize;
+    int gridCellPadding;
+    float chancePerGridCell;
+    std::vector<FeatureGenTopLayer> possibleTopLayers;
+    bool canReplaceBlocks{ true };
 };
 
 struct FeaturePlacement
 {
     Feature feature;
     glm::ivec3 pos;
+    bool canReplaceBlocks;
 };
 
 namespace BiomeUtils
 {
     using namespace glm;
 
-    void init(); // implemented in biomeFuncs.hpp (included only by chunk.cu) so constant memory can live there
-
-    std::vector<FeatureGen>& getBiomeFeatureGens(Biome biome);
-
-    ivec2 getFeatureHeightBounds(Feature feature);
+    void init(); // implemented in biomeFuncs.hpp so constant memory can live there
+                 // biomeFuncs.hpp included only by featurePlacement.hpp which is included only by chunk.cu
 }

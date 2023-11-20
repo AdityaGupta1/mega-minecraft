@@ -3,10 +3,16 @@
 #include "rendering/structs.hpp"
 #include "rendering/renderingUtils.hpp"
 #include "util/enums.hpp"
-#include "biomeFuncs.hpp"
 #include "featurePlacement.hpp"
 #include "util/rng.hpp"
 #include "defines.hpp"
+#include <thrust/device_ptr.h>
+#include <thrust/fill.h>
+
+#define DEBUG_SKIP_EROSION 0
+#define DEBUG_USE_CONTRIBUTION_FILL_METHOD 0
+
+//#define DEBUG_BIOME_OVERRIDE Biome::PLAINS
 
 Chunk::Chunk(ivec2 worldChunkPos)
     : worldChunkPos(worldChunkPos), worldBlockPos(worldChunkPos.x * 16, 0, worldChunkPos.y * 16)
@@ -88,7 +94,7 @@ template<std::size_t diameter>
 void Chunk::iterateNeighborChunks(Chunk* const (&neighborChunks)[diameter][diameter], ChunkState currentState, ChunkState nextState,
     ChunkProcessorFunc<diameter> chunkProcessorFunc)
 {
-    int start = diameter / 4; // assuming diameter = (4k + 1) for some k
+    int start = diameter / 4; // assuming diameter = (4k + 1) for some k, so start <- k
     int end = diameter - start;
 
     for (int centerZ = start; centerZ < end; ++centerZ)
@@ -110,7 +116,13 @@ void Chunk::iterateNeighborChunks(Chunk* const (&neighborChunks)[diameter][diame
                     if (neighborChunks[centerZ + offsetZ][centerX + offsetX] == nullptr)
                     {
                         isReady = false;
+                        break;
                     }
+                }
+
+                if (!isReady)
+                {
+                    break;
                 }
             }
 
@@ -136,60 +148,82 @@ void Chunk::floodFillAndIterateNeighbors(ChunkState currentState, ChunkState nex
 #pragma region heightfield
 
 __global__ void kernGenerateHeightfield(
+    ivec2* chunkWorldBlockPositions,
     float* heightfield,
-    float* biomeWeights,
-    ivec3 chunkWorldBlockPos)
+    float* biomeWeights)
 {
-    const int x = (blockIdx.x * blockDim.x) + threadIdx.x;
-    const int z = (blockIdx.y * blockDim.y) + threadIdx.y;
+    const int chunkIdx = blockIdx.x * blockDim.x;
+
+    const int x = (blockIdx.y * blockDim.y) + threadIdx.y;
+    const int z = (blockIdx.z * blockDim.z) + threadIdx.z;
 
     const int idx = posTo2dIndex(x, z);
 
-    const vec2 worldPos = vec2(chunkWorldBlockPos.x + x, chunkWorldBlockPos.z + z);
-
+    const vec2 worldPos = chunkWorldBlockPositions[chunkIdx] + ivec2(x, z);
     const auto biomeNoise = getBiomeNoise(worldPos);
 
-    float* columnBiomeWeights = biomeWeights + numBiomes * idx;
-
+    float* columnBiomeWeights = biomeWeights + (devBiomeWeightsSize * chunkIdx) + (idx);
     float height = 0.f;
-    for (int i = 0; i < numBiomes; ++i) 
+    for (int biomeIdx = 0; biomeIdx < numBiomes; ++biomeIdx)
     {
-        Biome biome = (Biome)i;
+        Biome biome = (Biome)biomeIdx;
 
-#ifdef BIOME_OVERRIDE
-        float weight = (biome == BIOME_OVERRIDE) ? 1.f : 0.f;
+#ifdef DEBUG_BIOME_OVERRIDE
+        float weight = (biome == DEBUG_BIOME_OVERRIDE) ? 1.f : 0.f;
 #else
         float weight = getBiomeWeight(biome, biomeNoise);
 #endif
         if (weight > 0.f)
         {
-            height += weight * getHeight((Biome)i, worldPos);
+            height += weight * getHeight(biome, worldPos);
         }
 
-        columnBiomeWeights[i] = weight;
+        columnBiomeWeights[256 * biomeIdx] = weight;
     }
-    heightfield[idx] = height;
+
+    heightfield[(256 * chunkIdx) + idx] = height;
 }
 
-void Chunk::generateHeightfield(
-    float* dev_heightfield, 
-    float* dev_biomeWeights, 
+void Chunk::generateHeightfields(
+    std::vector<Chunk*>& chunks,
+    ivec2* host_chunkWorldBlockPositions,
+    ivec2* dev_chunkWorldBlockPositions,
+    float* host_heightfields,
+    float* dev_heightfields,
+    float* host_biomeWeights,
+    float* dev_biomeWeights,
     cudaStream_t stream)
 {
-    const dim3 blockSize2d(8, 8);
-    const dim3 blocksPerGrid2d(2, 2);
-    kernGenerateHeightfield<<<blocksPerGrid2d, blockSize2d, 0, stream>>>(
-        dev_heightfield,
-        dev_biomeWeights,
-        this->worldBlockPos
+    const int numChunks = chunks.size();
+
+    for (int i = 0; i < numChunks; ++i)
+    {
+        ivec3 worldBlockPos = chunks[i]->worldBlockPos;
+        host_chunkWorldBlockPositions[i] = ivec2(worldBlockPos.x, worldBlockPos.z);
+    }
+
+    cudaMemcpyAsync(dev_chunkWorldBlockPositions, host_chunkWorldBlockPositions, numChunks * sizeof(ivec2), cudaMemcpyHostToDevice, stream);
+
+    const dim3 blockSize3d(1, 16, 16);
+    const dim3 blocksPerGrid3d(numChunks, 1, 1);
+    kernGenerateHeightfield<<<blocksPerGrid3d, blockSize3d, 0, stream>>>(
+        dev_chunkWorldBlockPositions,
+        dev_heightfields,
+        dev_biomeWeights
     );
 
-    cudaMemcpyAsync(this->heightfield.data(), dev_heightfield, 256 * sizeof(float), cudaMemcpyDeviceToHost, stream);
-    cudaMemcpyAsync(this->biomeWeights.data(), dev_biomeWeights, 256 * numBiomes * sizeof(float), cudaMemcpyDeviceToHost, stream);
+    cudaMemcpyAsync(host_heightfields, dev_heightfields, numChunks * 256 * sizeof(float), cudaMemcpyDeviceToHost, stream);
+    cudaMemcpyAsync(host_biomeWeights, dev_biomeWeights, numChunks * devBiomeWeightsSize * sizeof(float), cudaMemcpyDeviceToHost, stream);
+  
+    cudaStreamSynchronize(stream);
 
-    cudaStreamSynchronize(stream); // used here so cudaMemcpyAsync to this->heightfield finishes before generating own feature placements
+    for (int i = 0; i < numChunks; ++i)
+    {
+        Chunk* chunkPtr = chunks[i];
 
-    generateOwnFeaturePlacements(); // TODO: maybe move to a separate step to allow for placing features based on eroded layers
+        std::memcpy(chunkPtr->heightfield.data(), host_heightfields + (256 * i), 256 * sizeof(float));
+        std::memcpy(chunkPtr->biomeWeights.data(), host_biomeWeights + (devBiomeWeightsSize * i), devBiomeWeightsSize * sizeof(float));
+    }
 
     CudaUtils::checkCUDAError("Chunk::generateHeightfield() failed");
 }
@@ -202,7 +236,7 @@ void calculateEdgeIndices(int offset, int& in, int& out)
 
 void Chunk::otherChunkGatherHeightfield(Chunk* chunkPtr, Chunk* const (&neighborChunks)[5][5], int centerX, int centerZ)
 {
-    chunkPtr->gatheredHeightfield.reserve(18 * 18);
+    chunkPtr->gatheredHeightfield.resize(18 * 18);
 
     for (const auto& neighborDir : DirectionEnums::dirVecs2d)
     {
@@ -216,7 +250,7 @@ void Chunk::otherChunkGatherHeightfield(Chunk* chunkPtr, Chunk* const (&neighbor
             // edge
             if (offsetZ == 0)
             {
-                // +/- x
+                // +/- localX
                 int xIn, xOut;
                 calculateEdgeIndices(offsetX, xIn, xOut);
 
@@ -227,7 +261,7 @@ void Chunk::otherChunkGatherHeightfield(Chunk* chunkPtr, Chunk* const (&neighbor
             }
             else
             {
-                // +/- z
+                // +/- localZ
                 int zIn, zOut;
                 calculateEdgeIndices(offsetZ, zIn, zOut);
 
@@ -250,10 +284,11 @@ void Chunk::otherChunkGatherHeightfield(Chunk* chunkPtr, Chunk* const (&neighbor
     // copy chunk's own heightfield into gathered heightfield
     for (int z = 0; z < 16; ++z)
     {
-        for (int x = 0; x < 16; ++x)
-        {
-            chunkPtr->gatheredHeightfield[posTo2dIndex<18>(x + 1, z + 1)] = chunkPtr->heightfield[posTo2dIndex(x, z)];
-        }
+        std::memcpy(
+            chunkPtr->gatheredHeightfield.data() + posTo2dIndex<18>(1, z + 1),
+            chunkPtr->heightfield.data() + (16 * z),
+            16 * sizeof(float)
+        );
     }
 }
 
@@ -286,24 +321,26 @@ __device__ float getStratifiedMaterialThickness(int layerIdx, float materialWeig
 
 __global__ void kernGenerateLayers(
     float* heightfield,
-    float* layers,
     float* biomeWeights,
-    ivec3 chunkWorldBlockPos)
+    ivec2* chunkWorldBlockPositions,
+    float* layers)
 {
     __shared__ float shared_heightfield[18 * 18];
 
-    const int x = (blockIdx.x * blockDim.x) + threadIdx.x;
-    const int z = (blockIdx.y * blockDim.y) + threadIdx.y;
+    const int chunkIdx = blockIdx.x * blockDim.x;
+
+    const int x = (blockIdx.y * blockDim.y) + threadIdx.y;
+    const int z = (blockIdx.z * blockDim.z) + threadIdx.z;
 
     const int idx = posTo2dIndex(x, z);
 
-    const vec2 worldPos = vec2(chunkWorldBlockPos.x + x, chunkWorldBlockPos.z + z);
+    const vec2 worldPos = chunkWorldBlockPositions[chunkIdx] + ivec2(x, z);
 
-    shared_heightfield[idx] = heightfield[idx];
+    shared_heightfield[idx] = heightfield[(devHeightfieldSize * chunkIdx) + idx];
     const int idx2 = idx + 256;
     if (idx2 < 18 * 18)
     {
-        shared_heightfield[idx2] = heightfield[idx2];
+        shared_heightfield[idx2] = heightfield[(devHeightfieldSize * chunkIdx) + idx2];
     }
 
     __syncthreads();
@@ -315,11 +352,11 @@ __global__ void kernGenerateLayers(
         totalMaterialWeights[materialIdx] = 0;
     }
 
-    const float* columnBiomeWeights = biomeWeights + numBiomes * idx;
+    const float* columnBiomeWeights = biomeWeights + (devBiomeWeightsSize * chunkIdx) + (idx);
     #pragma unroll
     for (int biomeIdx = 0; biomeIdx < numBiomes; ++biomeIdx)
     {
-        const float biomeWeight = columnBiomeWeights[biomeIdx];
+        const float biomeWeight = columnBiomeWeights[256 * biomeIdx];
 
         #pragma unroll
         for (int materialIdx = 0; materialIdx < numMaterials; ++materialIdx)
@@ -339,13 +376,13 @@ __global__ void kernGenerateLayers(
         slope = max(slope, abs(neighborHeight - maxHeight) * (i % 2 == 1 ? SQRT_2 : 1));
     }
 
-    float* columnLayers = layers + numMaterials * idx;
+    float* columnLayers = layers + (devLayersSize * chunkIdx) + (idx);
 
     float height = 0;
     #pragma unroll
     for (int layerIdx = 0; layerIdx < numForwardMaterials; ++layerIdx)
     {
-        columnLayers[layerIdx] = height;
+        columnLayers[256 * layerIdx] = height;
 
         if (height > maxHeight || layerIdx == numForwardMaterials - 1)
         {
@@ -360,7 +397,7 @@ __global__ void kernGenerateLayers(
     for (int layerIdx = numStratifiedMaterials - 1; layerIdx >= numForwardMaterials; --layerIdx)
     {
         height += getStratifiedMaterialThickness(layerIdx, totalMaterialWeights[layerIdx], worldPos);
-        columnLayers[layerIdx] = height; // actual height is calculated by in kernFill by subtracting this value from start height of eroded layers
+        columnLayers[256 * layerIdx] = height; // actual height is calculated by in Chunk::fixBackwardStratifiedLayers() subtracting this value from start height of eroded layers
     }
 
     height = maxHeight;
@@ -373,26 +410,60 @@ __global__ void kernGenerateLayers(
         float layerHeight = max(0.f, materialInfo.thickness * ((materialInfo.noiseScaleOrMaxSlope - slope) / materialInfo.noiseScaleOrMaxSlope)) * materialWeight;
 
         height -= layerHeight;
-        columnLayers[layerIdx] = height;
+        columnLayers[256 * layerIdx] = height;
     }
 }
 
-void Chunk::generateLayers(float* dev_heightfield, float* dev_layers, float* dev_biomeWeights, cudaStream_t stream)
+void Chunk::generateLayers(
+    std::vector<Chunk*>& chunks,
+    float* host_heightfields,
+    float* dev_heightfields,
+    float* host_biomeWeights,
+    float* dev_biomeWeights,
+    ivec2* host_chunkWorldBlockPositions,
+    ivec2* dev_chunkWorldBlockPositions,
+    float* host_layers,
+    float* dev_layers,
+    cudaStream_t stream)
 {
-    cudaMemcpyAsync(dev_heightfield, this->gatheredHeightfield.data(), 18 * 18 * sizeof(float), cudaMemcpyHostToDevice, stream);
-    this->gatheredHeightfield.clear();
-    cudaMemcpyAsync(dev_biomeWeights, this->biomeWeights.data(), 256 * numBiomes * sizeof(float), cudaMemcpyHostToDevice, stream);
+    const int numChunks = chunks.size();
 
-    const dim3 blockSize2d(16, 16);
-    const dim3 blocksPerGrid2d(1, 1);
-    kernGenerateLayers<<<blocksPerGrid2d, blockSize2d, 0, stream>>>(
-        dev_heightfield,
-        dev_layers,
+    for (int i = 0; i < numChunks; ++i)
+    {
+        Chunk* chunkPtr = chunks[i];
+
+        std::memcpy(host_heightfields + (i * devHeightfieldSize), chunkPtr->gatheredHeightfield.data(), devHeightfieldSize * sizeof(float));
+        chunkPtr->gatheredHeightfield.clear();
+
+        std::memcpy(host_biomeWeights + (i * devBiomeWeightsSize), chunkPtr->biomeWeights.data(), devBiomeWeightsSize * sizeof(float));
+
+        ivec3 worldBlockPos = chunkPtr->worldBlockPos;
+        host_chunkWorldBlockPositions[i] = ivec2(worldBlockPos.x, worldBlockPos.z);
+    }
+
+    cudaMemcpyAsync(dev_heightfields, host_heightfields, numChunks * devHeightfieldSize * sizeof(float), cudaMemcpyHostToDevice, stream);
+    cudaMemcpyAsync(dev_biomeWeights, host_biomeWeights, numChunks * devBiomeWeightsSize * sizeof(float), cudaMemcpyHostToDevice, stream);
+    cudaMemcpyAsync(dev_chunkWorldBlockPositions, host_chunkWorldBlockPositions, numChunks * sizeof(ivec2), cudaMemcpyHostToDevice, stream);
+
+    const dim3 blockSize3d(1, 16, 16);
+    const dim3 blocksPerGrid3d(numChunks, 1, 1);
+    kernGenerateLayers<<<blocksPerGrid3d, blockSize3d, 0, stream>>>(
+        dev_heightfields,
         dev_biomeWeights,
-        this->worldBlockPos
+        dev_chunkWorldBlockPositions,
+        dev_layers
     );
 
-    cudaMemcpyAsync(this->layers.data(), dev_layers, 256 * numMaterials * sizeof(float), cudaMemcpyDeviceToHost, stream);
+    cudaMemcpyAsync(host_layers, dev_layers, numChunks * devLayersSize * sizeof(float), cudaMemcpyDeviceToHost, stream);
+
+    cudaStreamSynchronize(stream);
+
+    for (int i = 0; i < numChunks; ++i)
+    {
+        Chunk* chunkPtr = chunks[i];
+
+        std::memcpy(chunkPtr->layers.data(), host_layers + (i * devLayersSize), devLayersSize * sizeof(float));
+    }
 
     CudaUtils::checkCUDAError("Chunk::generateLayers() failed");
 }
@@ -401,7 +472,7 @@ void Chunk::generateLayers(float* dev_heightfield, float* dev_layers, float* dev
 
 #pragma region erosion
 
-static constexpr int gatheredLayersBaseSize = ZONE_SIZE * ZONE_SIZE * 4 * 256 * (numErodedMaterials + 1); // +1 for heightfield
+static constexpr int gatheredLayersBaseSize = EROSION_GRID_NUM_COLS * (numErodedMaterials + 1); // +1 for heightfield
 
 __global__ void kernDoErosion(
     float* gatheredLayers, 
@@ -415,40 +486,43 @@ __global__ void kernDoErosion(
 
     const int localX = threadIdx.x;
     const int localZ = threadIdx.y;
-    const int localIdx = posTo2dIndex<32>(localX, localZ);
+    const int localIdx2d = posTo2dIndex<32>(localX, localZ);
+
     const int blockStartX = (blockIdx.x * blockDim.x);
     const int blockStartZ = (blockIdx.y * blockDim.y);
+
     const int globalX = blockStartX + localX;
     const int globalZ = blockStartZ + localZ;
+    const int globalIdx2d = posTo2dIndex<EROSION_GRID_SIDE_LENGTH_BLOCKS>(globalX, globalZ);
 
-    if (localIdx == 0)
+    if (localIdx2d == 0)
     {
         shared_didChange = false;
     }
 
     const ivec2 sharedLayerPos = ivec2(localX + 1, localZ + 1);
     const int sharedLayerIdx = posTo2dIndex<34>(sharedLayerPos);
-    const int gatheredLayersIdx = posTo3dIndex<EROSION_GRID_SIDE_LENGTH_BLOCKS, numErodedMaterials + 1>(globalX, layerIdx, globalZ);
+    const int gatheredLayersIdx = globalIdx2d + (EROSION_GRID_NUM_COLS * layerIdx);
 
-    const float thisAccumulatedHeight = isFirst ? accumulatedHeights[posTo2dIndex<EROSION_GRID_SIDE_LENGTH_BLOCKS>(globalX, globalZ)] : 0;
+    float thisAccumulatedHeight = isFirst ? accumulatedHeights[globalIdx2d] : 0;
 
     const float thisLayerStart = gatheredLayers[gatheredLayersIdx] + thisAccumulatedHeight;
-    const float thisLayerEnd = gatheredLayers[posTo3dIndex<EROSION_GRID_SIDE_LENGTH_BLOCKS, numErodedMaterials + 1>(globalX, layerIdx + 1, globalZ)] + thisAccumulatedHeight;
+    const float thisLayerEnd = gatheredLayers[gatheredLayersIdx + EROSION_GRID_NUM_COLS] + thisAccumulatedHeight;
     shared_layerStart[sharedLayerIdx] = thisLayerStart;
     shared_layerEnd[sharedLayerIdx] = thisLayerEnd;
 
     ivec2 storePos = ivec2(-1);
-    if (localIdx < 64)
+    if (localIdx2d < 64)
     {
-        storePos = ivec2((localIdx % 32) + 1, localIdx < 32 ? 0 : 33);
+        storePos = ivec2((localIdx2d % 32) + 1, localIdx2d < 32 ? 0 : 33);
     }
-    else if (localIdx < 128)
+    else if (localIdx2d < 128)
     {
-        storePos = ivec2(localIdx < 96 ? 0 : 33, (localIdx % 32) + 1);
+        storePos = ivec2(localIdx2d < 96 ? 0 : 33, (localIdx2d % 32) + 1);
     }
     else
     {
-        switch (localIdx)
+        switch (localIdx2d)
         {
         case 128:
             storePos = ivec2(0, 0);
@@ -470,13 +544,14 @@ __global__ void kernDoErosion(
         ivec2 loadPos = ivec2(blockStartX - 1, blockStartZ - 1) + storePos;
         loadPos = clamp(loadPos, 0, EROSION_GRID_SIDE_LENGTH_BLOCKS - 1); // values outside the grid (i.e. not in gatheredLayers) extend existing border values
 
-        const int loadIdx = posTo3dIndex<EROSION_GRID_SIDE_LENGTH_BLOCKS, numErodedMaterials + 1>(loadPos.x, layerIdx, loadPos.y);
+        const int loadIdx2d = posTo2dIndex<EROSION_GRID_SIDE_LENGTH_BLOCKS>(loadPos);
+        const int loadIdx = loadIdx2d + (EROSION_GRID_NUM_COLS * layerIdx);
         const int storeIdx = posTo2dIndex<34>(storePos);
 
-        const float thisAccumulatedHeight = isFirst ? accumulatedHeights[posTo2dIndex<EROSION_GRID_SIDE_LENGTH_BLOCKS>(loadPos.x, loadPos.y)] : 0;
+        thisAccumulatedHeight = isFirst ? accumulatedHeights[loadIdx2d] : 0;
 
         shared_layerStart[storeIdx] = gatheredLayers[loadIdx] + thisAccumulatedHeight;
-        shared_layerEnd[storeIdx] = gatheredLayers[posTo3dIndex<EROSION_GRID_SIDE_LENGTH_BLOCKS, numErodedMaterials + 1>(loadPos.x, layerIdx + 1, loadPos.y)] + thisAccumulatedHeight;
+        shared_layerEnd[storeIdx] = gatheredLayers[loadIdx + EROSION_GRID_NUM_COLS] + thisAccumulatedHeight;
     }
 
     __syncthreads();
@@ -496,6 +571,8 @@ __global__ void kernDoErosion(
         maxThickness = max(maxThickness, shared_layerEnd[neighborIdx] - neighborLayerStart);
     }
 
+    newLayerStart = min(newLayerStart, thisLayerEnd);
+
     if (maxThickness > 0)
     {
         gatheredLayers[gatheredLayersIdx] = newLayerStart;
@@ -505,13 +582,13 @@ __global__ void kernDoErosion(
             shared_didChange = true; // not atomic since any thread that writes to shared_didChange will write the same value
                                      // plus I think this gets serialized anyway since they're all writing to the same bank
 
-            accumulatedHeights[posTo2dIndex<EROSION_GRID_SIDE_LENGTH_BLOCKS>(globalX, globalZ)] += newLayerStart - thisLayerStart;
+            accumulatedHeights[globalIdx2d] += newLayerStart - thisLayerStart;
         }
     }
 
     __syncthreads();
 
-    if (localIdx != 0)
+    if (localIdx2d != 0)
     {
         return;
     }
@@ -525,7 +602,8 @@ __global__ void kernDoErosion(
 
 void copyLayers(Zone* zonePtr, float* gatheredLayers, bool toGatheredLayers)
 {
-    int maxDim = toGatheredLayers ? ZONE_SIZE * 2 : ZONE_SIZE;
+    const int maxDim = toGatheredLayers ? ZONE_SIZE * 2 : ZONE_SIZE;
+    const int maxLayerIdx = toGatheredLayers ? numMaterials + 1 : numMaterials;
 
     for (int chunkZ = 0; chunkZ < maxDim; ++chunkZ)
     {
@@ -544,51 +622,63 @@ void copyLayers(Zone* zonePtr, float* gatheredLayers, bool toGatheredLayers)
                 chunkBlockPos = (ivec2(chunkX, chunkZ) + ivec2(ZONE_SIZE / 2)) * 16;
             }
 
-            for (int blockZ = 0; blockZ < 16; ++blockZ)
+            for (int layerIdx = numStratifiedMaterials; layerIdx < maxLayerIdx; ++layerIdx)
             {
-                for (int blockX = 0; blockX < 16; ++blockX)
+                for (int blockZ = 0; blockZ < 16; ++blockZ)
                 {
-                    int idx2d = posTo2dIndex(blockX, blockZ);
-                    auto srcLayers = &chunkPtr->layers[idx2d][numStratifiedMaterials];
-                    auto dstLayers = gatheredLayers + posTo3dIndex<ZONE_SIZE * 2 * 16, numErodedMaterials + 1>(chunkBlockPos.x + blockX, 0, chunkBlockPos.y + blockZ);
+                    const int globalBlockZ = chunkBlockPos.y + blockZ;
+
+                    float* srcLayers;
+                    if (toGatheredLayers && layerIdx == maxLayerIdx - 1)
+                    {
+                        srcLayers = chunkPtr->heightfield.data() + (16 * blockZ);
+                    }
+                    else
+                    {
+                        srcLayers = chunkPtr->layers.data() + (16 * blockZ) + (256 * layerIdx);
+                    }
+
+                    float* dstLayers = gatheredLayers
+                        + (chunkBlockPos.x)
+                        + (EROSION_GRID_SIDE_LENGTH_BLOCKS * globalBlockZ)
+                        + (EROSION_GRID_NUM_COLS * (layerIdx - numStratifiedMaterials));
 
                     if (!toGatheredLayers)
                     {
                         std::swap(srcLayers, dstLayers);
                     }
 
-                    std::memcpy(dstLayers, srcLayers, numErodedMaterials * sizeof(float));
-
-                    if (toGatheredLayers)
-                    {
-                        dstLayers[numErodedMaterials] = chunkPtr->heightfield[idx2d];
-                    }
+                    std::memcpy(dstLayers, srcLayers, 16 * sizeof(float));
                 }
             }
         }
     }
 }
 
-void Chunk::erodeZone(Zone* zonePtr, float* dev_gatheredLayers, float* dev_accumulatedHeights, cudaStream_t stream)
+__host__ void Chunk::erodeZone(
+    Zone* zonePtr,
+    float* host_gatheredLayers,
+    float* dev_gatheredLayers,
+    float* dev_accumulatedHeights,
+    cudaStream_t stream)
 {
-#if DO_EROSION
-    float* gatheredLayers = new float[gatheredLayersBaseSize];
-    copyLayers(zonePtr, gatheredLayers, true);
+#if !DEBUG_SKIP_EROSION
+    copyLayers(zonePtr, host_gatheredLayers, true);
     zonePtr->gatheredChunks.clear();
 
     int gatheredLayersSizeBytes = gatheredLayersBaseSize * sizeof(float);
-    cudaMemcpyAsync(dev_gatheredLayers, gatheredLayers, gatheredLayersSizeBytes, cudaMemcpyHostToDevice, stream);
+    cudaMemcpyAsync(dev_gatheredLayers, host_gatheredLayers, gatheredLayersSizeBytes, cudaMemcpyHostToDevice, stream);
 
     float flagDidChange;
     float* dev_flagDidChange = dev_gatheredLayers + gatheredLayersBaseSize;
 
     const dim3 blockSize2d(32, 32);
-    const int blocksPerGrid = (ZONE_SIZE * 2 * 16) / 32; // = ZONE_SIZE but writing it out for clarity
+    constexpr int blocksPerGrid = (ZONE_SIZE * 2 * 16) / 32; // = ZONE_SIZE but writing it out for clarity
     const dim3 blocksPerGrid2d(blocksPerGrid, blocksPerGrid);
 
-    cudaMemset(dev_accumulatedHeights, 0, BLOCKS_PER_EROSION_KERNEL * sizeof(float));
+    thrust::device_ptr<float> dev_ptr(dev_accumulatedHeights);
+    thrust::fill_n(dev_ptr, EROSION_GRID_NUM_COLS, 0.f);
 
-    //for (int layerIdx = 0; layerIdx < numErodedMaterials; ++layerIdx)
     for (int layerIdx = numErodedMaterials - 1; layerIdx >= 0; --layerIdx)
     {
         bool isFirst = true;
@@ -614,30 +704,263 @@ void Chunk::erodeZone(Zone* zonePtr, float* dev_gatheredLayers, float* dev_accum
         while (flagDidChange != 0);
     }
 
-    cudaMemcpyAsync(gatheredLayers, dev_gatheredLayers, gatheredLayersSizeBytes, cudaMemcpyDeviceToHost, stream);
+    cudaMemcpyAsync(host_gatheredLayers, dev_gatheredLayers, gatheredLayersSizeBytes, cudaMemcpyDeviceToHost, stream);
 
     cudaStreamSynchronize(stream); // all data needs to be copied back to gatheredLayers before calling copyLayers()
                                    // explicit synchronization here may not be necessary (seems to work without it) but it gives peace of mind
 
-    copyLayers(zonePtr, gatheredLayers, false);
-    delete[] gatheredLayers;
+    copyLayers(zonePtr, host_gatheredLayers, false);
 #else
     zonePtr->gatheredChunks.clear();
 #endif
 
     for (const auto& chunkPtr : zonePtr->chunks)
     {
-        chunkPtr->setState(ChunkState::NEEDS_GATHER_FEATURE_PLACEMENTS);
+        chunkPtr->fixBackwardStratifiedLayers();
     }
 
     CudaUtils::checkCUDAError("Chunk::erodeZone() failed");
+}
+
+void Chunk::fixBackwardStratifiedLayers()
+{
+    std::array<float, 256> erodedStartHeights;
+
+    for (int layerIdx = numForwardMaterials; layerIdx < numStratifiedMaterials; ++layerIdx)
+    {
+        const int layerIdx256 = 256 * layerIdx;
+
+        for (int localZ = 0; localZ < 16; ++localZ)
+        {
+            for (int localX = 0; localX < 16; ++localX)
+            {
+                const int idx2d = posTo2dIndex(localX, localZ);
+                float* columnLayers = this->layers.data() + idx2d;
+
+                if (layerIdx == numForwardMaterials)
+                {
+                    erodedStartHeights[idx2d] = columnLayers[256 * numStratifiedMaterials];
+                }
+
+                columnLayers[layerIdx256] = erodedStartHeights[idx2d] - columnLayers[layerIdx256];
+            }
+        }
+    }
+}
+
+#pragma endregion
+
+#pragma region caves
+
+__device__ bool shouldGenerateCaveAtBlock(ivec3 worldPos, float maxHeight, float oceanAndBeachWeight)
+{
+    if (worldPos.y == 0 || worldPos.y > max(maxHeight, (float)SEA_LEVEL) + 4.f)
+    {
+        return false;
+    }
+
+    vec3 noisePos = vec3(worldPos) * 0.0090f;
+    float topRatioYOffset = oceanAndBeachWeight * 50.f;
+    float topHeightRatio = smoothstep(142.f, 95.f, (float)worldPos.y + topRatioYOffset);
+    float bottomHeightRatio = smoothstep(5.f, 20.f, (float)worldPos.y);
+
+    vec3 noiseOffset = fbm3From3<4>(noisePos * 0.5000f) * 1.4f;
+
+    float caveNoise = specialCaveNoise(noisePos * vec3(1.f, 1.8f, 1.f) + noiseOffset);
+
+    float worleyEdgeThreshold = 0.24f + 0.12f * fbm<4>(noisePos * 4.f);
+
+    float hugeCaveNoise = smoothstep(0.3f, 0.45f, fbm<4>(noisePos * 0.0700f));
+    worleyEdgeThreshold *= (1.f + 1.4f * hugeCaveNoise);
+
+    worleyEdgeThreshold *= (topHeightRatio) * (0.3f + 0.7f * bottomHeightRatio);
+    if (worleyEdgeThreshold > 0.04f && caveNoise < worleyEdgeThreshold)
+    {
+        return true;
+    }
+
+    vec2 ravineNoisePos = vec2(worldPos.x, worldPos.z) * 0.0020f;
+    vec2 ravineWorleyOffset = 0.03f * fbm2From2<4>(ravineNoisePos * 10.f);
+    vec3 ravineWorleyColor;
+    float ravineWorley = worley(ravineNoisePos + ravineWorleyOffset, &ravineWorleyColor);
+    const float ravineWorleyThreshold = 0.12f * (1.f - oceanAndBeachWeight);
+    if (ravineWorley < ravineWorleyThreshold)
+    {
+        float ravineTop = 120.f + 24.f * ravineWorleyColor.x;
+        float ravineRatio = 1.f - (ravineWorley / ravineWorleyThreshold);
+
+        float ravineDepth = 60.f + 26.f * fbm<4>(ravineNoisePos * 8.f + vec2(8391.32f, 4821.39f));
+        ravineDepth *= smoothstep(0.f, 0.3f, ravineRatio);
+
+        float ravineWaveNoiseOffset = 4.f * fbm<4>(ravineNoisePos * 3.f + vec2(5129.32f, 1392.49f));
+        float ravineWaveNoise = sin((ravineNoisePos.x + ravineNoisePos.y) * 15.f + ravineWaveNoiseOffset);
+        ravineWaveNoise = smoothstep(0.4f, 0.6f, ravineWaveNoise);
+        ravineDepth *= ravineWaveNoise;
+
+        if (ravineDepth > 0.0001f && worldPos.y > ravineTop - ravineDepth)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+// TODO: pass in heightfield and skip evaluating noise if y > max height
+__global__ void kernGenerateCaves(
+    float* heightfield,
+    float* biomeWeights,
+    ivec2* chunkWorldBlockPositions, 
+    CaveLayer* caveLayers)
+{
+    __shared__ float shared_maxHeight;
+    __shared__ float shared_oceanAndBeachWeight;
+
+    __shared__ int shared_isFilled[384];
+    __shared__ int shared_flipHeights[384];
+
+    const int globalX = (blockIdx.x * blockDim.x) + threadIdx.x;
+    
+    const int chunkIdx = globalX / 16;
+    const int x = globalX - (chunkIdx * 16);
+    const int y = (blockIdx.y * blockDim.y) + threadIdx.y;
+    const int z = (blockIdx.z * blockDim.z) + threadIdx.z;
+
+    const int idx2d = posTo2dIndex(x, z);
+
+    const ivec2 chunkWorldBlockPos = chunkWorldBlockPositions[chunkIdx];
+    const ivec3 worldPos = ivec3(chunkWorldBlockPos.x + x, y, chunkWorldBlockPos.y + z);
+
+    if (y == 0)
+    {
+        shared_oceanAndBeachWeight = 0.f;
+    } else if (y == 1)
+    {
+        shared_maxHeight = heightfield[256 * chunkIdx + idx2d];
+    }
+
+    __syncthreads();
+
+    if (y < numOceanAndBeachBiomes)
+    {
+        float biomeWeight = biomeWeights[devBiomeWeightsSize * chunkIdx + 256 * y + idx2d];
+        atomicAdd(&shared_oceanAndBeachWeight, biomeWeight);
+    }
+
+    __syncthreads();
+
+    int isThisFilled = shouldGenerateCaveAtBlock(worldPos, shared_maxHeight, shared_oceanAndBeachWeight) ? 0 : 1;
+    shared_isFilled[y] = isThisFilled;
+
+    __syncthreads();
+
+    int isNextFilled = y < 383 ? shared_isFilled[y + 1] : 0;
+    shared_flipHeights[y] = (isThisFilled != isNextFilled) ? y : -1;
+
+    __syncthreads();
+
+    if (y >= 12)
+    {
+        return;
+    }
+
+    const int startLoadIdx = 32 * y;
+    int endLoadIdx = startLoadIdx;
+    // TODO: see if this causes bank conflicts (pretty sure it does), could be fixable by making shared_flipHeights size 33 * 12
+    for (int i = startLoadIdx; i < startLoadIdx + 32; ++i)
+    {
+        int flipHeight = shared_flipHeights[i];
+        if (flipHeight != -1)
+        {
+            shared_flipHeights[endLoadIdx] = flipHeight;
+            ++endLoadIdx;
+        }
+    }
+
+    const int numFlips = endLoadIdx - startLoadIdx;
+    int startStoreIdx = 0;
+
+    // add up numFlips from all threads with lower y and store into startStoreIdx
+    // TODO: replace with parallel version
+    for (int srcLane = 0; srcLane < 12; ++srcLane)
+    {
+        int srcLaneNumFlips = __shfl_sync(0x00000fffu, numFlips, srcLane);
+        if (srcLane < y)
+        {
+            startStoreIdx += srcLaneNumFlips;
+        }
+    }
+
+    int* columnCaveLayersInts = (int*)(caveLayers + (256 * MAX_CAVE_LAYERS_PER_COLUMN * chunkIdx) + (MAX_CAVE_LAYERS_PER_COLUMN * idx2d));
+
+    for (int i = 0; i < numFlips; ++i)
+    {
+        columnCaveLayersInts[startStoreIdx + i] = shared_flipHeights[startLoadIdx + i];
+    }
+}
+
+__host__ void Chunk::generateCaves(
+    std::vector<Chunk*>& chunks,
+    float* host_heightfields,
+    float* dev_heightfields,
+    float* host_biomeWeights,
+    float* dev_biomeWeights,
+    ivec2* host_chunkWorldBlockPositions,
+    ivec2* dev_chunkWorldBlockPositions,
+    CaveLayer* host_caveLayers,
+    CaveLayer* dev_caveLayers,
+    cudaStream_t stream)
+{
+    const int numChunks = chunks.size();
+
+    for (int i = 0; i < numChunks; ++i)
+    {
+        Chunk* chunkPtr = chunks[i];
+
+        std::memcpy(host_heightfields + (i * 256), chunkPtr->heightfield.data(), 256 * sizeof(float));
+        chunkPtr->gatheredHeightfield.clear();
+
+        std::memcpy(host_biomeWeights + (i * devBiomeWeightsSize), chunkPtr->biomeWeights.data(), devBiomeWeightsSize * sizeof(float));
+
+        ivec3 worldBlockPos = chunkPtr->worldBlockPos;
+        host_chunkWorldBlockPositions[i] = ivec2(worldBlockPos.x, worldBlockPos.z);
+    }
+
+    cudaMemcpyAsync(dev_heightfields, host_heightfields, numChunks * 256 * sizeof(float), cudaMemcpyHostToDevice, stream);
+    cudaMemcpyAsync(dev_biomeWeights, host_biomeWeights, numChunks * devBiomeWeightsSize * sizeof(float), cudaMemcpyHostToDevice, stream);
+    cudaMemcpyAsync(dev_chunkWorldBlockPositions, host_chunkWorldBlockPositions, numChunks * sizeof(ivec2), cudaMemcpyHostToDevice, stream);
+
+    thrust::device_ptr<CaveLayer> dev_ptr(dev_caveLayers);
+    CaveLayer defaultCaveLayer = { 384, 384 };
+    thrust::fill_n(dev_ptr, numChunks * devCaveLayersSize, defaultCaveLayer);
+
+    const dim3 blockSize3d(1, 384, 1);
+    const dim3 blocksPerGrid3d(numChunks * 16, 1, 16);
+    kernGenerateCaves<<<blocksPerGrid3d, blockSize3d, 0, stream>>>(
+        dev_heightfields,
+        dev_biomeWeights,
+        dev_chunkWorldBlockPositions,
+        dev_caveLayers
+    );
+
+    cudaMemcpyAsync(host_caveLayers, dev_caveLayers, numChunks * devCaveLayersSize * sizeof(CaveLayer), cudaMemcpyDeviceToHost, stream);
+
+    cudaStreamSynchronize(stream);
+
+    for (int i = 0; i < numChunks; ++i)
+    {
+        Chunk* chunkPtr = chunks[i];
+
+        std::memcpy(chunkPtr->caveLayers.data(), host_caveLayers + (i * devCaveLayersSize), devCaveLayersSize * sizeof(CaveLayer));
+    }
 }
 
 #pragma endregion
 
 #pragma region feature placements
 
-void Chunk::generateOwnFeaturePlacements()
+// TODO: maybe revisit and try to optimize this by calculating thicknesses in a separate pass with better memory access patterns
+void Chunk::generateFeaturePlacements()
 {
     for (int localZ = 0; localZ < 16; ++localZ)
     {
@@ -645,32 +968,94 @@ void Chunk::generateOwnFeaturePlacements()
         {
             const int idx2d = posTo2dIndex(localX, localZ);
 
-            const auto& columnBiomeWeights = biomeWeights[idx2d];
+            const auto& columnBiomeWeights = biomeWeights.data() + idx2d;
 
-            const ivec3 worldBlockPos = this->worldBlockPos + ivec3(localX, heightfield[idx2d], localZ);
-            auto rng = makeSeededRandomEngine(worldBlockPos.x, worldBlockPos.y, worldBlockPos.z, 7); // arbitrary w so this rng is different than heightfield rng
+            const float height = heightfield[idx2d];
+            int groundHeight = (int)height;
+            const ivec3 worldBlockPos = this->worldBlockPos + ivec3(localX, groundHeight + 1, localZ);
+
+            bool isCave = false;
+            const auto columnCaveLayers = this->caveLayers.data() + (idx2d * MAX_CAVE_LAYERS_PER_COLUMN);
+            for (int caveLayerIdx = 0; caveLayerIdx < MAX_CAVE_LAYERS_PER_COLUMN; ++caveLayerIdx)
+            {
+                const auto& caveLayer = columnCaveLayers[caveLayerIdx];
+
+                if (caveLayer.start == 384)
+                {
+                    break;
+                }
+
+                if (groundHeight > caveLayer.start && groundHeight <= caveLayer.end)
+                {
+                    isCave = true;
+                    break;
+                }
+            }
+
+            if (isCave)
+            {
+                continue;
+            }
+
+            auto blockRng = makeSeededRandomEngine(worldBlockPos.x, worldBlockPos.y, worldBlockPos.z, 7); // arbitrary w so this rng is different than heightfield rng
             thrust::uniform_real_distribution<float> u01(0, 1);
 
-            Biome biome = getRandomBiome(columnBiomeWeights, u01(rng));
-            const auto& featureGens = BiomeUtils::getBiomeFeatureGens(biome);
+            Biome biome = getRandomBiome<256>(columnBiomeWeights, u01(blockRng));
+            const auto& featureGens = host_biomeFeatureGens[(int)biome];
+
+            const float* columnLayers = this->layers.data() + idx2d;
+
+            const ivec2 localPos2d = ivec2(localX, localZ);
+            const ivec2 worldPos2d = localPos2d + ivec2(this->worldBlockPos.x, this->worldBlockPos.z);
 
             Feature feature = Feature::NONE;
-            float rand = u01(rng);
+            bool canReplaceBlocks = true;
             for (int i = 0; i < featureGens.size(); ++i)
             {
                 const auto& featureGen = featureGens[i];
 
-                rand -= featureGen.chancePerBlock;
-                if (rand <= 0.f)
+                if (!featureGen.possibleTopLayers.empty())
+                {
+                    bool canPlace = false;
+                    for (const auto& possibleTopLayer : featureGen.possibleTopLayers)
+                    {
+                        int layerIdx = (int)possibleTopLayer.material;
+                        float layerStart = columnLayers[256 * layerIdx];
+                        float layerEnd = columnLayers[256 * (layerIdx + 1)];
+
+                        if (layerStart > height || layerEnd < height || min(layerEnd, height) - layerStart < possibleTopLayer.minThickness)
+                        {
+                            continue;
+                        }
+
+                        canPlace = true;
+                        break;
+                    }
+
+                    if (!canPlace)
+                    {
+                        continue;
+                    }
+                }
+
+                const ivec2 gridCornerWorldPos = ivec2(floor(vec2(worldPos2d) / (float)featureGen.gridCellSize) * (float)featureGen.gridCellSize);
+                const int gridCellInternalSideLength = featureGen.gridCellSize - (2 * featureGen.gridCellPadding);
+                vec2 randPos = rand2From3(vec3(gridCornerWorldPos, (int)featureGen.feature * 59321));
+                const ivec2 gridPlaceWorldPos = gridCornerWorldPos + ivec2(featureGen.gridCellPadding)
+                    + ivec2(floor(randPos * (float)gridCellInternalSideLength));
+                const ivec2 gridPlaceLocalPos = gridPlaceWorldPos - ivec2(this->worldBlockPos.x, this->worldBlockPos.z);
+
+                if (localPos2d == gridPlaceLocalPos && u01(blockRng) < featureGen.chancePerGridCell)
                 {
                     feature = featureGen.feature;
+                    canReplaceBlocks = featureGen.canReplaceBlocks;
                     break;
                 }
             }
 
             if (feature != Feature::NONE)
             {
-                this->featurePlacements.push_back({ feature, worldBlockPos });
+                this->featurePlacements.push_back({ feature, worldBlockPos, canReplaceBlocks });
             }
         }
     }
@@ -678,20 +1063,24 @@ void Chunk::generateOwnFeaturePlacements()
     // this probably won't include decorators (single block/column things) since those can be done on the CPU at the end of Chunk::fill()
 }
 
+static const std::array<ivec2, 25> gatherFeaturePlacementsChunkOffsets = {
+    ivec2(0, 0), ivec2(0, 1), ivec2(1, 1), ivec2(1, 0), ivec2(1, -1), ivec2(0, -1), ivec2(-1, -1),
+    ivec2(-1, 0), ivec2(-1, 1), ivec2(2, 0), ivec2(2, 1), ivec2(2, 2), ivec2(1, 2), ivec2(0, 2),
+    ivec2(-1, 2), ivec2(-2, 2), ivec2(-2, 1), ivec2(-2, 0), ivec2(-2, -1), ivec2(-2, -2),
+    ivec2(-1, -2), ivec2(0, -2), ivec2(1, -2), ivec2(2, -2), ivec2(2, -1)
+};
+
 void Chunk::otherChunkGatherFeaturePlacements(Chunk* chunkPtr, Chunk* const (&neighborChunks)[9][9], int centerX, int centerZ)
 {
     chunkPtr->gatheredFeaturePlacements.clear();
 
-    for (int offsetZ = -2; offsetZ <= 2; ++offsetZ)
+    for (const auto& offset : gatherFeaturePlacementsChunkOffsets)
     {
-        for (int offsetX = -2; offsetX <= 2; ++offsetX)
-        {
-            const auto& neighborPtr = neighborChunks[centerZ + offsetZ][centerX + offsetX];
+        const auto& neighborPtr = neighborChunks[centerZ + offset.y][centerX + offset.x];
 
-            for (const auto& neighborFeaturePlacement : neighborPtr->featurePlacements)
-            {
-                chunkPtr->gatheredFeaturePlacements.push_back(neighborFeaturePlacement);
-            }
+        for (const auto& neighborFeaturePlacement : neighborPtr->featurePlacements)
+        {
+            chunkPtr->gatheredFeaturePlacements.push_back(neighborFeaturePlacement);
         }
     }
 }
@@ -709,18 +1098,172 @@ void Chunk::gatherFeaturePlacements()
 
 #pragma region chunk fill
 
+__device__ void chunkFillPlaceBlock(
+    Block* blockPtr,
+    float* shared_biomeWeights,
+    float* shared_layersAndHeight,
+    CaveLayer* shared_caveLayers,
+    int y,
+    float height,
+    ivec3 worldBlockPos,
+    thrust::random::default_random_engine& rng)
+{
+    if (y == 0)
+    {
+        *blockPtr = Block::BEDROCK;
+        return;
+    }
+
+    if (y > height && y > SEA_LEVEL)
+    {
+        *blockPtr = Block::AIR;
+        return;
+    }
+
+    bool isOcean = false;
+    for (int biomeIdx = 0; biomeIdx < numOceanBiomes; ++biomeIdx)
+    {
+        if (shared_biomeWeights[biomeIdx] > 0.f)
+        {
+            isOcean = true;
+            break;
+        }
+    }
+
+    thrust::uniform_real_distribution<float> u01(0, 1);
+
+    Biome randBiome = getRandomBiome(shared_biomeWeights, u01(rng));
+    bool isTopBlock = y >= height - 1.f;
+
+#define doBlockPostProcess() biomeBlockPostProcess(blockPtr, randBiome, worldBlockPos, height, isTopBlock)
+
+    if (y > height && y <= SEA_LEVEL)
+    {
+        *blockPtr = Block::WATER;
+        doBlockPostProcess();
+
+        if (isOcean)
+        {
+            return;
+        }
+    }
+
+    for (int caveLayerIdx = 0; caveLayerIdx < MAX_CAVE_LAYERS_PER_COLUMN; ++caveLayerIdx)
+    {
+        const auto& caveLayer = shared_caveLayers[caveLayerIdx];
+        if (caveLayer.start == 384)
+        {
+            break;
+        }
+
+        if (y >= caveLayer.start && y < caveLayer.end)
+        {
+            *blockPtr = (y <= LAVA_LEVEL) ? Block::LAVA : Block::AIR;
+            return;
+        }
+    }
+
+    if (y > height)
+    {
+        return;
+    }
+
+    bool wasBlockPreProcessed = biomeBlockPreProcess(blockPtr, randBiome, worldBlockPos, height);
+    if (wasBlockPreProcessed)
+    {
+        doBlockPostProcess();
+        return;
+    }
+
+    int layerIdxStart;
+    if (y >= shared_layersAndHeight[numForwardMaterials])
+    {
+        layerIdxStart = numForwardMaterials;
+    }
+    else
+    {
+        layerIdxStart = 0;
+    }
+
+#if DEBUG_USE_CONTRIBUTION_FILL_METHOD
+    float maxContribution = 0.f;
+    int maxLayerIdx = -1;
+    #pragma unroll
+    for (int layerIdx = layerIdxStart; layerIdx < numMaterials; ++layerIdx)
+    {
+        float layerContributionStart = max(shared_layersAndHeight[layerIdx], (float)y);
+        float layerContributionEnd = min(shared_layersAndHeight[layerIdx + 1], (float)y + 1.f);
+        float layerContribution = layerContributionEnd - layerContributionStart;
+
+        if (layerContribution > maxContribution)
+        {
+            maxContribution = layerContribution;
+            maxLayerIdx = layerIdx;
+        }
+    }
+
+    if (height < y + 0.5f)
+    {
+        block = Block::AIR;
+    }
+    else
+    {
+        block = dev_materialInfos[maxLayerIdx].block;
+
+        bool isTopBlock = height < y + 1.5f;
+        if (isTopBlock)
+        {
+            if (block == Block::DIRT)
+            {
+                const Biome randBiome = getRandomBiome(shared_biomeWeights, u01(rng));
+                block = dev_biomeBlocks[(int)randBiome].grassBlock;
+            }
+        }
+    }
+#else
+    int thisLayerIdx = -1;
+    #pragma unroll
+    for (int layerIdx = layerIdxStart; layerIdx < numMaterials; ++layerIdx)
+    {
+        float layerStart = shared_layersAndHeight[layerIdx];
+        float layerEnd = shared_layersAndHeight[layerIdx + 1];
+
+        if (layerStart <= y && y < layerEnd)
+        {
+            thisLayerIdx = layerIdx;
+            break;
+        }
+    }
+
+    *blockPtr = dev_materialInfos[thisLayerIdx].block;
+
+    if (isTopBlock)
+    {
+        if (*blockPtr == Block::DIRT)
+        {
+            *blockPtr = dev_biomeBlocks[(int)randBiome].grassBlock;
+        }
+    }
+#endif
+
+    doBlockPostProcess();
+
+#undef doBlockPostProcess
+}
+
 __global__ void kernFill(
     Block* blocks,
     float* heightfield,
-    float* layers,
     float* biomeWeights,
-    FeaturePlacement* dev_featurePlacements,
-    int numFeaturePlacements,
-    ivec2 featureHeightBounds,
+    float* layers,
+    CaveLayer* caveLayers,
+    FeaturePlacement* featurePlacements,
+    ivec2 allFeaturesHeightBounds,
     ivec3 chunkWorldBlockPos)
 {
-    __shared__ float shared_layersAndHeight[numMaterials + 1];
     __shared__ float shared_biomeWeights[numBiomes];
+    __shared__ float shared_layersAndHeight[numMaterials + 1];
+    __shared__ CaveLayer shared_caveLayers[MAX_CAVE_LAYERS_PER_COLUMN];
 
     const int x = (blockIdx.x * blockDim.x) + threadIdx.x;
     const int y = (blockIdx.y * blockDim.y) + threadIdx.y;
@@ -729,92 +1272,42 @@ __global__ void kernFill(
     const int idx = posTo3dIndex(x, y, z);
     const int idx2d = posTo2dIndex(x, z);
 
-    if (y < numMaterials)
+    int loadIdx = threadIdx.y;
+    float* loadLocation = nullptr;
+    float* storeLocation = nullptr;
+    if (loadIdx < numBiomes)
     {
-        const float* columnLayers = layers + numMaterials * idx2d;
-        shared_layersAndHeight[y] = columnLayers[y];
+        loadLocation = biomeWeights + (idx2d) + (256 * loadIdx);
+        storeLocation = shared_biomeWeights + loadIdx;
     }
-    else if (y == numMaterials)
+    else if ((loadIdx -= numBiomes) <= numMaterials)
     {
-        shared_layersAndHeight[y] = heightfield[idx2d];
-    }
-    else
-    {
-        const int biomeWeightIdx = y - numMaterials - 1;
-        if (biomeWeightIdx < numBiomes)
-        {
-            const float* columnBiomeWeights = biomeWeights + numBiomes * idx2d;
-            shared_biomeWeights[biomeWeightIdx] = columnBiomeWeights[biomeWeightIdx];
-        }
+        loadLocation = loadIdx == numMaterials ? (heightfield + idx2d) : (layers + (idx2d) + (256 * loadIdx));
+        storeLocation = shared_layersAndHeight + loadIdx;
     }
 
-    __syncthreads();
-
-    // calculate actual starting height of backward stratified materials
-    if (y >= numForwardMaterials && y < numStratifiedMaterials)
+    if (storeLocation != nullptr)
     {
-        shared_layersAndHeight[y] = shared_layersAndHeight[numStratifiedMaterials] - shared_layersAndHeight[y];
+        *storeLocation = *loadLocation;
+    }
+
+    loadIdx -= numMaterials + 1;
+    if (loadIdx >= 0 && loadIdx < MAX_CAVE_LAYERS_PER_COLUMN)
+    {
+        shared_caveLayers[loadIdx] = caveLayers[(MAX_CAVE_LAYERS_PER_COLUMN * idx2d) + loadIdx];
     }
 
     __syncthreads();
 
-    const float height = heightfield[idx2d];
+    const float height = shared_layersAndHeight[numMaterials];
 
     const ivec3 worldBlockPos = chunkWorldBlockPos + ivec3(x, y, z);
     auto rng = makeSeededRandomEngine(worldBlockPos.x, worldBlockPos.y, worldBlockPos.z);
-    thrust::uniform_real_distribution<float> u01(0, 1);
 
-    Block block = Block::AIR;
-    if (y < height)
-    {
-        int layerIdxStart;
-        if (y >= shared_layersAndHeight[numForwardMaterials])
-        {
-            layerIdxStart = numForwardMaterials;
-        }
-        else
-        {
-            layerIdxStart = 0;
-        }
+    Block block;
+    chunkFillPlaceBlock(&block, shared_biomeWeights, shared_layersAndHeight, shared_caveLayers, y, height, worldBlockPos, rng);
 
-        float maxContribution = 0.f;
-        int maxLayerIdx = -1;
-        #pragma unroll
-        for (int layerIdx = layerIdxStart; layerIdx < numMaterials; ++layerIdx)
-        {
-            float layerContributionStart = max(shared_layersAndHeight[layerIdx], (float)y);
-            float layerContributionEnd = min(shared_layersAndHeight[layerIdx + 1], (float)y + 1.f);
-            float layerContribution = layerContributionEnd - layerContributionStart;
-
-            if (layerContribution > maxContribution)
-            {
-                maxContribution = layerContribution;
-                maxLayerIdx = layerIdx;
-            }
-        }
-
-        const float airLayerStart = shared_layersAndHeight[numMaterials];
-        if (airLayerStart < y + 0.5f)
-        {
-            block = Block::AIR;
-        }
-        else
-        {
-            block = dev_materialInfos[maxLayerIdx].block;
-
-            bool isTopBlock = airLayerStart < y + 1.5f;
-            if (isTopBlock)
-            {
-                if (block == Block::DIRT)
-                {
-                    const Biome randBiome = getRandomBiome(shared_biomeWeights, u01(rng));
-                    block = dev_biomeBlocks[(int)randBiome].grassBlock;
-                }
-            }
-        }
-    }
-
-    if (y < featureHeightBounds[0] || y > featureHeightBounds[1])
+    if (y < allFeaturesHeightBounds[0] || y > allFeaturesHeightBounds[1])
     {
         blocks[idx] = block;
         return;
@@ -822,9 +1315,27 @@ __global__ void kernFill(
 
     Block featureBlock;
     bool placedFeature = false;
-    for (int featureIdx = 0; featureIdx < numFeaturePlacements; ++featureIdx)
+    for (int featureIdx = 0; featureIdx < MAX_GATHERED_FEATURES_PER_CHUNK; ++featureIdx)
     {
-        if (placeFeature(dev_featurePlacements[featureIdx], worldBlockPos, &featureBlock))
+        const auto& featurePlacement = featurePlacements[featureIdx];
+
+        if (featurePlacement.pos.y == -1)
+        {
+            break;
+        }
+
+        if (block != Block::AIR && !featurePlacement.canReplaceBlocks)
+        {
+            continue;
+        }
+
+        ivec2 featureHeightBounds = dev_featureHeightBounds[(int)featurePlacement.feature] + ivec2(featurePlacement.pos.y);
+        if (y < featureHeightBounds[0] || y > featureHeightBounds[1])
+        {
+            continue;
+        }
+
+        if (placeFeature(featurePlacement, worldBlockPos, &featureBlock))
         {
             placedFeature = true;
             break;
@@ -840,44 +1351,83 @@ __global__ void kernFill(
 }
 
 void Chunk::fill(
-    Block* dev_blocks, 
-    float* dev_heightfield,
+    std::vector<Chunk*>& chunks,
+    float* host_heightfields,
+    float* dev_heightfields,
+    float* host_biomeWeights,
+    float* dev_biomeWeights,
+    float* host_layers,
     float* dev_layers,
-    float* dev_biomeWeights, 
-    FeaturePlacement* dev_featurePlacements, 
+    CaveLayer* host_caveLayers,
+    CaveLayer* dev_caveLayers,
+    FeaturePlacement* dev_featurePlacements,
+    Block* host_blocks,
+    Block* dev_blocks,
     cudaStream_t stream)
 {
-    ivec2 allFeaturesHeightBounds = ivec2(384, -1);
-    for (const auto& featurePlacement : this->gatheredFeaturePlacements)
+    const int numChunks = chunks.size();
+
+    for (int i = 0; i < numChunks; ++i)
     {
-        const auto& featureHeightBounds = BiomeUtils::getFeatureHeightBounds(featurePlacement.feature);
-        const ivec2 thisFeatureHeightBounds = ivec2(featurePlacement.pos.y) + featureHeightBounds;
-        allFeaturesHeightBounds[0] = min(allFeaturesHeightBounds[0], thisFeatureHeightBounds[0]);
-        allFeaturesHeightBounds[1] = max(allFeaturesHeightBounds[1], thisFeatureHeightBounds[1]);
+        Chunk* chunkPtr = chunks[i];
+
+        std::memcpy(host_heightfields + (i * 256), chunkPtr->heightfield.data(), 256 * sizeof(float));
+        std::memcpy(host_biomeWeights + (i * devBiomeWeightsSize), chunkPtr->biomeWeights.data(), devBiomeWeightsSize * sizeof(float));
+        std::memcpy(host_layers + (i * devLayersSize), chunkPtr->layers.data(), devLayersSize * sizeof(float));
+        std::memcpy(host_caveLayers + (i * devCaveLayersSize), chunkPtr->caveLayers.data(), devCaveLayersSize * sizeof(CaveLayer));
     }
 
-    int numFeaturePlacements = this->gatheredFeaturePlacements.size();
-    cudaMemcpyAsync(dev_featurePlacements, this->gatheredFeaturePlacements.data(), numFeaturePlacements * sizeof(FeaturePlacement), cudaMemcpyHostToDevice, stream);
-    this->gatheredFeaturePlacements.clear();
+    cudaMemcpyAsync(dev_heightfields, host_heightfields, numChunks * 256 * sizeof(float), cudaMemcpyHostToDevice, stream);
+    cudaMemcpyAsync(dev_biomeWeights, host_biomeWeights, numChunks * devBiomeWeightsSize * sizeof(float), cudaMemcpyHostToDevice, stream);
+    cudaMemcpyAsync(dev_layers, host_layers, numChunks * devLayersSize * sizeof(float), cudaMemcpyHostToDevice, stream);
+    cudaMemcpyAsync(dev_caveLayers, host_caveLayers, numChunks * devCaveLayersSize * sizeof(CaveLayer), cudaMemcpyHostToDevice, stream);
 
-    cudaMemcpyAsync(dev_heightfield, this->heightfield.data(), 256 * sizeof(float), cudaMemcpyHostToDevice, stream);
-    cudaMemcpyAsync(dev_layers, this->layers.data(), 256 * numMaterials * sizeof(float), cudaMemcpyHostToDevice, stream);
-    cudaMemcpyAsync(dev_biomeWeights, this->biomeWeights.data(), 256 * numBiomes * sizeof(float), cudaMemcpyHostToDevice, stream);
+    for (int i = 0; i < numChunks; ++i)
+    {
+        Chunk* chunkPtr = chunks[i];
 
-    const dim3 blockSize3d(1, 384, 1);
-    const dim3 blocksPerGrid3d(16, 1, 16);
-    kernFill<<<blocksPerGrid3d, blockSize3d, 0, stream>>>(
-        dev_blocks, 
-        dev_heightfield,
-        dev_layers,
-        dev_biomeWeights,
-        dev_featurePlacements,
-        numFeaturePlacements,
-        allFeaturesHeightBounds,
-        this->worldBlockPos
-    );
-    
-    cudaMemcpyAsync(this->blocks.data(), dev_blocks, 98304 * sizeof(Block), cudaMemcpyDeviceToHost, stream);
+        ivec2 allFeaturesHeightBounds = ivec2(384, -1);
+        for (const auto& featurePlacement : chunkPtr->gatheredFeaturePlacements)
+        {
+            const auto& featureHeightBounds = host_featureHeightBounds[(int)featurePlacement.feature];
+            const ivec2 thisFeatureHeightBounds = ivec2(featurePlacement.pos.y) + featureHeightBounds;
+            allFeaturesHeightBounds[0] = min(allFeaturesHeightBounds[0], thisFeatureHeightBounds[0]);
+            allFeaturesHeightBounds[1] = max(allFeaturesHeightBounds[1], thisFeatureHeightBounds[1]);
+        }
+
+        int numFeaturePlacements = min((int)chunkPtr->gatheredFeaturePlacements.size(), MAX_GATHERED_FEATURES_PER_CHUNK);
+        if (numFeaturePlacements < MAX_GATHERED_FEATURES_PER_CHUNK)
+        {
+            chunkPtr->gatheredFeaturePlacements.push_back({ Feature::NONE, vec3(0, -1, 0) });
+            ++numFeaturePlacements;
+        }
+        cudaMemcpyAsync(dev_featurePlacements + (i * MAX_GATHERED_FEATURES_PER_CHUNK), chunkPtr->gatheredFeaturePlacements.data(), numFeaturePlacements * sizeof(FeaturePlacement), cudaMemcpyHostToDevice, stream);
+        chunkPtr->gatheredFeaturePlacements.clear();
+
+        const dim3 blockSize3d(1, 128, 1);
+        const dim3 blocksPerGrid3d(16, 3, 16);
+        kernFill<<<blocksPerGrid3d, blockSize3d, 0, stream>>>(
+            dev_blocks + (i * devBlocksSize),
+            dev_heightfields + (i * 256),
+            dev_biomeWeights + (i * devBiomeWeightsSize),
+            dev_layers + (i * devLayersSize),
+            dev_caveLayers + (i * devCaveLayersSize),
+            dev_featurePlacements + (i * MAX_GATHERED_FEATURES_PER_CHUNK),
+            allFeaturesHeightBounds,
+            chunkPtr->worldBlockPos
+        );
+    }
+
+    cudaMemcpyAsync(host_blocks, dev_blocks, numChunks * devBlocksSize * sizeof(Block), cudaMemcpyDeviceToHost, stream);
+
+    cudaStreamSynchronize(stream);
+
+    for (int i = 0; i < numChunks; ++i)
+    {
+        Chunk* chunkPtr = chunks[i];
+
+        std::memcpy(chunkPtr->blocks.data(), host_blocks + (i * devBlocksSize), devBlocksSize * sizeof(Block));
+    }
 
     CudaUtils::checkCUDAError("Chunk::fill() failed");
 }
@@ -921,6 +1471,7 @@ void Chunk::createVBOs()
                 }
 
                 BlockData thisBlockData = BlockUtils::getBlockData(thisBlock);
+                const auto thisTrans = thisBlockData.transparency;
 
                 for (int dirIdx = 0; dirIdx < 6; ++dirIdx)
                 {
@@ -959,14 +1510,28 @@ void Chunk::createVBOs()
 
                         neighborBlock = neighborPosChunk->blocks[posTo3dIndex(neighborPos)];
 
-                        const auto thisTrans = thisBlockData.transparency;
                         const auto neighborTrans = BlockUtils::getBlockData(neighborBlock).transparency;
 
-                        // OPAQUE displays unless neighbor is OPAQUE
-                        // SEMI_TRANSPARENT displays no matter what
-                        // TRANSPARENT (except AIR) displays unless neighbor is TRANSPARENT (may need to revise this if two different transparent blocks are adjacent)
+                        // OPAQUE displays if neighbor is not OPAQUE
+                        // SEMI_TRANSPARENT if neighbor is not OPAQUE
+                        // TRANSPARENT (except AIR) displays if neighbor is AIR or SEMI_TRANSPARENT (may need to revise this if two different transparent blocks are adjacent)
                         // X_SHAPED displays no matter what
-                        if (thisTrans == neighborTrans && (thisTrans == TransparencyType::OPAQUE_BLOCK || thisTrans == TransparencyType::TRANSPARENT_BLOCK))
+                        bool shouldDisplay;
+                        switch (thisTrans)
+                        {
+                        case TransparencyType::T_OPAQUE:
+                        case TransparencyType::T_SEMI_TRANSPARENT:
+                            shouldDisplay = neighborTrans != TransparencyType::T_OPAQUE;
+                            break;
+                        case TransparencyType::T_TRANSPARENT:
+                            shouldDisplay = neighborBlock == Block::AIR || neighborTrans == TransparencyType::T_SEMI_TRANSPARENT;
+                            break;
+                        case TransparencyType::T_X_SHAPED:
+                            shouldDisplay = true;
+                            break;
+                        }
+
+                        if (!shouldDisplay)
                         {
                             continue;
                         }
