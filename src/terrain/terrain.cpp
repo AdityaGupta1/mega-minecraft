@@ -535,7 +535,9 @@ void Terrain::tick(float deltaTime)
         chunksToDestroyVbos.pop();
 
         drawableChunks.erase(chunkPtr);
+#if DEBUG_USE_GL_RENDERER
         chunkPtr->destroyVBOs();
+#endif
         chunkPtr->setState(ChunkState::NEEDS_VBOS);
     }
 
