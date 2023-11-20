@@ -173,6 +173,7 @@ void OptixRenderer::buildRootAccel()
 
 void OptixRenderer::buildChunkAccel(const Chunk* c)
 {
+    printf("starting\n");
     // copy mesh data to device
     CUBuffer dev_vertices;
     CUBuffer dev_indices;
@@ -224,6 +225,7 @@ void OptixRenderer::buildChunkAccel(const Chunk* c)
         1,  // num_build_inputs
         &gasBufferSizes
     ));
+    printf("computed memeory usage\n");
 
     CUBuffer compactedSizeBuffer;
     compactedSizeBuffer.alloc(sizeof(uint64_t));
@@ -253,6 +255,7 @@ void OptixRenderer::buildChunkAccel(const Chunk* c)
 
         &emitDesc, 1
     ));
+    printf("built accel structure\n");
 
     // I don't think you can free the device vertices and indices, cause GAS needs to access this
     //dev_vertices.free();
@@ -271,6 +274,7 @@ void OptixRenderer::buildChunkAccel(const Chunk* c)
         gasBuffer.dev_ptr(),
         gasBuffer.size(),
         &gasHandle));
+    printf("compacted\n");
 
     // cleanup
     //outputBuffer.free();
