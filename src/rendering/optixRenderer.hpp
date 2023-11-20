@@ -69,10 +69,12 @@ protected:
     std::vector<OptixProgramGroup> raygenProgramGroups;
     std::vector<OptixProgramGroup> missProgramGroups;
     std::vector<OptixProgramGroup> hitProgramGroups;
+    std::vector<OptixProgramGroup> exceptionProgramGroups;
 
     CUBuffer raygenRecordBuffer;
     CUBuffer missRecordBuffer;
     CUBuffer hitRecordBuffer;
+    CUBuffer exceptionRecordBuffer;
     OptixShaderBindingTable sbt = {};
 
     CUBuffer playerInfoBuffer;

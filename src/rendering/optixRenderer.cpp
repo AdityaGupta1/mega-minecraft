@@ -328,7 +328,7 @@ void OptixRenderer::createModule()
     pipelineCompileOptions.traversableGraphFlags = OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_ANY;
     pipelineCompileOptions.numPayloadValues = 2;
     pipelineCompileOptions.numAttributeValues = 2;
-    pipelineCompileOptions.exceptionFlags = OPTIX_EXCEPTION_FLAG_NONE;
+    pipelineCompileOptions.exceptionFlags = OPTIX_EXCEPTION_FLAG_STACK_OVERFLOW | OPTIX_EXCEPTION_FLAG_TRACE_DEPTH;
     pipelineCompileOptions.pipelineLaunchParamsVariableName = "params";
 
     pipelineLinkOptions.maxTraceDepth = 2;
@@ -360,6 +360,7 @@ void OptixRenderer::createProgramGroups()
     raygenProgramGroups.resize(1);
     missProgramGroups.resize(1);
     hitProgramGroups.resize(1);
+    exceptionProgramGroups.resize(1);
      
     // Ray Gen
     OptixProgramGroupDesc rayGenDesc = {};
@@ -411,6 +412,22 @@ void OptixRenderer::createProgramGroups()
     ));
 
     if (sizeof_log > 1) std::cout << "Hit PG: " << log << std::endl;
+
+    // Exception
+    OptixProgramGroupDesc excpDesc = {};
+    excpDesc.kind = OPTIX_PROGRAM_GROUP_KIND_EXCEPTION;
+    excpDesc.exception.module = modules[0];
+    excpDesc.exception.entryFunctionName = "__exception__all";
+    OPTIX_CHECK(optixProgramGroupCreate(
+        optixContext,
+        &excpDesc,
+        1,
+        &pgOptions,
+        log, &sizeof_log,
+        &exceptionProgramGroups[0]
+    ));
+
+    if (sizeof_log > 1) std::cout << "Exception PG: " << log << std::endl;
 }
 
 void OptixRenderer::createPipeline()
@@ -421,6 +438,8 @@ void OptixRenderer::createPipeline()
     for (auto p : missProgramGroups)
         programGroups.push_back(p);
     for (auto p : hitProgramGroups)
+        programGroups.push_back(p);
+    for (auto p : exceptionProgramGroups)
         programGroups.push_back(p);
 
     char log[2048];
@@ -514,6 +533,19 @@ void OptixRenderer::buildSBT()
     sbt.hitgroupRecordBase = hitRecordBuffer.dev_ptr();
     sbt.hitgroupRecordStrideInBytes = sizeof(HitGroupRecord);
     sbt.hitgroupRecordCount = (int)hitgroupRecords.size();
+
+    // ------------------------------------------------------------------
+    // build exception records
+    // ------------------------------------------------------------------
+    std::vector<Record<void*>> exceptionRecords;
+    for (int i = 0; i < exceptionProgramGroups.size(); i++) {
+        Record<void*> rec;
+        OPTIX_CHECK(optixSbtRecordPackHeader(exceptionProgramGroups[i], &rec));
+        rec.data = nullptr; /* for now ... */
+        exceptionRecords.push_back(rec);
+    }
+    exceptionRecordBuffer.initFromVector(exceptionRecords);
+    sbt.exceptionRecord = missRecordBuffer.dev_ptr();
 }
 
 void OptixRenderer::optixRenderFrame()

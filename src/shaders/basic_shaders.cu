@@ -93,3 +93,13 @@ extern "C" __global__ void __hit__radiance() {
     float3& prd = *(float3*)getPRD<float3>();
     prd = make_float3(0.f, 0.5, 1.f);
 }
+
+extern "C" __global__ void __exception__all()
+{
+    // This assumes that the launch dimensions are matching the size of the output buffer.
+
+    const uint3 theLaunchIndex = optixGetLaunchIndex();
+
+    const int theExceptionCode = optixGetExceptionCode();
+    printf("Exception %d at (%u, %u)\n", theExceptionCode, theLaunchIndex.x, theLaunchIndex.y);
+}
