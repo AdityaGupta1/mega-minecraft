@@ -52,10 +52,10 @@ extern "C" __global__ void __raygen__render() {
         1e20f,  // tmax
         0.0f,   // rayTime
         OptixVisibilityMask(255),
-        OPTIX_RAY_FLAG_NONE,//OPTIX_RAY_FLAG_NONE,
-        0,             // SBT offset
-        1,               // SBT stride
-        0,             // missSBTIndex 
+        OPTIX_RAY_FLAG_NONE,  //OPTIX_RAY_FLAG_NONE,
+        0,  // SBT offset
+        1,  // SBT stride
+        0,  // missSBTIndex
         u0, u1);
 
     const int r = int(255.99f * pixelColorPRD.x);

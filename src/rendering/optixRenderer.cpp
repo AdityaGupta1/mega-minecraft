@@ -284,7 +284,11 @@ void OptixRenderer::buildChunkAccel(const Chunk* c)
 
     // to instance
     OptixInstance gasInstance = {};
-    float transform[12] = { 1,0,0, c->worldBlockPos.x,0,1,0,0,0,0,1,c->worldBlockPos.z };
+    float transform[12] = {
+        1, 0, 0, c->worldBlockPos.x,
+        0, 1, 0, 0,
+        0, 0, 1, c->worldBlockPos.z
+    };
     memcpy(gasInstance.transform, transform, sizeof(float) * 12);
     gasInstance.instanceId = id;
     gasInstance.visibilityMask = 255;
