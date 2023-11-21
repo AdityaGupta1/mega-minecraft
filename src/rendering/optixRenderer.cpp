@@ -47,6 +47,7 @@ OptixRenderer::OptixRenderer(GLFWwindow* window, ivec2* windowSize, Terrain* ter
 
     initTexture();
 }
+
 static void context_log_cb(unsigned int level,
     const char* tag,
     const char* message,
@@ -56,9 +57,9 @@ static void context_log_cb(unsigned int level,
 
 void OptixRenderer::createContext()
 {
-    cuCtxCreate(&cudaContext, 0, 0);
-
     //cudaFree(0);
+    cuCtxGetCurrent(&cudaContext);
+
     OPTIX_CHECK(optixInit());
     OptixDeviceContextOptions options = {};
     options.logCallbackLevel = 4;
@@ -240,7 +241,7 @@ void OptixRenderer::buildChunkAccel(const Chunk* c)
     outputBuffer.alloc(gasBufferSizes.outputSizeInBytes);
 
     OPTIX_CHECK(optixAccelBuild(optixContext,
-        0/*stream*/,
+        stream,
         &accelOptions,
         &triangleInput,
         1,
@@ -269,7 +270,7 @@ void OptixRenderer::buildChunkAccel(const Chunk* c)
 
     gasBuffer.alloc(compactedSize);
     OPTIX_CHECK(optixAccelCompact(optixContext,
-        0/*stream*/,
+        stream,
         gasHandle,
         gasBuffer.dev_ptr(),
         gasBuffer.size(),
