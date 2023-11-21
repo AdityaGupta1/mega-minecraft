@@ -9,12 +9,9 @@
 #include "util/utils.hpp"
 #include "util/common.h"
 
-
 namespace CudaUtils
 {
-
     void checkCUDAError(const char* msg, int line = -1);
-
 }
 
 // Adapted from https://github.com/ingowald/optix7course/blob/master/example12_denoiseSeparateChannels/CUDABuffer.h

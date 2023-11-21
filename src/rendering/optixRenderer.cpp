@@ -9,16 +9,17 @@
 #include <optix_stack_size.h>
 #include <optix_function_table_definition.h>
 
-template <typename T>
-struct Record
+template<class T>
+struct __align__(OPTIX_SBT_RECORD_ALIGNMENT) Record
 {
     __align__(OPTIX_SBT_RECORD_ALIGNMENT) char header[OPTIX_SBT_RECORD_HEADER_SIZE];
     T data;
 };
 
-typedef Record<void*>   RayGenRecord;
-typedef Record<void*>     MissRecord;
-typedef Record<ChunkData> HitGroupRecord;
+typedef Record<void*>      RayGenRecord;
+typedef Record<ChunkData>  HitGroupRecord;
+typedef Record<void*>      MissRecord;
+typedef Record<void*>      ExceptionRecord;
 
 OptixRenderer::OptixRenderer(GLFWwindow* window, ivec2* windowSize, Terrain* terrain, Player* player) 
     : window(window), windowSize(windowSize), terrain(terrain), player(player), vao(-1), tex_pixels(-1)
@@ -172,6 +173,8 @@ void OptixRenderer::buildRootAccel()
         rootIAS.tempBuffer.dev_ptr(), rootIAS.bufferSizes.tempSizeInBytes, 
         rootIAS.outputBuffer.dev_ptr(), rootIAS.bufferSizes.outputSizeInBytes, 
         &launchParams.rootHandle, nullptr, 0));
+
+    buildSBT();
 }
 
 void OptixRenderer::buildChunkAccel(const Chunk* c)
@@ -292,8 +295,10 @@ void OptixRenderer::buildChunkAccel(const Chunk* c)
     };
     memcpy(gasInstance.transform, transform, sizeof(float) * 12);
     gasInstance.instanceId = id;
+    //gasInstance.instanceId = 0;
     gasInstance.visibilityMask = 255;
-    gasInstance.sbtOffset = id;
+    //gasInstance.sbtOffset = id;
+    gasInstance.sbtOffset = 0;
     gasInstance.flags = OPTIX_INSTANCE_FLAG_NONE;
     gasInstance.traversableHandle = gasHandle;
 
@@ -543,15 +548,15 @@ void OptixRenderer::buildSBT()
     // ------------------------------------------------------------------
     // build exception records
     // ------------------------------------------------------------------
-    std::vector<Record<void*>> exceptionRecords;
+    std::vector<ExceptionRecord> exceptionRecords;
     for (int i = 0; i < exceptionProgramGroups.size(); i++) {
-        Record<void*> rec;
+        ExceptionRecord rec;
         OPTIX_CHECK(optixSbtRecordPackHeader(exceptionProgramGroups[i], &rec));
         rec.data = nullptr; /* for now ... */
         exceptionRecords.push_back(rec);
     }
     exceptionRecordBuffer.initFromVector(exceptionRecords);
-    sbt.exceptionRecord = missRecordBuffer.dev_ptr();
+    sbt.exceptionRecord = exceptionRecordBuffer.dev_ptr();
 }
 
 void OptixRenderer::optixRenderFrame()

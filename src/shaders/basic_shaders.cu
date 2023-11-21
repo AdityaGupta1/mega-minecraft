@@ -42,7 +42,7 @@ extern "C" __global__ void __raygen__render() {
 
     float3 rayDir = normalize(camera.forward
         - camera.right * camera.pixelLength.x * ((float)ix - (float)params.windowSize.x * 0.5f)
-        - camera.up * camera.pixelLength.y * ((float)iy - (float)params.windowSize.y * 0.5f)
+        - camera.up * camera.pixelLength.y * -((float)iy - (float)params.windowSize.y * 0.5f)
     );
 
     optixTrace(params.rootHandle,
@@ -77,9 +77,7 @@ extern "C" __global__ void __raygen__render() {
 
 extern "C" __global__ void __miss__radiance() {
     float3& prd = *(float3*)getPRD<float3>();
-    const auto& camera = params.camera;
-    //prd = make_float3(1.f, 0.5f, 0.f);
-    prd = (camera.forward + 1.f) * 0.5f;
+    prd = make_float3(1.f, 0.5f, 0.f);
 }
 
 extern "C" __global__ void __closesthit__radiance() {
