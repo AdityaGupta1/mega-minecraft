@@ -98,7 +98,6 @@ extern "C" __global__ void __anyhit__radiance()
 {
 
 }
-}
 
 extern "C" __global__ void __exception__all()
 {
