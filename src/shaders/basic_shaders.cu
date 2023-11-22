@@ -160,7 +160,9 @@ extern "C" __global__ void __miss__radiance()
     }
 
     PRD& prd = *getPRD<PRD>();
+
     prd.isDone = true;
+
     prd.pixelColor *= skyColor;
     if (prd.needsFirstHitData)
     {

@@ -52,6 +52,7 @@ OptixRenderer::OptixRenderer(GLFWwindow* window, ivec2* windowSize, Terrain* ter
     const glm::vec3 sunAxisRight = normalize(cross(sunAxisForward, vec3(0, 1, 0)));
     const glm::vec3 sunAxisUp = normalize(cross(sunAxisRight, sunAxisForward));
     sunRotateMat = glm::mat3(sunAxisRight, sunAxisForward, sunAxisUp);
+    updateSunDirection();
 }
 
 static void context_log_cb(unsigned int level,
@@ -663,6 +664,7 @@ void OptixRenderer::createDenoiser()
 
     denoiserScratch.resize(std::max(denoiserReturnSizes.withOverlapScratchSizeInBytes, denoiserReturnSizes.withoutOverlapScratchSizeInBytes));
     denoiserState.resize(denoiserReturnSizes.stateSizeInBytes);
+    denoiserIntensity.resize(sizeof(float));
 
     OPTIX_CHECK(optixDenoiserSetup(
         denoiser,
@@ -730,8 +732,7 @@ void OptixRenderer::optixRenderFrame()
 
 #if USE_DENOISING
     OptixDenoiserParams denoiserParams = {};
-    denoiserParams.hdrIntensity = (CUdeviceptr)0; // TODO: pass something real here
-    //denoiserParams.blendFactor = 1.f / (launchParams.frame.frameId);
+    denoiserParams.hdrIntensity = denoiserIntensity.dev_ptr();
     denoiserParams.blendFactor = 0.f; // output only final denoised buffer
 
     OptixImage2D inputLayers[3];
@@ -756,6 +757,15 @@ void OptixRenderer::optixRenderFrame()
     outputLayer.rowStrideInBytes = outputLayer.width * sizeof(float4);
     outputLayer.pixelStrideInBytes = sizeof(float4);
     outputLayer.format = OPTIX_PIXEL_FORMAT_FLOAT4;
+
+    OPTIX_CHECK(optixDenoiserComputeIntensity(
+        denoiser,
+        0, // stream
+        &inputLayers[0],
+        denoiserIntensity.dev_ptr(),
+        denoiserScratch.dev_ptr(),
+        denoiserScratch.size()
+    ));
 
     OptixDenoiserGuideLayer denoiserGuideLayer = {};
     denoiserGuideLayer.albedo = inputLayers[1];
