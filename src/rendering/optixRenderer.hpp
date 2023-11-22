@@ -2,7 +2,7 @@
 
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
-#include <cuda_runtime.h>
+#include <cuda.h>
 #include <optix.h>
 #include <optix_stubs.h>
 
@@ -96,6 +96,7 @@ protected:
     OptixShaderBindingTable sbt = {};
 
     CUBuffer playerInfoBuffer;
+    cudaGraphicsResource_t pboResource;
     float4* dev_frameBuffer;
 
     uint32_t* dev_frame;

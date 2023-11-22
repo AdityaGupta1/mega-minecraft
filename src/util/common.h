@@ -1,6 +1,6 @@
 #pragma once
 
-#include <cuda_runtime.h>
+#include <cuda.h>
 #include <optix.h>
 #include <optix_stubs.h>
 #include <sstream>
@@ -14,6 +14,17 @@
        exit(EXIT_FAILURE);                                              \
      }                                                                  \
   }
+
+#define CU_CHECK(call)                                                  \
+{                                                                       \
+  CUresult err = call;                                                  \
+  if (err != CUDA_SUCCESS) {                                            \
+    const char *errName, *errStr;                                       \
+    cuGetErrorName(err, &errName);                                      \
+    cuGetErrorString(err, &errStr);                                     \
+    fprintf(stderr, "CUDA call (%s) failed with error: '%s (%s)' (%s:%u)\n", #call, errName, errStr, __FILE__, __LINE__);\
+  }                                                                     \
+}
 
 #define OPTIX_CHECK( call )                                                                          \
   {                                                                                                  \

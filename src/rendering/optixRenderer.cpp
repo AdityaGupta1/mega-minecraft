@@ -55,12 +55,16 @@ static void context_log_cb(unsigned int level,
 void OptixRenderer::createContext()
 {
     //cudaFree(0);
-    cuCtxGetCurrent(&cudaContext);
+    CU_CHECK(cuCtxGetCurrent(&cudaContext));
 
     OPTIX_CHECK(optixInit());
     OptixDeviceContextOptions options = {};
+#if !defined(NDEBUG)
     options.logCallbackLevel = 4;
     options.validationMode = OPTIX_DEVICE_CONTEXT_VALIDATION_MODE_ALL;
+#else
+    options.logCallbackLevel = 3;
+#endif
 
     OPTIX_CHECK(optixDeviceContextCreate(cudaContext, &options, &optixContext));
     OPTIX_CHECK(optixDeviceContextSetLogCallback
@@ -306,14 +310,14 @@ void OptixRenderer::buildRootAccel()
     rootIAS.buildInput.instanceArray.numInstances = static_cast<unsigned int>(chunkInstancesVector.size());
 
     rootIAS.buildOptions = {};
-    rootIAS.buildOptions.buildFlags = OPTIX_BUILD_FLAG_ALLOW_UPDATE;
+    rootIAS.buildOptions.buildFlags = OPTIX_BUILD_FLAG_NONE;
     rootIAS.buildOptions.operation = OPTIX_BUILD_OPERATION_BUILD;
 
     rootIAS.bufferSizes = {};
     OPTIX_CHECK(optixAccelComputeMemoryUsage(optixContext, &rootIAS.buildOptions, &rootIAS.buildInput, 1, &rootIAS.bufferSizes));
 
-    rootIAS.outputBuffer.alloc(rootIAS.bufferSizes.outputSizeInBytes);
-    rootIAS.tempBuffer.alloc(rootIAS.bufferSizes.tempSizeInBytes);
+    rootIAS.outputBuffer.resize(rootIAS.bufferSizes.outputSizeInBytes);
+    rootIAS.tempBuffer.resize(rootIAS.bufferSizes.tempSizeInBytes);
 
     OPTIX_CHECK(optixAccelBuild(optixContext, 0, &rootIAS.buildOptions, &rootIAS.buildInput, 1,
         rootIAS.tempBuffer.dev_ptr(), rootIAS.bufferSizes.tempSizeInBytes,
@@ -329,11 +333,11 @@ void OptixRenderer::destroyChunk(const Chunk* chunkPtr)
     const int chunkId = chunkIdsMap[chunkPtr];
 
     chunkInstances.erase(chunkPtr);
-    cudaFree(gasBufferPtrs[chunkId]);
+    CUDA_CHECK(cudaFree(gasBufferPtrs[chunkId]));
 
     const auto& hitGroupRecordData = host_hitGroupRecords[chunkId * numRayTypes].data; // free for only one hit group since the rest use the same pointers
-    cudaFree(hitGroupRecordData.verts);
-    cudaFree(hitGroupRecordData.idx);
+    CUDA_CHECK(cudaFree(hitGroupRecordData.verts));
+    CUDA_CHECK(cudaFree(hitGroupRecordData.idx));
 
     chunkIdsMap.erase(chunkPtr);
     chunkIdsQueue.push(chunkId);
@@ -372,18 +376,27 @@ std::vector<char> OptixRenderer::readData(std::string const& filename)
 
 void OptixRenderer::createModule()
 {
+#if !defined(NDEBUG)
     moduleCompileOptions.optLevel = OPTIX_COMPILE_OPTIMIZATION_LEVEL_0;
     moduleCompileOptions.debugLevel = OPTIX_COMPILE_DEBUG_LEVEL_FULL;
+#else
+    moduleCompileOptions.optLevel = OPTIX_COMPILE_OPTIMIZATION_DEFAULT; // MODERATE for Nsight Compute
+    moduleCompileOptions.debugLevel = OPTIX_COMPILE_DEBUG_LEVEL_NONE;
+#endif
     moduleCompileOptions.maxRegisterCount = OPTIX_COMPILE_DEFAULT_MAX_REGISTER_COUNT;
 
-    pipelineCompileOptions.usesMotionBlur = false;
-    pipelineCompileOptions.traversableGraphFlags = OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_ANY;
+    pipelineCompileOptions.usesMotionBlur = 0;
+    pipelineCompileOptions.traversableGraphFlags = OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_SINGLE_LEVEL_INSTANCING;
     pipelineCompileOptions.numPayloadValues = 2;
     pipelineCompileOptions.numAttributeValues = 2;
+#if !defined(NDEBUG)
     pipelineCompileOptions.exceptionFlags = OPTIX_EXCEPTION_FLAG_STACK_OVERFLOW | OPTIX_EXCEPTION_FLAG_TRACE_DEPTH;
+#else
+    pipelineCompileOptions.exceptionFlags = OPTIX_EXCEPTION_FLAG_NONE;
+#endif
     pipelineCompileOptions.pipelineLaunchParamsVariableName = "params";
 
-    pipelineLinkOptions.maxTraceDepth = 2;
+    pipelineLinkOptions.maxTraceDepth = 1;
 
     modules.resize(shaderFiles.size());
     for (size_t i = 0; i < shaderFiles.size(); i++) {
@@ -512,7 +525,7 @@ void OptixRenderer::createPipeline()
         OPTIX_CHECK(optixUtilAccumulateStackSizes(p, &stack_sizes, pipeline));
     }
 
-    uint32_t max_trace_depth = 2;
+    uint32_t max_trace_depth = 1;
     uint32_t max_cc_depth = 0;
     uint32_t max_dc_depth = 0;
     uint32_t direct_callable_stack_size_from_traversal;
@@ -528,7 +541,7 @@ void OptixRenderer::createPipeline()
         &continuation_stack_size
     ));
 
-    const uint32_t max_traversal_depth = 1;
+    const uint32_t max_traversal_depth = 2;
     OPTIX_CHECK(optixPipelineSetStackSize(
         pipeline,
         direct_callable_stack_size_from_traversal,
@@ -599,7 +612,9 @@ void OptixRenderer::optixRenderFrame()
 {
     if (launchParams.windowSize.x == 0) return;
 
-    cudaGLMapBufferObject((void**)&dev_frameBuffer, pbo);
+    size_t pboSize;
+    CUDA_CHECK(cudaGraphicsMapResources(1, &pboResource, stream));
+    CUDA_CHECK(cudaGraphicsResourceGetMappedPointer((void**)&dev_frameBuffer, &pboSize, pboResource));
 
     launchParams.frame.colorBuffer = dev_frameBuffer;
     launchParamsBuffer.populate(&launchParams, 1);
@@ -618,7 +633,7 @@ void OptixRenderer::optixRenderFrame()
         1
     ));
 
-    cudaGLUnmapBufferObject(pbo);
+    CUDA_CHECK(cudaGraphicsUnmapResources(1, &pboResource, stream));
 }
 
 inline float3 vec3ToFloat3(glm::vec3 v)
@@ -656,7 +671,7 @@ void OptixRenderer::initTexture()
     glGenBuffers(1, &pbo);
     glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pbo);
     glBufferData(GL_PIXEL_UNPACK_BUFFER, windowSize->x * windowSize->y * sizeof(glm::vec4), NULL, GL_DYNAMIC_COPY);
-    cudaGLRegisterBufferObject(pbo);
+    CUDA_CHECK(cudaGraphicsGLRegisterBuffer(&pboResource, pbo, cudaGraphicsRegisterFlagsNone));
 
     glActiveTexture(GL_TEXTURE0);
     glGenTextures(1, &tex_pixels);
