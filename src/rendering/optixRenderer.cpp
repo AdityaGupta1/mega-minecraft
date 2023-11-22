@@ -525,7 +525,7 @@ void OptixRenderer::createPipeline()
         OPTIX_CHECK(optixUtilAccumulateStackSizes(p, &stack_sizes, pipeline));
     }
 
-    uint32_t max_trace_depth = 1;
+    uint32_t max_trace_depth = pipelineLinkOptions.maxTraceDepth;
     uint32_t max_cc_depth = 0;
     uint32_t max_dc_depth = 0;
     uint32_t direct_callable_stack_size_from_traversal;

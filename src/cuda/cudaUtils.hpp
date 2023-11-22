@@ -40,6 +40,8 @@ struct CUBuffer {
     }
 
     void resize(size_t size) {
+        if (size <= byteSize)
+            return;
         if (d_ptr)
             free();
         alloc(size);
