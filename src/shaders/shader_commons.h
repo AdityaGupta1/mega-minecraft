@@ -18,8 +18,8 @@ struct OptixParams
 
     struct
     {
-        uint32_t* colorBuffer;
-        uint32_t* normalBuffer;
+        float4* colorBuffer;
+        float4* normalBuffer;
         int frameId;
     } frame;
 
@@ -52,7 +52,7 @@ struct Texture
 };
 
 struct PRD {
-    // Random random;
+    uint32_t seed;
     float3  pixelColor;
     float3  pixelNormal;
     float3  pixelAlbedo;

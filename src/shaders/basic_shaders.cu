@@ -1,4 +1,6 @@
+#include <optix.h>
 #include "shader_commons.h"
+#include "random_number_generators.h"
 
 /*! launch parameters in constant memory, filled in by optix upon
       optixLaunch (this gets filled in from the buffer we pass to
@@ -34,15 +36,19 @@ extern "C" __global__ void __raygen__render() {
     const int ix = optixGetLaunchIndex().x;
     const int iy = optixGetLaunchIndex().y;
 
-    const auto& camera = params.camera;
-    float3 pixelColorPRD = make_float3(0.f);
+    const int dx = optixGetLaunchDimensions().x;
+
+    PRD prd;
+    prd.seed = tea<4>(iy * dx + ix, params.frame.frameId);
 
     uint32_t u0, u1;
-    packPointer(&pixelColorPRD, u0, u1);
+    packPointer(&prd, u0, u1);
 
+    const auto& camera = params.camera;
+    
     float3 rayDir = normalize(camera.forward
-        - camera.right * camera.pixelLength.x * ((float)ix - (float)params.windowSize.x * 0.5f)
-        - camera.up * camera.pixelLength.y * -((float)iy - (float)params.windowSize.y * 0.5f)
+        - camera.right * camera.pixelLength.x * ((float)ix - (float)params.windowSize.x * 0.5f + rng(prd.seed))
+        - camera.up * camera.pixelLength.y * -((float)iy - (float)params.windowSize.y * 0.5f + rng(prd.seed))
     );
 
     optixTrace(params.rootHandle,
@@ -58,26 +64,52 @@ extern "C" __global__ void __raygen__render() {
         0,  // missSBTIndex
         u0, u1);
 
-    const int r = int(255.99f * pixelColorPRD.x);
-    const int g = int(255.99f * pixelColorPRD.y);
-    const int b = int(255.99f * pixelColorPRD.z);
-
     //const int r = int(255.99f * (ix / (float)(params.windowSize.x)));
     //const int g = int(255.99f * (iy / (float)(params.windowSize.y)));
     //const int b = 0;
 
-    // and write to frame buffer ...
+    // accumulate colors
     const uint32_t fbIndex = ix + iy * params.windowSize.x;
+
+    /*const uint32_t prevColor = params.frame.colorBuffer[fbIndex];
+    const float4 pixelColor = make_float4(
+        (prevColor & 0xff) / 255.99f,
+        ((prevColor >> 8) & 0xff) / 255.99f,
+        ((prevColor >> 16) & 0xff) / 255.99f,
+        ((prevColor >> 24) & 0xff) / 255.99f
+    );
+    
+    float4 cumColor = make_float4(prd.pixelColor.x, prd.pixelColor.y, prd.pixelColor.z, 1.f);
+
+    if (params.frame.frameId > 0) {
+        cumColor
+            += float(params.frame.frameId)
+            * pixelColor;
+        cumColor /= (params.frame.frameId + 1.f);
+    }*/
+
+    float4 cumColor = make_float4(prd.pixelColor.x, prd.pixelColor.y, prd.pixelColor.z, 1.f);
+
+    if (params.frame.frameId > 0) {
+        cumColor += float(params.frame.frameId) * params.frame.colorBuffer[fbIndex];
+        cumColor /= (params.frame.frameId + 1.f);
+    }
+
+    // and write to frame buffer ...
+    /*const int r = int(255.99f * cumColor.x);
+    const int g = int(255.99f * cumColor.y);
+    const int b = int(255.99f * cumColor.z);
 
     const uint32_t rgba = 0xff000000
         | (r << 0) | (g << 8) | (b << 16);    
 
-    params.frame.colorBuffer[fbIndex] = rgba;
+    params.frame.colorBuffer[fbIndex] = rgba;*/
+    params.frame.colorBuffer[fbIndex] = cumColor;
 }
 
 extern "C" __global__ void __miss__radiance() {
-    float3& prd = *(float3*)getPRD<float3>();
-    prd = make_float3(0.5f, 0.8f, 1.0f) * 0.4f;
+    PRD& prd = *getPRD<PRD>();
+    prd.pixelColor = make_float3(0.5f, 0.8f, 1.0f) * 0.4f;
 }
 
 extern "C" __global__ void __closesthit__radiance() {
@@ -97,8 +129,8 @@ extern "C" __global__ void __closesthit__radiance() {
     float2 uv = (1.f - u - v) * v1.uv + u * v2.uv + v * v3.uv;
     float4 diffuseCol = tex2D<float4>(chunkData.tex_diffuse, uv.x, uv.y);
 
-    float3& prd = *(float3*)getPRD<float3>();
-    prd = make_float3(diffuseCol);
+    PRD& prd = *getPRD<PRD>();
+    prd.pixelColor = make_float3(diffuseCol);
 }
 
 extern "C" __global__ void __anyhit__radiance()

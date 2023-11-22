@@ -39,6 +39,7 @@ public:
     OptixRenderer(GLFWwindow* window, ivec2* windowSize, Terrain* terrain, Player* player);
     void optixRenderFrame();
     void updateFrame();
+    void setCamera();
 
 protected:
     GLFWwindow* window{ nullptr };
@@ -112,13 +113,12 @@ protected:
     void createProgramGroups();
     void createPipeline();
     void buildSBT(bool onlyHitGroups);
-    void setCamera();
 
     // GL stuff
 
     ShaderProgram postprocessingShader;
 
-    std::vector<uint32_t> pixels;
+    std::vector<glm::vec4> pixels;
 
     FullscreenTri fullscreenTri;
 

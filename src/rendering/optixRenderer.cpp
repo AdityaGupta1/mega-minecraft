@@ -32,7 +32,7 @@ OptixRenderer::OptixRenderer(GLFWwindow* window, ivec2* windowSize, Terrain* ter
     setCamera();
 
     launchParamsBuffer.alloc(sizeof(OptixParams));
-    frameBuffer.alloc(windowSize->x * windowSize->y * sizeof(uint32_t));
+    frameBuffer.alloc(windowSize->x * windowSize->y * sizeof(glm::vec4));
     launchParams.windowSize = make_int2(windowSize->x, windowSize->y);
     pixels.resize(windowSize->x * windowSize->y);
 
@@ -592,9 +592,9 @@ void OptixRenderer::optixRenderFrame()
 {
     if (launchParams.windowSize.x == 0) return;
 
-    setCamera();
+    // setCamera();
 
-    launchParams.frame.colorBuffer = (uint32_t*) frameBuffer.dev_ptr();
+    launchParams.frame.colorBuffer = (float4*) frameBuffer.dev_ptr();
     launchParamsBuffer.populate(&launchParams, 1);
     launchParams.frame.frameId++;
 
@@ -610,6 +610,8 @@ void OptixRenderer::optixRenderFrame()
         launchParams.windowSize.y,
         1
     ));
+
+    //printf("FrameID %d\n", launchParams.frame.frameId);
 
     //printf("framebuffer byte size: %u\n", frameBuffer.byteSize);
     //printf("window x * y: %d\n", launchParams.windowSize.x * launchParams.windowSize.y);
@@ -629,6 +631,7 @@ void OptixRenderer::setCamera()
     launchParams.camera.right = vec3ToFloat3(player->getRight());
     launchParams.camera.position = vec3ToFloat3(player->getPos());
     launchParams.windowSize = make_int2(windowSize->x, windowSize->y);
+    launchParams.frame.frameId = 0;
 }
 
 void OptixRenderer::initShader()
@@ -648,7 +651,7 @@ void OptixRenderer::initTexture()
     glBindTexture(GL_TEXTURE_2D, tex_pixels);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, windowSize->x, windowSize->y, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels.data());
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, windowSize->x, windowSize->y, 0, GL_RGBA, GL_FLOAT, pixels.data());
 
     postprocessingShader.setTexBufColor(0);
 }
@@ -656,7 +659,7 @@ void OptixRenderer::initTexture()
 
 void OptixRenderer::updateFrame()
 {
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, windowSize->x, windowSize->y, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels.data());
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, windowSize->x, windowSize->y, 0, GL_RGBA, GL_FLOAT, pixels.data());
     postprocessingShader.draw(fullscreenTri);
     glfwSwapBuffers(window);
 }

@@ -355,7 +355,7 @@ void tick(float deltaTime)
 
         player->move(glm::vec3(playerMovementNormalized) * playerMovementSensitivity * playerMovementMultiplier * deltaTime);
     }
-    bool viewMatChanged;
+    bool viewMatChanged = false;
     player->tick(&viewMatChanged);
 
 #if !DEBUG_USE_GL_RENDERER
@@ -371,6 +371,9 @@ void tick(float deltaTime)
 #if DEBUG_USE_GL_RENDERER
     renderer->draw(deltaTime, viewMatChanged, windowSizeChanged);
 #else
+    if (viewMatChanged) {
+        optix->setCamera();
+    }
     optix->optixRenderFrame();
     optix->updateFrame();
 #endif
