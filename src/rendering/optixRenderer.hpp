@@ -49,6 +49,8 @@ protected:
     OptixParams launchParams = {};
     CUBuffer launchParamsBuffer;
 
+    float fovy;
+
     CUcontext          cudaContext = {};
     CUstream           stream;
 
@@ -106,6 +108,8 @@ public:
     void buildRootAccel();
 
     void destroyChunk(const Chunk* chunkPtr);
+
+    void setZoomed(bool zoomed);
 
 protected:
     std::vector<char> readData(std::string const& filename);

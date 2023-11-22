@@ -235,6 +235,7 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
         }
         break;
     case GLFW_KEY_C:
+#if DEBUG_USE_GL_RENDERER
         if (action == GLFW_PRESS)
         {
             renderer->setZoomed(true);
@@ -243,6 +244,16 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
         {
             renderer->setZoomed(false);
         }
+#else
+        if (action == GLFW_PRESS)
+        {
+            optix->setZoomed(true);
+        }
+        else if (action == GLFW_RELEASE)
+        {
+            optix->setZoomed(false);
+        }
+#endif
         break;
     case GLFW_KEY_P:
         if (action == GLFW_RELEASE)

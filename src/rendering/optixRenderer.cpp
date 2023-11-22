@@ -25,10 +25,7 @@ OptixRenderer::OptixRenderer(GLFWwindow* window, ivec2* windowSize, Terrain* ter
 
     createContext();
 
-    const float fovy = 26.f;
-    float yscaled = tan(fovy * (PI / 180));
-    float xscaled = (yscaled * windowSize->x) / windowSize->y;
-    launchParams.camera.pixelLength = make_float2(2 * xscaled / (float)windowSize->x, 2 * yscaled / (float)windowSize->y);
+    setZoomed(false);
     setCamera();
 
     launchParamsBuffer.alloc(sizeof(OptixParams));
@@ -324,6 +321,7 @@ void OptixRenderer::buildRootAccel()
         &launchParams.rootHandle, nullptr, 0));
 
     buildSBT(true);
+    setCamera();
 }
 
 void OptixRenderer::destroyChunk(const Chunk* chunkPtr)
@@ -339,6 +337,15 @@ void OptixRenderer::destroyChunk(const Chunk* chunkPtr)
 
     chunkIdsMap.erase(chunkPtr);
     chunkIdsQueue.push(chunkId);
+}
+
+static constexpr float fovNormal = glm::radians(52.f);
+static constexpr float fovZoomed = glm::radians(20.f);
+
+void OptixRenderer::setZoomed(bool zoomed)
+{
+    fovy = zoomed ? fovZoomed : fovNormal;
+    setCamera();
 }
 
 std::vector<char> OptixRenderer::readData(std::string const& filename)
@@ -592,8 +599,6 @@ void OptixRenderer::optixRenderFrame()
 {
     if (launchParams.windowSize.x == 0) return;
 
-    // setCamera();
-
     launchParams.frame.colorBuffer = (float4*) frameBuffer.dev_ptr();
     launchParamsBuffer.populate(&launchParams, 1);
     launchParams.frame.frameId++;
@@ -626,6 +631,10 @@ inline float3 vec3ToFloat3(glm::vec3 v)
 
 void OptixRenderer::setCamera()
 {
+    float yscaled = tan(fovy);
+    float xscaled = (yscaled * windowSize->x) / windowSize->y;
+    launchParams.camera.pixelLength = make_float2(2 * xscaled / (float)windowSize->x, 2 * yscaled / (float)windowSize->y);
+
     launchParams.camera.forward = vec3ToFloat3(player->getForward());
     launchParams.camera.up = vec3ToFloat3(player->getUp());
     launchParams.camera.right = vec3ToFloat3(player->getRight());
