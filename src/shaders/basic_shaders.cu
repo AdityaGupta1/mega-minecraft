@@ -41,6 +41,11 @@ static __forceinline__ __device__ T* getPRD()
     return reinterpret_cast<T*>(unpackPointer(u0, u1));
 }
 
+static __forceinline__ __device__ float luminance(float3 color)
+{
+    return dot(color, make_float3(0.2126, 0.7152, 0.0722));
+}
+
 extern "C" __global__ void __raygen__render() {
     const int ix = optixGetLaunchIndex().x;
     const int iy = optixGetLaunchIndex().y;
@@ -72,7 +77,7 @@ extern "C" __global__ void __raygen__render() {
         prd.isect.pos = camera.position;
         prd.isect.newDir = rayDir;
 
-        prd.pixelColor = make_float3(1.f, 1.f, 1.f);
+        prd.pixelColor = make_float3(1.f);
 
         for (int depth = 0; depth < MAX_RAY_DEPTH && !prd.isDone; ++depth)
         {
@@ -88,12 +93,25 @@ extern "C" __global__ void __raygen__render() {
                 1,  // SBT stride
                 0,  // missSBTIndex
                 u0, u1);
+
+            // russian roulette
+            if (depth > 2)
+            {
+                float q = fmax(0.05f, 1.f - luminance(prd.pixelColor));
+                if (rng(prd.seed) < q)
+                {
+                    prd.pixelColor = make_float3(0);
+                    break;
+                }
+
+                prd.pixelColor /= (1.f - q);
+            }
         }
 
         if (!prd.isDone) // reached max depth and didn't hit a light
                          // TODO: sample direct lighting at this point
         {
-            prd.pixelColor = make_float3(0.f);
+            prd.pixelColor = make_float3(0);
         }
 
         finalColor += prd.pixelColor;

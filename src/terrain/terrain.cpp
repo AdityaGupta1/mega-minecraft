@@ -13,13 +13,13 @@
 
 #define DESTROY_ZONES 0 // disabled because it causes crashes
 
-static constexpr int chunkVbosGenRadius = 6;
+static constexpr int chunkVbosGenRadius = 12;
 static constexpr int chunkMaxGenRadius = chunkVbosGenRadius + (ZONE_SIZE * 2);
 static constexpr int zoneKeepRadius = chunkMaxGenRadius + ((3 * ZONE_SIZE) / 2);
 
 // TODO: get better estimates for these
 // ================================================================================
-static constexpr int maxActionTimePerFrame = 400;
+static constexpr int maxActionTimePerFrame = 500;
 static constexpr int totalActionTimePerSecond = 60 * maxActionTimePerFrame;
 // ================================================================================
 static constexpr int actionTimeGenerateHeightfield        = 3;
