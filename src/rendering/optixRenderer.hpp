@@ -38,8 +38,6 @@ class OptixRenderer
 public:
     OptixRenderer(GLFWwindow* window, ivec2* windowSize, Terrain* terrain, Player* player);
 
-    void setCamera();
-
     void render(float deltaTime);
 
 protected:
@@ -50,7 +48,8 @@ protected:
     OptixParams launchParams = {};
     CUBuffer launchParamsBuffer;
 
-    float fovy;
+    bool cameraChanged{ true };
+    float tanFovy;
 
     CUcontext          cudaContext = {};
 
@@ -122,6 +121,8 @@ public:
 
     void setZoomed(bool zoomed);
     void toggleTimePaused();
+
+    void setCamera();
 
 protected:
     std::vector<char> readData(std::string const& filename);

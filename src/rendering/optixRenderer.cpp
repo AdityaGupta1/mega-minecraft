@@ -29,7 +29,6 @@ OptixRenderer::OptixRenderer(GLFWwindow* window, ivec2* windowSize, Terrain* ter
     createContext();
 
     setZoomed(false);
-    setCamera();
 
     launchParamsBuffer.alloc(sizeof(OptixParams));
     launchParams.windowSize = make_int2(windowSize->x, windowSize->y);
@@ -336,7 +335,8 @@ void OptixRenderer::buildRootAccel()
         &launchParams.rootHandle, nullptr, 0));
 
     buildSBT(true);
-    setCamera();
+
+    cameraChanged = true;
 }
 
 void OptixRenderer::destroyChunk(const Chunk* chunkPtr)
@@ -359,13 +359,34 @@ static constexpr float fovZoomed = glm::radians(20.f);
 
 void OptixRenderer::setZoomed(bool zoomed)
 {
-    fovy = zoomed ? fovZoomed : fovNormal;
-    setCamera();
+    tanFovy = tanf(zoomed ? fovZoomed : fovNormal);
+    cameraChanged = true;
 }
 
 void OptixRenderer::toggleTimePaused()
 {
     this->isTimePaused = !this->isTimePaused;
+}
+
+inline float3 vec3ToFloat3(glm::vec3 v)
+{
+    return make_float3(v.x, v.y, v.z);
+}
+
+void OptixRenderer::setCamera()
+{
+    float yscaled = tanFovy;
+    float xscaled = (yscaled * windowSize->x) / windowSize->y;
+    launchParams.camera.pixelLength = make_float2(2 * xscaled / (float)windowSize->x, 2 * yscaled / (float)windowSize->y);
+
+    launchParams.camera.forward = vec3ToFloat3(player->getForward());
+    launchParams.camera.up = vec3ToFloat3(player->getUp());
+    launchParams.camera.right = vec3ToFloat3(player->getRight());
+    launchParams.camera.position = vec3ToFloat3(player->getPos());
+    launchParams.windowSize = make_int2(windowSize->x, windowSize->y);
+    launchParams.frame.frameId = 0;
+
+    cameraChanged = false;
 }
 
 std::vector<char> OptixRenderer::readData(std::string const& filename)
@@ -651,33 +672,18 @@ void OptixRenderer::createDenoiser()
     ));
 }
 
-inline float3 vec3ToFloat3(glm::vec3 v)
-{
-    return make_float3(v.x, v.y, v.z);
-}
-
-void OptixRenderer::setCamera()
-{
-    float yscaled = tan(fovy);
-    float xscaled = (yscaled * windowSize->x) / windowSize->y;
-    launchParams.camera.pixelLength = make_float2(2 * xscaled / (float)windowSize->x, 2 * yscaled / (float)windowSize->y);
-
-    launchParams.camera.forward = vec3ToFloat3(player->getForward());
-    launchParams.camera.up = vec3ToFloat3(player->getUp());
-    launchParams.camera.right = vec3ToFloat3(player->getRight());
-    launchParams.camera.position = vec3ToFloat3(player->getPos());
-    launchParams.windowSize = make_int2(windowSize->x, windowSize->y);
-    launchParams.frame.frameId = 0;
-}
-
 void OptixRenderer::render(float deltaTime)
 {
     if (!isTimePaused)
     {
         time += deltaTime;
+        updateSunDirection();
     }
 
-    updateSunDirection();
+    if (cameraChanged)
+    {
+        setCamera();
+    }
 
     optixRenderFrame();
     updateFrame();
@@ -687,6 +693,7 @@ void OptixRenderer::updateSunDirection()
 {
     const float sunTime = time * 0.2f + 0.4f;
     launchParams.sunDir = vec3ToFloat3(glm::normalize(sunRotateMat * glm::vec3(cosf(sunTime), 0.55f, sinf(sunTime))));
+    cameraChanged = true;
 }
 
 void OptixRenderer::optixRenderFrame()
@@ -779,7 +786,7 @@ void OptixRenderer::initTexture()
     glGenBuffers(1, &pbo);
     glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pbo);
     glBufferData(GL_PIXEL_UNPACK_BUFFER, windowSize->x * windowSize->y * sizeof(glm::vec4), NULL, GL_DYNAMIC_COPY);
-    CUDA_CHECK(cudaGraphicsGLRegisterBuffer(&pboResource, pbo, cudaGraphicsRegisterFlagsNone));
+    CUDA_CHECK(cudaGraphicsGLRegisterBuffer(&pboResource, pbo, cudaGraphicsRegisterFlagsWriteDiscard));
 
     glActiveTexture(GL_TEXTURE0);
     glGenTextures(1, &tex_pixels);

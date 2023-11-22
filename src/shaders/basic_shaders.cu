@@ -9,8 +9,8 @@
 #define SQRT_2            1.41421356237309504880168872420f
 #define SQRT_ONE_THIRD    0.57735026918962576450914878050f
 
-#define NUM_SAMPLES 4
-#define MAX_RAY_DEPTH 3
+#define NUM_SAMPLES 2
+#define MAX_RAY_DEPTH 5
 
 /*! launch parameters in constant memory, filled in by optix upon
       optixLaunch (this gets filled in from the buffer we pass to
@@ -105,15 +105,13 @@ extern "C" __global__ void __raygen__render() {
     // accumulate colors
     const uint32_t fbIndex = ix + iy * params.windowSize.x;
 
-    float4 cumColor = make_float4(finalColor, 1.f);
-
     int frameId = params.frame.frameId;
     if (frameId > 0) {
-        cumColor += float(frameId) * params.frame.colorBuffer[fbIndex];
-        cumColor /= (frameId + 1.f);
+        float3 prevColor = make_float3(params.frame.colorBuffer[fbIndex]);
+        finalColor = (finalColor + frameId * prevColor) / (frameId + 1.f);
     }
 
-    params.frame.colorBuffer[fbIndex] = cumColor;
+    params.frame.colorBuffer[fbIndex] = make_float4(finalColor, 1.f);
 }
 
 static __forceinline__ __device__
