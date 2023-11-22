@@ -10,7 +10,7 @@
 #define SQRT_ONE_THIRD    0.57735026918962576450914878050f
 
 #define NUM_SAMPLES 4
-#define MAX_RAY_DEPTH 3
+#define MAX_RAY_DEPTH 2
 
 /*! launch parameters in constant memory, filled in by optix upon
       optixLaunch (this gets filled in from the buffer we pass to
@@ -67,6 +67,7 @@ extern "C" __global__ void __raygen__render() {
     for (int sample = 0; sample < NUM_SAMPLES; ++sample)
     {
         prd.isDone = false;
+        prd.foundLightSource = false;
         prd.pixelColor = make_float3(1.f, 1.f, 1.f);
         prd.isect.pos = camera.position;
         prd.isect.newDir = rayDir;
@@ -90,7 +91,23 @@ extern "C" __global__ void __raygen__render() {
         if (!prd.isDone) // reached max depth and didn't hit a light
                          // TODO: sample direct lighting at this point
         {
-            prd.pixelColor = make_float3(0.f);
+            // Direct Lighting
+            prd.isect.newDir = params.sunDir;
+            optixTrace(params.rootHandle,
+                prd.isect.pos,
+                prd.isect.newDir,
+                0.f,    // tmin
+                1e20f,  // tmax
+                0.0f,   // rayTime
+                OptixVisibilityMask(255),
+                OPTIX_RAY_FLAG_NONE,  // OPTIX_RAY_FLAG_NONE,
+                0,  // SBT offset
+                1,  // SBT stride
+                0,  // missSBTIndex
+                u0, u1);
+            if (!prd.foundLightSource) {
+                prd.pixelColor = make_float3(0.f);
+            }
         }
 
         finalColor += prd.pixelColor;
@@ -143,18 +160,19 @@ float3 getBarycentricCoords()
 extern "C" __global__ void __miss__radiance()
 {
     const float3 rayDir = optixGetWorldRayDirection();
+    PRD& prd = *getPRD<PRD>();
 
     float3 skyColor;
     if (dot(rayDir, params.sunDir) > 0.99f)
     {
-        skyColor = make_float3(1.0f, 0.8f, 0.6f) * 1.1f;
+        skyColor = make_float3(1.0f, 0.8f, 0.6f) * 1.5f;
+        prd.foundLightSource = true;
     }
     else
     {
         skyColor = make_float3(0.5f, 0.8f, 1.0f) * 0.3f;
     }
 
-    PRD& prd = *getPRD<PRD>();
     prd.pixelColor *= skyColor;
     prd.isDone = true;
 }

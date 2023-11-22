@@ -57,6 +57,7 @@ struct PRD {
     uint32_t seed;
 
     bool isDone;
+    bool foundLightSource;
 
     struct
     {
