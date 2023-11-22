@@ -726,7 +726,8 @@ void OptixRenderer::optixRenderFrame()
 #if USE_DENOISING
     OptixDenoiserParams denoiserParams = {};
     denoiserParams.hdrIntensity = (CUdeviceptr)0; // TODO: pass something real here
-    denoiserParams.blendFactor = 1.f / (launchParams.frame.frameId);
+    //denoiserParams.blendFactor = 1.f / (launchParams.frame.frameId);
+    denoiserParams.blendFactor = 0.f; // output only final denoised buffer
 
     OptixImage2D inputLayer = {};
     inputLayer.data = (CUdeviceptr)dev_renderBuffer;
