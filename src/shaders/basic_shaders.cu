@@ -9,6 +9,7 @@
 #define SQRT_2            1.41421356237309504880168872420f
 #define SQRT_ONE_THIRD    0.57735026918962576450914878050f
 
+#define NUM_SAMPLES 4
 #define MAX_RAY_DEPTH 3
 
 /*! launch parameters in constant memory, filled in by optix upon
@@ -56,39 +57,55 @@ extern "C" __global__ void __raygen__render() {
         - camera.up * camera.pixelLength.y * -((float)iy - (float)params.windowSize.y * 0.5f + squareSample.y)
     );
 
-    prd.pixelColor = make_float3(1.f, 1.f, 1.f);
-    prd.isect.pos = camera.position;
-    prd.isect.newDir = rayDir;
-
     uint32_t u0, u1;
     packPointer(&prd, u0, u1);
 
-    for (int i = 0; i < MAX_RAY_DEPTH && !prd.isDone; ++i)
+    float3 finalColor = make_float3(0);
+    float3 finalAlbedo = make_float3(0);
+    float3 finalNormal = make_float3(0);
+
+    for (int sample = 0; sample < NUM_SAMPLES; ++sample)
     {
-        optixTrace(params.rootHandle,
-            prd.isect.pos,
-            prd.isect.newDir,
-            0.f,    // tmin
-            1e20f,  // tmax
-            0.0f,   // rayTime
-            OptixVisibilityMask(255),
-            OPTIX_RAY_FLAG_NONE,  // OPTIX_RAY_FLAG_NONE,
-            0,  // SBT offset
-            1,  // SBT stride
-            0,  // missSBTIndex
-            u0, u1);
+        prd.isDone = false;
+        prd.pixelColor = make_float3(1.f, 1.f, 1.f);
+        prd.isect.pos = camera.position;
+        prd.isect.newDir = rayDir;
+
+        for (int depth = 0; depth < MAX_RAY_DEPTH && !prd.isDone; ++depth)
+        {
+            optixTrace(params.rootHandle,
+                prd.isect.pos,
+                prd.isect.newDir,
+                0.f,    // tmin
+                1e20f,  // tmax
+                0.0f,   // rayTime
+                OptixVisibilityMask(255),
+                OPTIX_RAY_FLAG_NONE,  // OPTIX_RAY_FLAG_NONE,
+                0,  // SBT offset
+                1,  // SBT stride
+                0,  // missSBTIndex
+                u0, u1);
+        }
+
+        if (!prd.isDone) // reached max depth and didn't hit a light
+                         // TODO: sample direct lighting at this point
+        {
+            prd.pixelColor = make_float3(0.f);
+        }
+
+        finalColor += prd.pixelColor;
+        finalAlbedo += prd.pixelAlbedo;
+        finalNormal += prd.pixelNormal;
     }
 
-    if (!prd.isDone) // reached max depth and didn't hit a light
-                     // TODO: sample direct lighting at this point
-    {
-        prd.pixelColor = make_float3(0.f);
-    }
+    finalColor /= NUM_SAMPLES;
+    finalAlbedo /= NUM_SAMPLES;
+    finalNormal /= NUM_SAMPLES;
 
     // accumulate colors
     const uint32_t fbIndex = ix + iy * params.windowSize.x;
 
-    float4 cumColor = make_float4(prd.pixelColor.x, prd.pixelColor.y, prd.pixelColor.z, 1.f);
+    float4 cumColor = make_float4(finalColor, 1.f);
 
     int frameId = params.frame.frameId;
     if (frameId > 0) {

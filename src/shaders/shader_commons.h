@@ -56,7 +56,7 @@ struct Texture
 struct PRD {
     uint32_t seed;
 
-    bool isDone = false;
+    bool isDone;
 
     struct
     {

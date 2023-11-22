@@ -10,6 +10,8 @@
 #include <optix_function_table_definition.h>
 #include <cuda_gl_interop.h>
 
+#define USE_DENOISING 1
+
 constexpr int numRayTypes = 1;
 
 OptixRenderer::OptixRenderer(GLFWwindow* window, ivec2* windowSize, Terrain* terrain, Player* player) 
@@ -79,7 +81,9 @@ void OptixRenderer::createContext()
     createPipeline();
     createTextures();
     buildSBT(false);
+#if USE_DENOISING
     createDenoiser();
+#endif
 }
 
 void OptixRenderer::createTextures()
@@ -392,8 +396,8 @@ void OptixRenderer::createModule()
     moduleCompileOptions.optLevel = OPTIX_COMPILE_OPTIMIZATION_LEVEL_0;
     moduleCompileOptions.debugLevel = OPTIX_COMPILE_DEBUG_LEVEL_FULL;
 #else
-    moduleCompileOptions.optLevel = OPTIX_COMPILE_OPTIMIZATION_DEFAULT; // MODERATE for Nsight Compute
-    moduleCompileOptions.debugLevel = OPTIX_COMPILE_DEBUG_LEVEL_NONE;
+    moduleCompileOptions.optLevel = OPTIX_COMPILE_OPTIMIZATION_DEFAULT;
+    moduleCompileOptions.debugLevel = OPTIX_COMPILE_DEBUG_LEVEL_NONE; // MODERATE for Nsight Compute
 #endif
     moduleCompileOptions.maxRegisterCount = OPTIX_COMPILE_DEFAULT_MAX_REGISTER_COUNT;
 
@@ -712,6 +716,7 @@ void OptixRenderer::optixRenderFrame()
     CUDA_CHECK(cudaGraphicsMapResources(1, &pboResource));
     CUDA_CHECK(cudaGraphicsResourceGetMappedPointer((void**)&dev_denoisedBuffer, &pboSize, pboResource));
 
+#if USE_DENOISING
     OptixDenoiserParams denoiserParams = {};
     denoiserParams.hdrIntensity = (CUdeviceptr)0; // TODO: pass something real here
     denoiserParams.blendFactor = 1.f / (launchParams.frame.frameId);
@@ -751,6 +756,9 @@ void OptixRenderer::optixRenderFrame()
         denoiserScratch.dev_ptr(),
         denoiserScratch.size()
     ));
+#else
+    cudaMemcpy(dev_denoisedBuffer, dev_renderBuffer, windowSize->x * windowSize->y * sizeof(float4), cudaMemcpyDeviceToDevice);
+#endif
 
     CUDA_CHECK(cudaGraphicsUnmapResources(1, &pboResource));
 }
