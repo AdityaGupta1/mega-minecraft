@@ -102,11 +102,14 @@ public:
     void tick(float deltaTime);
 
     void draw(const ShaderProgram& prog, const Player* player);
+    void destroyFarChunkVbos(); // for use with optix renderer
 
     std::unordered_set<Chunk*> getDrawableChunks();
 
     ivec2 getCurrentChunkPos() const;
     void setCurrentChunkPos(ivec2 newCurrentChunkPos);
+
+    static int getMaxNumDrawableChunks();
 
     void debugGetCurrentChunkAndZone(vec2 playerPos, Chunk** chunkPtr, Zone** zonePtr);
     void debugPrintCurrentChunkInfo(vec2 playerPos);

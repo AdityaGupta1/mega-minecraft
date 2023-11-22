@@ -77,19 +77,27 @@ extern "C" __global__ void __raygen__render() {
 
 extern "C" __global__ void __miss__radiance() {
     float3& prd = *(float3*)getPRD<float3>();
-    prd = make_float3(1.f, 0.5f, 0.f);
+    prd = make_float3(0.5f, 0.8f, 1.0f);
 }
 
 extern "C" __global__ void __closesthit__radiance() {
-    //ChunkData* chunk = (ChunkData*)optixGetSbtDataPointer();
+    const ChunkData& chunk = *(const ChunkData*)optixGetSbtDataPointer();
 
-    //const int primID = optixGetPrimitiveIndex();
-    //const int vert_idx_offset = primID * 3;
+    const int primID = optixGetPrimitiveIndex();
 
-    //Vertex v = chunk->verts[chunk->idx[vert_idx_offset]];
+    const uint3 vIdx = chunk.idx[primID];
+
+    const Vertex& v1 = chunk.verts[vIdx.x];
+    const Vertex& v2 = chunk.verts[vIdx.y];
+    const Vertex& v3 = chunk.verts[vIdx.z];
+
+    const float u = optixGetTriangleBarycentrics().x;
+    const float v = optixGetTriangleBarycentrics().y;
+
+    float2 uv = (1.f - u - v) * v1.uv + u * v2.uv + v * v3.uv;
 
     float3& prd = *(float3*)getPRD<float3>();
-    prd = make_float3(0.f, 0.5, 1.f);
+    prd = make_float3(uv.x, uv.y, 0);
 }
 
 extern "C" __global__ void __anyhit__radiance()

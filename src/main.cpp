@@ -358,6 +358,10 @@ void tick(float deltaTime)
     bool viewMatChanged;
     player->tick(&viewMatChanged);
 
+#if !DEBUG_USE_GL_RENDERER
+    terrain->destroyFarChunkVbos();
+#endif
+
     if (!freeCam)
     {
         terrain->setCurrentChunkPos(Utils::worldPosToChunkPos(player->getPos()));

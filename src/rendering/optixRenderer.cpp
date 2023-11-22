@@ -9,21 +9,20 @@
 #include <optix_stack_size.h>
 #include <optix_function_table_definition.h>
 
-template<class T>
-struct __align__(OPTIX_SBT_RECORD_ALIGNMENT) Record
-{
-    __align__(OPTIX_SBT_RECORD_ALIGNMENT) char header[OPTIX_SBT_RECORD_HEADER_SIZE];
-    T data;
-};
-
-typedef Record<void*>      RayGenRecord;
-typedef Record<ChunkData>  HitGroupRecord;
-typedef Record<void*>      MissRecord;
-typedef Record<void*>      ExceptionRecord;
+constexpr int numRayTypes = 1;
 
 OptixRenderer::OptixRenderer(GLFWwindow* window, ivec2* windowSize, Terrain* terrain, Player* player) 
     : window(window), windowSize(windowSize), terrain(terrain), player(player), vao(-1), tex_pixels(-1)
 {
+    int numMaxDrawableChunks = Terrain::getMaxNumDrawableChunks();
+    for (int i = 0; i < numMaxDrawableChunks; ++i)
+    {
+        chunkIdsQueue.push(i);
+    }
+
+    gasBufferPtrs.resize(numMaxDrawableChunks);
+    host_hitGroupRecords.resize(numMaxDrawableChunks * numRayTypes);
+
     createContext();
 
     const float fovy = 26.f;
@@ -72,8 +71,8 @@ void OptixRenderer::createContext()
     createModule();
     createProgramGroups();
     createPipeline();
-    createTextures();
-    buildSBT();
+    //createTextures();
+    buildSBT(false);
 }
 
 void OptixRenderer::createTextures()
@@ -148,35 +147,6 @@ void OptixRenderer::createTextures()
     }
 }
 
-void OptixRenderer::buildRootAccel()
-{
-    chunkInstancesBuffer.initFromVector(chunkInstances);
-
-    printf("building root accel: %d\n", chunkInstances.size());
-    
-    rootIAS.buildInput = {};
-    rootIAS.buildInput.type = OPTIX_BUILD_INPUT_TYPE_INSTANCES;
-    rootIAS.buildInput.instanceArray.instances = chunkInstancesBuffer.dev_ptr();
-    rootIAS.buildInput.instanceArray.numInstances = static_cast<unsigned int>(chunkInstances.size());
-
-    rootIAS.buildOptions = {};
-    rootIAS.buildOptions.buildFlags = OPTIX_BUILD_FLAG_ALLOW_UPDATE;
-    rootIAS.buildOptions.operation = OPTIX_BUILD_OPERATION_BUILD;
-
-    rootIAS.bufferSizes = {};
-    OPTIX_CHECK(optixAccelComputeMemoryUsage(optixContext, &rootIAS.buildOptions, &rootIAS.buildInput, 1, &rootIAS.bufferSizes));
-
-    rootIAS.outputBuffer.alloc(rootIAS.bufferSizes.outputSizeInBytes);
-    rootIAS.tempBuffer.alloc(rootIAS.bufferSizes.tempSizeInBytes);
-    
-    OPTIX_CHECK(optixAccelBuild(optixContext, 0, &rootIAS.buildOptions, &rootIAS.buildInput, 1, 
-        rootIAS.tempBuffer.dev_ptr(), rootIAS.bufferSizes.tempSizeInBytes, 
-        rootIAS.outputBuffer.dev_ptr(), rootIAS.bufferSizes.outputSizeInBytes, 
-        &launchParams.rootHandle, nullptr, 0));
-
-    buildSBT();
-}
-
 void OptixRenderer::buildChunkAccel(const Chunk* c)
 {
     // copy mesh data to device
@@ -186,14 +156,34 @@ void OptixRenderer::buildChunkAccel(const Chunk* c)
     dev_vertices.initFromVector(c->verts);
     dev_indices.initFromVector(c->idx);
 
-    vertexBuffer.push_back(dev_vertices);
-    indexBuffer.push_back(dev_indices);
-
     OptixTraversableHandle gasHandle = 0;
 
     // build triangle_input
     CUdeviceptr d_vertices = dev_vertices.dev_ptr();
     CUdeviceptr d_indices  = dev_indices.dev_ptr();
+
+    if (chunkIdsQueue.empty())
+    {
+        fprintf(stderr, "chunk ids queue is empty\n");
+        exit(-1);
+    }
+
+    int chunkId = chunkIdsQueue.front();
+    chunkIdsQueue.pop();
+
+    chunkIdsMap[c] = chunkId;
+
+    const ChunkData chunkData = {
+        (Vertex*)d_vertices,
+        (uvec3*)d_indices
+    };
+    for (int i = 0; i < hitProgramGroups.size(); i++)
+    {
+        HitGroupRecord rec;
+        OPTIX_CHECK(optixSbtRecordPackHeader(hitProgramGroups[i], &rec));
+        rec.data = chunkData;
+        host_hitGroupRecords[chunkId * numRayTypes + i] = rec;
+    }
 
     OptixBuildInput triangleInput = {};
     triangleInput.type = OPTIX_BUILD_INPUT_TYPE_TRIANGLES;
@@ -261,7 +251,7 @@ void OptixRenderer::buildChunkAccel(const Chunk* c)
 
     cudaDeviceSynchronize();
 
-    // I don't think you can free the device vertices and indices, cause GAS needs to access this
+    // don't free these since they're used in hit group records (ChunkData)
     //dev_vertices.free();
     //dev_indices.free();
     
@@ -280,11 +270,9 @@ void OptixRenderer::buildChunkAccel(const Chunk* c)
         &gasHandle));
 
     // cleanup
-    //outputBuffer.free();
-    //tempBuffer.free();
-    //compactedSizeBuffer.free();
-
-    const unsigned int id = chunkInstances.size();
+    outputBuffer.free();
+    tempBuffer.free();
+    compactedSizeBuffer.free();
 
     // to instance
     OptixInstance gasInstance = {};
@@ -294,15 +282,62 @@ void OptixRenderer::buildChunkAccel(const Chunk* c)
         0, 0, 1, c->worldBlockPos.z
     };
     memcpy(gasInstance.transform, transform, sizeof(float) * 12);
-    gasInstance.instanceId = id;
-    //gasInstance.instanceId = 0;
+    gasInstance.instanceId = chunkId; // this is NOT the SBT geometry-AS index - that would be if one GAS had multiple build inputs
     gasInstance.visibilityMask = 255;
-    //gasInstance.sbtOffset = id;
-    gasInstance.sbtOffset = 0;
+    gasInstance.sbtOffset = chunkId; // I_offset (TODO: multiply by number of ray types)
     gasInstance.flags = OPTIX_INSTANCE_FLAG_NONE;
     gasInstance.traversableHandle = gasHandle;
 
-    chunkInstances.push_back(gasInstance);
+    chunkInstances[c] = gasInstance;
+    gasBufferPtrs[chunkId] = (void*)gasBuffer.dev_ptr();
+}
+
+void OptixRenderer::buildRootAccel()
+{
+    std::vector<OptixInstance> chunkInstancesVector;
+    for (const auto& elem : chunkInstances)
+    {
+        chunkInstancesVector.push_back(elem.second);
+    }
+
+    chunkInstancesBuffer.initFromVector(chunkInstancesVector);
+
+    rootIAS.buildInput = {};
+    rootIAS.buildInput.type = OPTIX_BUILD_INPUT_TYPE_INSTANCES;
+    rootIAS.buildInput.instanceArray.instances = chunkInstancesBuffer.dev_ptr();
+    rootIAS.buildInput.instanceArray.numInstances = static_cast<unsigned int>(chunkInstancesVector.size());
+
+    rootIAS.buildOptions = {};
+    rootIAS.buildOptions.buildFlags = OPTIX_BUILD_FLAG_ALLOW_UPDATE;
+    rootIAS.buildOptions.operation = OPTIX_BUILD_OPERATION_BUILD;
+
+    rootIAS.bufferSizes = {};
+    OPTIX_CHECK(optixAccelComputeMemoryUsage(optixContext, &rootIAS.buildOptions, &rootIAS.buildInput, 1, &rootIAS.bufferSizes));
+
+    rootIAS.outputBuffer.alloc(rootIAS.bufferSizes.outputSizeInBytes);
+    rootIAS.tempBuffer.alloc(rootIAS.bufferSizes.tempSizeInBytes);
+
+    OPTIX_CHECK(optixAccelBuild(optixContext, 0, &rootIAS.buildOptions, &rootIAS.buildInput, 1,
+        rootIAS.tempBuffer.dev_ptr(), rootIAS.bufferSizes.tempSizeInBytes,
+        rootIAS.outputBuffer.dev_ptr(), rootIAS.bufferSizes.outputSizeInBytes,
+        &launchParams.rootHandle, nullptr, 0));
+
+    buildSBT(true);
+}
+
+void OptixRenderer::destroyChunk(const Chunk* chunkPtr)
+{
+    const int chunkId = chunkIdsMap[chunkPtr];
+
+    chunkInstances.erase(chunkPtr);
+    cudaFree(gasBufferPtrs[chunkId]);
+
+    const auto& hitGroupRecordData = host_hitGroupRecords[chunkId * numRayTypes].data; // free for only one hit group since the rest use the same pointers
+    cudaFree(hitGroupRecordData.verts);
+    cudaFree(hitGroupRecordData.idx);
+
+    chunkIdsMap.erase(chunkPtr);
+    chunkIdsQueue.push(chunkId);
 }
 
 std::vector<char> OptixRenderer::readData(std::string const& filename)
@@ -495,8 +530,21 @@ void OptixRenderer::createPipeline()
     ));
 }
 
-void OptixRenderer::buildSBT()
+void OptixRenderer::buildSBT(bool onlyHitGroups)
 {
+    // ------------------------------------------------------------------
+    // build hitgroup records
+    // ------------------------------------------------------------------
+    hitRecordBuffer.initFromVector(host_hitGroupRecords);
+    sbt.hitgroupRecordBase = hitRecordBuffer.dev_ptr();
+    sbt.hitgroupRecordStrideInBytes = sizeof(HitGroupRecord);
+    sbt.hitgroupRecordCount = (int)host_hitGroupRecords.size();
+
+    if (onlyHitGroups)
+    {
+        return;
+    }
+
     // ------------------------------------------------------------------
     // build raygen records
     // ------------------------------------------------------------------
@@ -526,26 +574,6 @@ void OptixRenderer::buildSBT()
     sbt.missRecordCount = (int)missRecords.size();
 
     // ------------------------------------------------------------------
-    // build hitgroup records
-    // ------------------------------------------------------------------
-    std::vector<HitGroupRecord> hitgroupRecords;
-    int numChunks = chunkInstances.size();
-    for (int c = 0; c < numChunks; c++) {
-        for (int i = 0; i < hitProgramGroups.size(); i++) {
-            HitGroupRecord rec;
-            OPTIX_CHECK(optixSbtRecordPackHeader(hitProgramGroups[i], &rec));
-            rec.data.verts = (Vertex*)vertexBuffer[c].dev_ptr();
-            rec.data.texture = texObjects[0];
-            rec.data.idx = (GLuint*)indexBuffer[c].dev_ptr();
-            hitgroupRecords.push_back(rec);
-        }
-    }
-    hitRecordBuffer.initFromVector(hitgroupRecords);
-    sbt.hitgroupRecordBase = hitRecordBuffer.dev_ptr();
-    sbt.hitgroupRecordStrideInBytes = sizeof(HitGroupRecord);
-    sbt.hitgroupRecordCount = (int)hitgroupRecords.size();
-
-    // ------------------------------------------------------------------
     // build exception records
     // ------------------------------------------------------------------
     std::vector<ExceptionRecord> exceptionRecords;
@@ -564,11 +592,6 @@ void OptixRenderer::optixRenderFrame()
     if (launchParams.windowSize.x == 0) return;
 
     setCamera();
-
-    //for (const Chunk* c : terrain->getDrawableChunks()) {
-    //   buildChunkAccel(c);
-    //}
-    //buildRootAccel();
 
     launchParams.frame.colorBuffer = (uint32_t*) frameBuffer.dev_ptr();
     launchParamsBuffer.populate(&launchParams, 1);

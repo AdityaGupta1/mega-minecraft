@@ -21,6 +21,18 @@
 class Terrain;
 class Chunk;
 
+template<class T>
+struct __align__(OPTIX_SBT_RECORD_ALIGNMENT) Record
+{
+    __align__(OPTIX_SBT_RECORD_ALIGNMENT) char header[OPTIX_SBT_RECORD_HEADER_SIZE];
+    T data;
+};
+
+typedef Record<void*>      RayGenRecord;
+typedef Record<ChunkData>  HitGroupRecord;
+typedef Record<void*>      MissRecord;
+typedef Record<void*>      ExceptionRecord;
+
 class OptixRenderer
 {
 public:
@@ -60,11 +72,14 @@ protected:
         OptixAccelBufferSizes bufferSizes;
     } rootIAS;
 
+    std::queue<int> chunkIdsQueue;
+
     CUBuffer chunkInstancesBuffer;
-    std::vector<OptixInstance> chunkInstances = {};
+    std::unordered_map<const Chunk*, OptixInstance> chunkInstances;
+    std::vector<void*> gasBufferPtrs;
     
-    std::vector<CUBuffer> vertexBuffer;
-    std::vector<CUBuffer> indexBuffer;
+    std::unordered_map<const Chunk*, int> chunkIdsMap;
+    std::vector<HitGroupRecord> host_hitGroupRecords;
 
     std::vector<OptixProgramGroup> raygenProgramGroups;
     std::vector<OptixProgramGroup> missProgramGroups;
@@ -89,12 +104,14 @@ public:
     void buildChunkAccel(const Chunk* c);
     void buildRootAccel();
 
+    void destroyChunk(const Chunk* chunkPtr);
+
 protected:
     std::vector<char> readData(std::string const& filename);
     void createModule();
     void createProgramGroups();
     void createPipeline();
-    void buildSBT();
+    void buildSBT(bool onlyHitGroups);
     void setCamera();
 
     // GL stuff
