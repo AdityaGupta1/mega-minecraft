@@ -71,7 +71,7 @@ void OptixRenderer::createContext()
     createModule();
     createProgramGroups();
     createPipeline();
-    //createTextures();
+    createTextures();
     buildSBT(false);
 }
 
@@ -104,7 +104,7 @@ void OptixRenderer::createTextures()
     textures.push_back(t);
 
     for (int textureID = 0; textureID < numTextures; textureID++) {
-        auto texture = textures[textureID];
+        const auto& texture = textures[textureID];
 
         cudaChannelFormatDesc channel_desc = cudaCreateChannelDesc<uchar4>();
         int32_t width = texture.width;
@@ -130,7 +130,7 @@ void OptixRenderer::createTextures()
         cudaTextureDesc tex_desc = {};
         tex_desc.addressMode[0] = cudaAddressModeWrap;
         tex_desc.addressMode[1] = cudaAddressModeWrap;
-        tex_desc.filterMode = cudaFilterModeLinear;
+        tex_desc.filterMode = cudaFilterModePoint;
         tex_desc.readMode = cudaReadModeNormalizedFloat;
         tex_desc.normalizedCoords = 1;
         tex_desc.maxAnisotropy = 1;
@@ -175,7 +175,8 @@ void OptixRenderer::buildChunkAccel(const Chunk* c)
 
     const ChunkData chunkData = {
         (Vertex*)d_vertices,
-        (uvec3*)d_indices
+        (uvec3*)d_indices,
+        texObjects[0]
     };
     for (int i = 0; i < hitProgramGroups.size(); i++)
     {
@@ -633,7 +634,7 @@ void OptixRenderer::setCamera()
 void OptixRenderer::initShader()
 {
     bool success = true;
-    success &= passthroughUvsShader.create("shaders/passthrough_uvs.vert.glsl", "shaders/passthrough_uvs.frag.glsl");
+    success &= postprocessingShader.create("shaders/passthrough_uvs.vert.glsl", "shaders/postprocess_tone_mapping.frag.glsl");
 
     if (RenderingUtils::printGLErrors())
     {
@@ -649,13 +650,13 @@ void OptixRenderer::initTexture()
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, windowSize->x, windowSize->y, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels.data());
 
-    passthroughUvsShader.setTexBufColor(0);
+    postprocessingShader.setTexBufColor(0);
 }
 
 
 void OptixRenderer::updateFrame()
 {
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, windowSize->x, windowSize->y, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels.data());
-    passthroughUvsShader.draw(fullscreenTri);
+    postprocessingShader.draw(fullscreenTri);
     glfwSwapBuffers(window);
 }

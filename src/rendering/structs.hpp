@@ -39,6 +39,7 @@ struct ChunkData
 {
     Vertex* verts;
     glm::uvec3* idx;
+    cudaTextureObject_t tex_diffuse;
 };
 
 struct Texture

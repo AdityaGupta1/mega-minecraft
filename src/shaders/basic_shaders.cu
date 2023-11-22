@@ -77,27 +77,28 @@ extern "C" __global__ void __raygen__render() {
 
 extern "C" __global__ void __miss__radiance() {
     float3& prd = *(float3*)getPRD<float3>();
-    prd = make_float3(0.5f, 0.8f, 1.0f);
+    prd = make_float3(0.5f, 0.8f, 1.0f) * 0.4f;
 }
 
 extern "C" __global__ void __closesthit__radiance() {
-    const ChunkData& chunk = *(const ChunkData*)optixGetSbtDataPointer();
+    const ChunkData& chunkData = *(const ChunkData*)optixGetSbtDataPointer();
 
     const int primID = optixGetPrimitiveIndex();
 
-    const uint3 vIdx = chunk.idx[primID];
+    const uint3 vIdx = chunkData.idx[primID];
 
-    const Vertex& v1 = chunk.verts[vIdx.x];
-    const Vertex& v2 = chunk.verts[vIdx.y];
-    const Vertex& v3 = chunk.verts[vIdx.z];
+    const Vertex& v1 = chunkData.verts[vIdx.x];
+    const Vertex& v2 = chunkData.verts[vIdx.y];
+    const Vertex& v3 = chunkData.verts[vIdx.z];
 
     const float u = optixGetTriangleBarycentrics().x;
     const float v = optixGetTriangleBarycentrics().y;
 
     float2 uv = (1.f - u - v) * v1.uv + u * v2.uv + v * v3.uv;
+    float4 diffuseCol = tex2D<float4>(chunkData.tex_diffuse, uv.x, uv.y);
 
     float3& prd = *(float3*)getPRD<float3>();
-    prd = make_float3(uv.x, uv.y, 0);
+    prd = make_float3(diffuseCol);
 }
 
 extern "C" __global__ void __anyhit__radiance()

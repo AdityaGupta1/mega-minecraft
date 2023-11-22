@@ -116,7 +116,7 @@ protected:
 
     // GL stuff
 
-    ShaderProgram passthroughUvsShader;
+    ShaderProgram postprocessingShader;
 
     std::vector<uint32_t> pixels;
 

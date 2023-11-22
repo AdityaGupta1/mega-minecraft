@@ -40,6 +40,7 @@ struct ChunkData
 {
     Vertex* verts;
     uint3* idx;
+    cudaTextureObject_t tex_diffuse;
 };
 
 struct Texture
