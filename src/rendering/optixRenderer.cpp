@@ -34,7 +34,10 @@ OptixRenderer::OptixRenderer(GLFWwindow* window, ivec2* windowSize, Terrain* ter
     launchParams.windowSize = make_int2(windowSize->x, windowSize->y);
     pixels.resize(windowSize->x * windowSize->y);
 
-    CUDA_CHECK(cudaMalloc((void**)&dev_renderBuffer, windowSize->x * windowSize->y * sizeof(float4)));
+    size_t imageSizeBytes = windowSize->x * windowSize->y * sizeof(float4);
+    CUDA_CHECK(cudaMalloc((void**)&dev_renderBuffer, imageSizeBytes));
+    CUDA_CHECK(cudaMalloc((void**)&dev_albedoBuffer, imageSizeBytes));
+    CUDA_CHECK(cudaMalloc((void**)&dev_normalBuffer, imageSizeBytes));
 
     glGenVertexArrays(1, &vao);
     glBindVertexArray(vao);
@@ -701,6 +704,8 @@ void OptixRenderer::optixRenderFrame()
     if (launchParams.windowSize.x == 0) return;
 
     launchParams.frame.colorBuffer = dev_renderBuffer;
+    launchParams.frame.albedoBuffer = dev_albedoBuffer;
+    launchParams.frame.normalBuffer = dev_normalBuffer;
     launchParamsBuffer.populate(&launchParams, 1);
     launchParams.frame.frameId++;
 
@@ -729,13 +734,20 @@ void OptixRenderer::optixRenderFrame()
     //denoiserParams.blendFactor = 1.f / (launchParams.frame.frameId);
     denoiserParams.blendFactor = 0.f; // output only final denoised buffer
 
-    OptixImage2D inputLayer = {};
-    inputLayer.data = (CUdeviceptr)dev_renderBuffer;
-    inputLayer.width = windowSize->x;
-    inputLayer.height = windowSize->y;
-    inputLayer.rowStrideInBytes = inputLayer.width * sizeof(float4);
-    inputLayer.pixelStrideInBytes = sizeof(float4);
-    inputLayer.format = OPTIX_PIXEL_FORMAT_FLOAT4;
+    OptixImage2D inputLayers[3];
+
+    inputLayers[0].data = (CUdeviceptr)dev_renderBuffer;
+    inputLayers[1].data = (CUdeviceptr)dev_albedoBuffer;
+    inputLayers[2].data = (CUdeviceptr)dev_normalBuffer;
+
+    for (int i = 0; i < 3; ++i)
+    {
+        inputLayers[i].width = windowSize->x;
+        inputLayers[i].height = windowSize->y;
+        inputLayers[i].rowStrideInBytes = windowSize->x * sizeof(float4);
+        inputLayers[i].pixelStrideInBytes = sizeof(float4);
+        inputLayers[i].format = OPTIX_PIXEL_FORMAT_FLOAT4;
+    }
 
     OptixImage2D outputLayer = {};
     outputLayer.data = (CUdeviceptr)dev_denoisedBuffer;
@@ -746,9 +758,11 @@ void OptixRenderer::optixRenderFrame()
     outputLayer.format = OPTIX_PIXEL_FORMAT_FLOAT4;
 
     OptixDenoiserGuideLayer denoiserGuideLayer = {};
+    denoiserGuideLayer.albedo = inputLayers[1];
+    denoiserGuideLayer.normal = inputLayers[2];
 
     OptixDenoiserLayer denoiserLayer = {};
-    denoiserLayer.input = inputLayer;
+    denoiserLayer.input = inputLayers[0];
     denoiserLayer.output = outputLayer;
 
     OPTIX_CHECK(optixDenoiserInvoke(denoiser,
@@ -806,6 +820,8 @@ void OptixRenderer::updateFrame()
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, tex_pixels);
     glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, windowSize->x, windowSize->y, GL_RGBA, GL_FLOAT, NULL);
+
     postprocessingShader.draw(fullscreenTri);
+
     glfwSwapBuffers(window);
 }

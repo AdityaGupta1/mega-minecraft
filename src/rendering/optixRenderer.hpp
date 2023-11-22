@@ -103,6 +103,8 @@ protected:
     CUBuffer denoiserIntensity;
 
     float4* dev_renderBuffer;
+    float4* dev_albedoBuffer;
+    float4* dev_normalBuffer;
     float4* dev_denoisedBuffer;
 
     bool isTimePaused{ true };

@@ -19,6 +19,7 @@ struct OptixParams
     struct
     {
         float4* colorBuffer;
+        float4* albedoBuffer;
         float4* normalBuffer;
         int frameId;
     } frame;
@@ -57,6 +58,7 @@ struct PRD {
     uint32_t seed;
 
     bool isDone;
+    bool needsFirstHitData;
 
     struct
     {

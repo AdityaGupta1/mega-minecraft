@@ -18,6 +18,7 @@ struct OptixParams
     struct
     {
         float4* colorBuffer;
+        float4* albedoBuffer;
         float4* normalBuffer;
         int frameId;
     } frame;

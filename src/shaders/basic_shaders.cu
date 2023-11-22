@@ -67,9 +67,12 @@ extern "C" __global__ void __raygen__render() {
     for (int sample = 0; sample < NUM_SAMPLES; ++sample)
     {
         prd.isDone = false;
-        prd.pixelColor = make_float3(1.f, 1.f, 1.f);
+        prd.needsFirstHitData = true;
+
         prd.isect.pos = camera.position;
         prd.isect.newDir = rayDir;
+
+        prd.pixelColor = make_float3(1.f, 1.f, 1.f);
 
         for (int depth = 0; depth < MAX_RAY_DEPTH && !prd.isDone; ++depth)
         {
@@ -107,11 +110,15 @@ extern "C" __global__ void __raygen__render() {
 
     int frameId = params.frame.frameId;
     if (frameId > 0) {
-        float3 prevColor = make_float3(params.frame.colorBuffer[fbIndex]);
-        finalColor = (finalColor + frameId * prevColor) / (frameId + 1.f);
+        float multiplier = 1.f / (frameId + 1.f);
+        finalColor = (finalColor + frameId * make_float3(params.frame.colorBuffer[fbIndex])) * multiplier;
+        finalAlbedo = (finalAlbedo + frameId * make_float3(params.frame.albedoBuffer[fbIndex])) * multiplier;
+        finalNormal = (finalNormal + frameId * make_float3(params.frame.normalBuffer[fbIndex])) * multiplier;
     }
 
     params.frame.colorBuffer[fbIndex] = make_float4(finalColor, 1.f);
+    params.frame.albedoBuffer[fbIndex] = make_float4(finalAlbedo, 1.f);
+    params.frame.normalBuffer[fbIndex] = make_float4(finalNormal, 1.f);
 }
 
 static __forceinline__ __device__
@@ -153,8 +160,14 @@ extern "C" __global__ void __miss__radiance()
     }
 
     PRD& prd = *getPRD<PRD>();
-    prd.pixelColor *= skyColor;
     prd.isDone = true;
+    prd.pixelColor *= skyColor;
+    if (prd.needsFirstHitData)
+    {
+        prd.needsFirstHitData = false;
+        prd.pixelAlbedo = skyColor;
+        prd.pixelNormal = -rayDir;
+    }
 }
 
 __device__ float3 calculateDirectionNotNormal(const float3 normal)
@@ -195,7 +208,7 @@ extern "C" __global__ void __closesthit__radiance() {
 
     const float3 bary = getBarycentricCoords();
     float2 uv = bary.x * v1.uv + bary.y * v2.uv + bary.z * v3.uv;
-    float4 diffuseCol = tex2D<float4>(chunkData.tex_diffuse, uv.x, uv.y);
+    float3 diffuseCol = make_float3(tex2D<float4>(chunkData.tex_diffuse, uv.x, uv.y));
 
     const float3 rayDir = optixGetWorldRayDirection();
     float3 isectPos = optixGetWorldRayOrigin() + rayDir * optixGetRayTmax();
@@ -206,9 +219,16 @@ extern "C" __global__ void __closesthit__radiance() {
     float3 newDir = calculateRandomDirectionInHemisphere(nor, rng2(prd.seed));
     // don't multiply by lambert term since it's canceled out by PDF for uniform hemisphere sampling
 
-    prd.pixelColor *= make_float3(diffuseCol);
     prd.isect.pos = isectPos + nor * 0.001f;
     prd.isect.newDir = newDir;
+
+    prd.pixelColor *= diffuseCol;
+    if (prd.needsFirstHitData)
+    {
+        prd.needsFirstHitData = false;
+        prd.pixelAlbedo = diffuseCol;
+        prd.pixelNormal = nor;
+    }
 }
 
 extern "C" __global__ void __anyhit__radiance()
