@@ -13,13 +13,13 @@
 
 #define DESTROY_ZONES 0 // disabled because it causes crashes
 
-static constexpr int chunkVbosGenRadius = 16;
+static constexpr int chunkVbosGenRadius = 20;
 static constexpr int chunkMaxGenRadius = chunkVbosGenRadius + (ZONE_SIZE * 2);
 static constexpr int zoneKeepRadius = chunkMaxGenRadius + ((3 * ZONE_SIZE) / 2);
 
 // TODO: get better estimates for these
 // ================================================================================
-static constexpr int maxActionTimePerFrame = 300;
+static constexpr int maxActionTimePerFrame = 400;
 static constexpr int totalActionTimePerSecond = 60 * maxActionTimePerFrame;
 // ================================================================================
 static constexpr int actionTimeGenerateHeightfield        = 3;
@@ -30,7 +30,7 @@ static constexpr int actionTimeGenerateCaves              = 8;
 static constexpr int actionTimeGenerateFeaturePlacements  = 3;
 static constexpr int actionTimeGatherFeaturePlacements    = 5;
 static constexpr int actionTimeFill                       = 8;
-static constexpr int actionTimeCreateAndBufferVbos        = maxActionTimePerFrame / 4;
+static constexpr int actionTimeCreateAndBufferVbos        = maxActionTimePerFrame / 3;
 // ================================================================================
 
 Terrain::Terrain()
@@ -41,6 +41,11 @@ Terrain::Terrain()
 Terrain::~Terrain()
 {
     freeCuda();
+}
+
+void Terrain::setOptixRenderer(OptixRenderer* optixRenderer)
+{
+    this->optixRenderer = optixRenderer;
 }
 
 void Terrain::init()
@@ -529,6 +534,10 @@ void checkChunkAndNeighborsForNeedsVbos(Chunk* chunkPtr)
 
 void Terrain::tick(float deltaTime)
 {
+#if !DEBUG_USE_GL_RENDERER
+    bool rebuildIAS = false;
+#endif
+
     while (!chunksToDestroyVbos.empty())
     {
         auto chunkPtr = chunksToDestroyVbos.front();
@@ -537,6 +546,9 @@ void Terrain::tick(float deltaTime)
         drawableChunks.erase(chunkPtr);
 #if DEBUG_USE_GL_RENDERER
         chunkPtr->destroyVBOs();
+#else
+        optixRenderer->destroyChunk(chunkPtr);
+        rebuildIAS = true;
 #endif
         chunkPtr->setState(ChunkState::NEEDS_VBOS);
     }
@@ -586,6 +598,9 @@ void Terrain::tick(float deltaTime)
         chunkPtr->createVBOs();
 #if DEBUG_USE_GL_RENDERER
         chunkPtr->bufferVBOs();
+#else
+        optixRenderer->buildChunkAccel(chunkPtr);
+        rebuildIAS = true;
 #endif
         drawableChunks.insert(chunkPtr);
         chunkPtr->setState(ChunkState::DRAWABLE);
@@ -593,6 +608,13 @@ void Terrain::tick(float deltaTime)
 
         actionTimeLeft -= actionTimeCreateAndBufferVbos;
     }
+
+#if !DEBUG_USE_GL_RENDERER
+    if (rebuildIAS)
+    {
+        optixRenderer->buildRootAccel();
+    }
+#endif
 
     {
         std::vector<Chunk*> chunks;
@@ -931,6 +953,18 @@ void Terrain::draw(const ShaderProgram& prog, const Player* player)
     }
 }
 
+void Terrain::destroyFarChunkVbos()
+{
+    for (const auto& chunkPtr : drawableChunks)
+    {
+        const ivec2 dist = abs(chunkPtr->worldChunkPos - this->currentChunkPos);
+        if (max(dist.x, dist.y) > chunkVbosGenRadius)
+        {
+            chunksToDestroyVbos.push(chunkPtr);
+        }
+    }
+}
+
 std::unordered_set<Chunk*> Terrain::getDrawableChunks()
 {
     return drawableChunks;
@@ -944,6 +978,13 @@ ivec2 Terrain::getCurrentChunkPos() const
 void Terrain::setCurrentChunkPos(ivec2 newCurrentChunkPos)
 {
     this->currentChunkPos = newCurrentChunkPos;
+}
+
+int Terrain::getMaxNumDrawableChunks()
+{
+    int s = (1 + 2 * chunkVbosGenRadius);
+    s += 2; // some padding just in case lol (e.g. when crossing chunk boundary and new chunks VBOs have been created but old ones haven't been destroyed yet)
+    return s * s;
 }
 
 void Terrain::debugGetCurrentChunkAndZone(vec2 playerPos, Chunk** chunkPtr, Zone** zonePtr)

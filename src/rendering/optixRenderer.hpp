@@ -18,12 +18,28 @@
 #include "shaderProgram.hpp"
 #include "fullscreenTri.hpp"
 
+class Terrain;
+class Chunk;
+
+template<class T>
+struct __align__(OPTIX_SBT_RECORD_ALIGNMENT) Record
+{
+    __align__(OPTIX_SBT_RECORD_ALIGNMENT) char header[OPTIX_SBT_RECORD_HEADER_SIZE];
+    T data;
+};
+
+typedef Record<void*>      RayGenRecord;
+typedef Record<ChunkData>  HitGroupRecord;
+typedef Record<void*>      MissRecord;
+typedef Record<void*>      ExceptionRecord;
+
 class OptixRenderer
 {
 public:
     OptixRenderer(GLFWwindow* window, ivec2* windowSize, Terrain* terrain, Player* player);
     void optixRenderFrame();
     void updateFrame();
+    void setCamera();
 
 protected:
     GLFWwindow* window{ nullptr };
@@ -32,6 +48,8 @@ protected:
     Player* player{ nullptr };
     OptixParams launchParams = {};
     CUBuffer launchParamsBuffer;
+
+    float fovy;
 
     CUcontext          cudaContext = {};
     CUstream           stream;
@@ -57,47 +75,60 @@ protected:
         OptixAccelBufferSizes bufferSizes;
     } rootIAS;
 
+    std::queue<int> chunkIdsQueue;
+
     CUBuffer chunkInstancesBuffer;
-    std::vector<OptixInstance> chunkInstances = {};
+    std::unordered_map<const Chunk*, OptixInstance> chunkInstances;
+    std::vector<void*> gasBufferPtrs;
     
-    std::vector<CUBuffer> vertexBuffer;
-    std::vector<CUBuffer> indexBuffer;
+    std::unordered_map<const Chunk*, int> chunkIdsMap;
+    std::vector<HitGroupRecord> host_hitGroupRecords;
 
     std::vector<OptixProgramGroup> raygenProgramGroups;
     std::vector<OptixProgramGroup> missProgramGroups;
     std::vector<OptixProgramGroup> hitProgramGroups;
+    std::vector<OptixProgramGroup> exceptionProgramGroups;
 
     CUBuffer raygenRecordBuffer;
     CUBuffer missRecordBuffer;
     CUBuffer hitRecordBuffer;
+    CUBuffer exceptionRecordBuffer;
     OptixShaderBindingTable sbt = {};
 
     CUBuffer playerInfoBuffer;
-    CUBuffer frameBuffer;
+    float4* dev_frameBuffer;
 
     uint32_t* dev_frame;
 
     void createContext();
     void createTextures();
+
+public:
     void buildChunkAccel(const Chunk* c);
     void buildRootAccel();
+
+    void destroyChunk(const Chunk* chunkPtr);
+
+    void setZoomed(bool zoomed);
+
+protected:
     std::vector<char> readData(std::string const& filename);
     void createModule();
     void createProgramGroups();
     void createPipeline();
-    void buildSBT();
-    void setCamera();
+    void buildSBT(bool onlyHitGroups);
 
     // GL stuff
 
-    ShaderProgram passthroughUvsShader;
+    ShaderProgram postprocessingShader;
 
-    std::vector<uint32_t> pixels;
+    std::vector<glm::vec4> pixels;
 
     FullscreenTri fullscreenTri;
 
     GLuint vao;
 
+    GLuint pbo;
     GLuint tex_pixels;
 
     void initShader();

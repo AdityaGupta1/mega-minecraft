@@ -11,11 +11,35 @@ struct Vertex
     glm::vec2 uv;
 };
 
+struct OptixParams
+{
+    OptixTraversableHandle rootHandle;
+
+    struct
+    {
+        float4* colorBuffer;
+        float4* normalBuffer;
+        int frameId;
+    } frame;
+
+    int numPixelSamples = 1;
+    int2 windowSize;
+
+    struct
+    {
+        float3 position;
+        float3 forward;
+        float3 up;
+        float3 right;
+        float2 pixelLength;
+    } camera;
+};
+
 struct ChunkData
 {
     Vertex* verts;
-    GLuint* idx;
-    cudaTextureObject_t texture;
+    glm::uvec3* idx;
+    cudaTextureObject_t tex_diffuse;
 };
 
 struct Texture
@@ -24,32 +48,4 @@ struct Texture
     int32_t width;
     int32_t height;
     int32_t channels;
-};
-
-struct OptixParams
-{
-    int numPixelSamples = 1;
-    int padding;
-    glm::ivec2 windowSize;
-    struct {
-        glm::vec3 position;
-        glm::vec3 forward;
-        glm::vec3 up;
-        glm::vec3 right;
-        glm::vec2 pixelLength;
-    } camera;
-
-    struct {
-        int frameId;
-        uint32_t* colorBuffer;
-        uint32_t* normalBuffer;
-    } frame;
-    OptixTraversableHandle rootHandle;
-};
-
-struct PRD {
-    // Random random;
-    glm::vec3  pixelColor;
-    glm::vec3  pixelNormal;
-    glm::vec3  pixelAlbedo;
 };

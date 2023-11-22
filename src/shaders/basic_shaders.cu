@@ -1,10 +1,11 @@
+#include <optix.h>
 #include "shader_commons.h"
+#include "random_number_generators.h"
 
 /*! launch parameters in constant memory, filled in by optix upon
       optixLaunch (this gets filled in from the buffer we pass to
       optixLaunch) */
 extern "C" __constant__ OptixParams params;
-
 
 static __forceinline__ __device__
 void* unpackPointer(uint32_t i0, uint32_t i1)
@@ -34,16 +35,22 @@ extern "C" __global__ void __raygen__render() {
     const int ix = optixGetLaunchIndex().x;
     const int iy = optixGetLaunchIndex().y;
 
-    const auto& camera = params.camera;
-    float3 pixelColorPRD = make_float3(0.f);
+    const int dx = optixGetLaunchDimensions().x;
+
+    PRD prd;
+    prd.seed = tea<4>(iy * dx + ix, params.frame.frameId);
 
     uint32_t u0, u1;
-    packPointer(&pixelColorPRD, u0, u1);
+    packPointer(&prd, u0, u1);
 
+    const auto& camera = params.camera;
+    
+    float2 squareSample = rng2(prd.seed);
     float3 rayDir = normalize(camera.forward
-        - camera.right * camera.pixelLength.x * ((float)ix - (float)params.windowSize.x * 0.5f)
-        - camera.up * camera.pixelLength.y * ((float)iy - (float)params.windowSize.y * 0.5f)
+        - camera.right * camera.pixelLength.x * ((float)ix - (float)params.windowSize.x * 0.5f + squareSample.x)
+        - camera.up * camera.pixelLength.y * -((float)iy - (float)params.windowSize.y * 0.5f + squareSample.y)
     );
+    prd.seed = UINT_MAX * squareSample.y;
 
     optixTrace(params.rootHandle,
         camera.position,
@@ -52,43 +59,101 @@ extern "C" __global__ void __raygen__render() {
         1e20f,  // tmax
         0.0f,   // rayTime
         OptixVisibilityMask(255),
-        OPTIX_RAY_FLAG_NONE,//OPTIX_RAY_FLAG_NONE,
-        0,             // SBT offset
-        1,               // SBT stride
-        0,             // missSBTIndex 
+        OPTIX_RAY_FLAG_NONE,  // OPTIX_RAY_FLAG_NONE,
+        0,  // SBT offset
+        1,  // SBT stride
+        0,  // missSBTIndex
         u0, u1);
 
-    //const int r = int(255.99f * pixelColorPRD.x);
-    //const int g = int(255.99f * pixelColorPRD.y);
-    //const int b = int(255.99f * pixelColorPRD.z);
-
-    const int r = int((ix / 1920.f) * 255.99f);
-    const int g = int((iy / 1080.f) * 255.99f);
-    const int b = 0;
-
-    // and write to frame buffer ...
+    // accumulate colors
     const uint32_t fbIndex = ix + iy * params.windowSize.x;
 
-    const uint32_t rgba = 0xff000000
-        | (r << 0) | (g << 8) | (b << 16);    
+    float4 cumColor = make_float4(prd.pixelColor.x, prd.pixelColor.y, prd.pixelColor.z, 1.f);
 
-    params.frame.colorBuffer[fbIndex] = rgba;
+    int frameId = params.frame.frameId;
+    if (frameId > 0) {
+        cumColor += float(frameId) * params.frame.colorBuffer[fbIndex];
+        cumColor /= (frameId + 1.f);
+    }
+
+    params.frame.colorBuffer[fbIndex] = cumColor;
 }
 
-extern "C" __global__ void __miss__radiance() {
-    float3& prd = *(float3*)getPRD<float3>();
-    prd = make_float3(1.f, 0.5f, 0.f);
+static __forceinline__ __device__
+const ChunkData& getChunkData()
+{
+    return *(const ChunkData*)optixGetSbtDataPointer();
 }
 
-extern "C" __global__ void __hit__radiance() {
-    ChunkData* chunk = (ChunkData*)optixGetSbtDataPointer();
+static __forceinline__ __device__
+void getVerts(const ChunkData& chunkData, Vertex* v1, Vertex* v2, Vertex* v3)
+{
+    const int primID = optixGetPrimitiveIndex();
+    const uint3 vIdx = chunkData.idx[primID];
+    *v1 = chunkData.verts[vIdx.x];
+    *v2 = chunkData.verts[vIdx.y];
+    *v3 = chunkData.verts[vIdx.z];
+}
 
-    const int   primID = optixGetPrimitiveIndex();
-    const int    vert_idx_offset = primID * 3;
+static __forceinline__ __device__
+float3 getBarycentricCoords()
+{
+    const float u = optixGetTriangleBarycentrics().x;
+    const float v = optixGetTriangleBarycentrics().y;
+    return make_float3(1.f - u - v, u, v);
+}
 
-    Vertex v = chunk->verts[chunk->idx[vert_idx_offset]];
+extern "C" __global__ void __miss__radiance()
+{
+    PRD& prd = *getPRD<PRD>();
+    prd.pixelColor = make_float3(0.5f, 0.8f, 1.0f) * 0.4f;
+}
 
-    float3& prd = *(float3*)getPRD<float3>();
-    prd = v.nor;
+extern "C" __global__ void __closesthit__radiance() {
+    const ChunkData& chunkData = getChunkData();
+    Vertex v1, v2, v3;
+    getVerts(chunkData, &v1, &v2, &v3);
 
+    const float3 bary = getBarycentricCoords();
+    float2 uv = bary.x * v1.uv + bary.y * v2.uv + bary.z * v3.uv;
+    float4 diffuseCol = tex2D<float4>(chunkData.tex_diffuse, uv.x, uv.y);
+
+    PRD& prd = *getPRD<PRD>();
+    prd.pixelColor = make_float3(diffuseCol);
+}
+
+extern "C" __global__ void __anyhit__radiance()
+{
+    const ChunkData& chunkData = getChunkData();
+    Vertex v1, v2, v3;
+    getVerts(chunkData, &v1, &v2, &v3);
+
+    const float3 bary = getBarycentricCoords();
+    float2 uv = bary.x * v1.uv + bary.y * v2.uv + bary.z * v3.uv;
+    float4 diffuseCol = tex2D<float4>(chunkData.tex_diffuse, uv.x, uv.y);
+
+    if (diffuseCol.w == 0.f)
+    {
+        optixIgnoreIntersection();
+    }
+    else
+    {
+        PRD& prd = *getPRD<PRD>();
+        float rand = rng(prd.seed);
+        if (rand >= diffuseCol.w)
+        {
+            prd.seed = UINT_MAX * rand;
+            optixIgnoreIntersection();
+        }
+    }
+}
+
+extern "C" __global__ void __exception__all()
+{
+    // This assumes that the launch dimensions are matching the size of the output buffer.
+
+    const uint3 theLaunchIndex = optixGetLaunchIndex();
+
+    const int theExceptionCode = optixGetExceptionCode();
+    printf("Exception %d at (%u, %u)\n", theExceptionCode, theLaunchIndex.x, theLaunchIndex.y);
 }

@@ -12,11 +12,35 @@ struct Vertex
     float2 uv;
 };
 
+struct OptixParams
+{
+    OptixTraversableHandle rootHandle;
+
+    struct
+    {
+        float4* colorBuffer;
+        float4* normalBuffer;
+        int frameId;
+    } frame;
+
+    int numPixelSamples = 1;
+    int2 windowSize;
+
+    struct
+    {
+        float3 position;
+        float3 forward;
+        float3 up;
+        float3 right;
+        float2 pixelLength;
+    } camera;
+};
+
 struct ChunkData
 {
     Vertex* verts;
-    uint32_t* idx;
-    cudaTextureObject_t texture;
+    uint3* idx;
+    cudaTextureObject_t tex_diffuse;
 };
 
 struct Texture
@@ -27,28 +51,8 @@ struct Texture
     int32_t channels;
 };
 
-struct OptixParams
-{
-    int numPixelSamples = 1;
-    int2 windowSize;
-    struct {
-        float3 position;
-        float3 forward;
-        float3 up;
-        float3 right;
-        float2 pixelLength;
-    } camera;
-
-    struct {
-        int frameId;
-        uint32_t* colorBuffer;
-        uint32_t* normalBuffer;
-    } frame;
-    OptixTraversableHandle rootHandle;
-};
-
 struct PRD {
-    // Random random;
+    uint32_t seed;
     float3  pixelColor;
     float3  pixelNormal;
     float3  pixelAlbedo;

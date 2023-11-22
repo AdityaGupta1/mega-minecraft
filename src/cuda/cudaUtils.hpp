@@ -9,12 +9,9 @@
 #include "util/utils.hpp"
 #include "util/common.h"
 
-
 namespace CudaUtils
 {
-
     void checkCUDAError(const char* msg, int line = -1);
-
 }
 
 // Adapted from https://github.com/ingowald/optix7course/blob/master/example12_denoiseSeparateChannels/CUDABuffer.h
@@ -50,6 +47,8 @@ struct CUBuffer {
 
     template<typename T>
     void initFromVector(const std::vector<T>& v) {
+        if (d_ptr)
+            free();
         alloc(v.size() * sizeof(T));
         CUDA_CHECK(cudaMemcpy(d_ptr, v.data(), byteSize, cudaMemcpyHostToDevice));
     }

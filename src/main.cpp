@@ -87,6 +87,7 @@ bool init(int argc, char **argv) {
     }
 #else
     optix = std::make_unique<OptixRenderer>(window, &windowSize, terrain.get(), player.get());
+    terrain->setOptixRenderer(optix.get());
 #endif
 
     terrain->init(); // call after creating CUDA context in OptixRenderer
@@ -234,6 +235,7 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
         }
         break;
     case GLFW_KEY_C:
+#if DEBUG_USE_GL_RENDERER
         if (action == GLFW_PRESS)
         {
             renderer->setZoomed(true);
@@ -242,6 +244,16 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
         {
             renderer->setZoomed(false);
         }
+#else
+        if (action == GLFW_PRESS)
+        {
+            optix->setZoomed(true);
+        }
+        else if (action == GLFW_RELEASE)
+        {
+            optix->setZoomed(false);
+        }
+#endif
         break;
     case GLFW_KEY_P:
         if (action == GLFW_RELEASE)
@@ -354,8 +366,12 @@ void tick(float deltaTime)
 
         player->move(glm::vec3(playerMovementNormalized) * playerMovementSensitivity * playerMovementMultiplier * deltaTime);
     }
-    bool viewMatChanged;
+    bool viewMatChanged = false;
     player->tick(&viewMatChanged);
+
+#if !DEBUG_USE_GL_RENDERER
+    terrain->destroyFarChunkVbos();
+#endif
 
     if (!freeCam)
     {
@@ -366,6 +382,9 @@ void tick(float deltaTime)
 #if DEBUG_USE_GL_RENDERER
     renderer->draw(deltaTime, viewMatChanged, windowSizeChanged);
 #else
+    if (viewMatChanged) {
+        optix->setCamera();
+    }
     optix->optixRenderFrame();
     optix->updateFrame();
 #endif
