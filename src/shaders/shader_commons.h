@@ -34,6 +34,8 @@ struct OptixParams
         float3 right;
         float2 pixelLength;
     } camera;
+
+    float3 sunDir;
 };
 
 struct ChunkData
@@ -53,7 +55,16 @@ struct Texture
 
 struct PRD {
     uint32_t seed;
+
+    bool isDone = false;
+
+    struct
+    {
+        float3 pos;
+        float3 newDir;
+    } isect;
+
     float3  pixelColor;
-    float3  pixelNormal;
     float3  pixelAlbedo;
+    float3  pixelNormal;
 };

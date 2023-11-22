@@ -258,7 +258,11 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
     case GLFW_KEY_P:
         if (action == GLFW_RELEASE)
         {
+#if DEBUG_USE_GL_RENDERER
             renderer->toggleTimePaused();
+#else
+            optix->toggleTimePaused();
+#endif
         }
         break;
     case GLFW_KEY_O:
@@ -385,8 +389,7 @@ void tick(float deltaTime)
     if (viewMatChanged) {
         optix->setCamera();
     }
-    optix->optixRenderFrame();
-    optix->updateFrame();
+    optix->render(deltaTime);
 #endif
 
     windowSizeChanged = false;

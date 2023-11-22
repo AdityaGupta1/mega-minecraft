@@ -37,9 +37,10 @@ class OptixRenderer
 {
 public:
     OptixRenderer(GLFWwindow* window, ivec2* windowSize, Terrain* terrain, Player* player);
-    void optixRenderFrame();
-    void updateFrame();
+
     void setCamera();
+
+    void render(float deltaTime);
 
 protected:
     GLFWwindow* window{ nullptr };
@@ -52,7 +53,6 @@ protected:
     float fovy;
 
     CUcontext          cudaContext = {};
-    CUstream           stream;
 
     OptixDeviceContext optixContext = {};
 
@@ -97,9 +97,19 @@ protected:
 
     CUBuffer playerInfoBuffer;
     cudaGraphicsResource_t pboResource;
-    float4* dev_frameBuffer;
 
-    uint32_t* dev_frame;
+    OptixDenoiser denoiser{ nullptr };
+    CUBuffer denoiserScratch;
+    CUBuffer denoiserState;
+    CUBuffer denoiserIntensity;
+
+    float4* dev_renderBuffer;
+    float4* dev_denoisedBuffer;
+
+    bool isTimePaused{ true };
+    float time{ 0 };
+
+    glm::mat3 sunRotateMat{};
 
     void createContext();
     void createTextures();
@@ -111,6 +121,7 @@ public:
     void destroyChunk(const Chunk* chunkPtr);
 
     void setZoomed(bool zoomed);
+    void toggleTimePaused();
 
 protected:
     std::vector<char> readData(std::string const& filename);
@@ -118,6 +129,11 @@ protected:
     void createProgramGroups();
     void createPipeline();
     void buildSBT(bool onlyHitGroups);
+    void createDenoiser();
+
+    void updateSunDirection();
+    void optixRenderFrame();
+    void updateFrame();
 
     // GL stuff
 

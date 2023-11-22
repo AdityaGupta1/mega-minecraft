@@ -33,6 +33,8 @@ struct OptixParams
         float3 right;
         float2 pixelLength;
     } camera;
+
+    float3 sunDir;
 };
 
 struct ChunkData

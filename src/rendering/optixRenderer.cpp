@@ -33,7 +33,7 @@ OptixRenderer::OptixRenderer(GLFWwindow* window, ivec2* windowSize, Terrain* ter
     launchParams.windowSize = make_int2(windowSize->x, windowSize->y);
     pixels.resize(windowSize->x * windowSize->y);
 
-    cudaStreamCreate(&stream);
+    CUDA_CHECK(cudaMalloc((void**)&dev_renderBuffer, windowSize->x * windowSize->y * sizeof(float4)));
 
     glGenVertexArrays(1, &vao);
     glBindVertexArray(vao);
@@ -43,6 +43,11 @@ OptixRenderer::OptixRenderer(GLFWwindow* window, ivec2* windowSize, Terrain* ter
     initShader();
 
     initTexture();
+
+    const glm::vec3 sunAxisForward = normalize(vec3(6.0f, -2.0f, 2.0f));
+    const glm::vec3 sunAxisRight = normalize(cross(sunAxisForward, vec3(0, 1, 0)));
+    const glm::vec3 sunAxisUp = normalize(cross(sunAxisRight, sunAxisForward));
+    sunRotateMat = glm::mat3(sunAxisRight, sunAxisForward, sunAxisUp);
 }
 
 static void context_log_cb(unsigned int level,
@@ -74,6 +79,7 @@ void OptixRenderer::createContext()
     createPipeline();
     createTextures();
     buildSBT(false);
+    createDenoiser();
 }
 
 void OptixRenderer::createTextures()
@@ -236,10 +242,10 @@ void OptixRenderer::buildChunkAccel(const Chunk* c)
     outputBuffer.alloc(gasBufferSizes.outputSizeInBytes);
 
     OPTIX_CHECK(optixAccelBuild(optixContext,
-        stream,
+        0, // stream
         &accelOptions,
         &triangleInput,
-        1,
+        1, // numBuildInputs
         tempBuffer.dev_ptr(),
         tempBuffer.size(),
 
@@ -248,7 +254,8 @@ void OptixRenderer::buildChunkAccel(const Chunk* c)
 
         &gasHandle,
 
-        &emitDesc, 1
+        &emitDesc,
+        1 // numEmittedProperties
     ));
 
     cudaDeviceSynchronize();
@@ -265,7 +272,7 @@ void OptixRenderer::buildChunkAccel(const Chunk* c)
 
     gasBuffer.alloc(compactedSize);
     OPTIX_CHECK(optixAccelCompact(optixContext,
-        stream,
+        0, // stream
         gasHandle,
         gasBuffer.dev_ptr(),
         gasBuffer.size(),
@@ -350,6 +357,11 @@ void OptixRenderer::setZoomed(bool zoomed)
 {
     fovy = zoomed ? fovZoomed : fovNormal;
     setCamera();
+}
+
+void OptixRenderer::toggleTimePaused()
+{
+    this->isTimePaused = !this->isTimePaused;
 }
 
 std::vector<char> OptixRenderer::readData(std::string const& filename)
@@ -608,32 +620,31 @@ void OptixRenderer::buildSBT(bool onlyHitGroups)
     sbt.exceptionRecord = exceptionRecordBuffer.dev_ptr();
 }
 
-void OptixRenderer::optixRenderFrame()
+void OptixRenderer::createDenoiser()
 {
-    if (launchParams.windowSize.x == 0) return;
+    if (denoiser)
+    {
+        OPTIX_CHECK(optixDenoiserDestroy(denoiser));
+    };
 
-    size_t pboSize;
-    CUDA_CHECK(cudaGraphicsMapResources(1, &pboResource, stream));
-    CUDA_CHECK(cudaGraphicsResourceGetMappedPointer((void**)&dev_frameBuffer, &pboSize, pboResource));
+    OptixDenoiserOptions denoiserOptions = {};
+    OPTIX_CHECK(optixDenoiserCreate(optixContext, OPTIX_DENOISER_MODEL_KIND_LDR, &denoiserOptions, &denoiser)); // TODO: switch to HDR?
 
-    launchParams.frame.colorBuffer = dev_frameBuffer;
-    launchParamsBuffer.populate(&launchParams, 1);
-    launchParams.frame.frameId++;
+    OptixDenoiserSizes denoiserReturnSizes;
+    OPTIX_CHECK(optixDenoiserComputeMemoryResources(denoiser, windowSize->x, windowSize->y, &denoiserReturnSizes));
 
-    OPTIX_CHECK(optixLaunch(/*! pipeline we're launching launch: */
-        pipeline,
-        stream,
-        /*! parameters and SBT */
-        launchParamsBuffer.dev_ptr(),
-        launchParamsBuffer.size(),
-        &sbt,
-        /*! dimensions of the launch: */
-        launchParams.windowSize.x,
-        launchParams.windowSize.y,
-        1
+    denoiserScratch.resize(std::max(denoiserReturnSizes.withOverlapScratchSizeInBytes, denoiserReturnSizes.withoutOverlapScratchSizeInBytes));
+    denoiserState.resize(denoiserReturnSizes.stateSizeInBytes);
+
+    OPTIX_CHECK(optixDenoiserSetup(
+        denoiser,
+        0, // stream
+        windowSize->x, windowSize->y,
+        denoiserState.dev_ptr(),
+        denoiserState.size(),
+        denoiserScratch.dev_ptr(),
+        denoiserScratch.size()
     ));
-
-    CUDA_CHECK(cudaGraphicsUnmapResources(1, &pboResource, stream));
 }
 
 inline float3 vec3ToFloat3(glm::vec3 v)
@@ -653,6 +664,95 @@ void OptixRenderer::setCamera()
     launchParams.camera.position = vec3ToFloat3(player->getPos());
     launchParams.windowSize = make_int2(windowSize->x, windowSize->y);
     launchParams.frame.frameId = 0;
+}
+
+void OptixRenderer::render(float deltaTime)
+{
+    if (!isTimePaused)
+    {
+        time += deltaTime;
+    }
+
+    updateSunDirection();
+
+    optixRenderFrame();
+    updateFrame();
+}
+
+void OptixRenderer::updateSunDirection()
+{
+    const float sunTime = time * 0.2f + 0.4f;
+    launchParams.sunDir = vec3ToFloat3(glm::normalize(sunRotateMat * glm::vec3(cosf(sunTime), 0.55f, sinf(sunTime))));
+}
+
+void OptixRenderer::optixRenderFrame()
+{
+    if (launchParams.windowSize.x == 0) return;
+
+    launchParams.frame.colorBuffer = dev_renderBuffer;
+    launchParamsBuffer.populate(&launchParams, 1);
+    launchParams.frame.frameId++;
+
+    OPTIX_CHECK(optixLaunch(/*! pipeline we're launching launch: */
+        pipeline,
+        0, // stream
+
+        /*! parameters and SBT */
+        launchParamsBuffer.dev_ptr(),
+        launchParamsBuffer.size(),
+        &sbt,
+
+        /*! dimensions of the launch: */
+        launchParams.windowSize.x,
+        launchParams.windowSize.y,
+        1
+    ));
+
+    size_t pboSize;
+    CUDA_CHECK(cudaGraphicsMapResources(1, &pboResource));
+    CUDA_CHECK(cudaGraphicsResourceGetMappedPointer((void**)&dev_denoisedBuffer, &pboSize, pboResource));
+
+    OptixDenoiserParams denoiserParams = {};
+    denoiserParams.hdrIntensity = (CUdeviceptr)0; // TODO: pass something real here
+    denoiserParams.blendFactor = 1.f / (launchParams.frame.frameId);
+
+    OptixImage2D inputLayer = {};
+    inputLayer.data = (CUdeviceptr)dev_renderBuffer;
+    inputLayer.width = windowSize->x;
+    inputLayer.height = windowSize->y;
+    inputLayer.rowStrideInBytes = inputLayer.width * sizeof(float4);
+    inputLayer.pixelStrideInBytes = sizeof(float4);
+    inputLayer.format = OPTIX_PIXEL_FORMAT_FLOAT4;
+
+    OptixImage2D outputLayer = {};
+    outputLayer.data = (CUdeviceptr)dev_denoisedBuffer;
+    outputLayer.width = windowSize->x;
+    outputLayer.height = windowSize->y;
+    outputLayer.rowStrideInBytes = outputLayer.width * sizeof(float4);
+    outputLayer.pixelStrideInBytes = sizeof(float4);
+    outputLayer.format = OPTIX_PIXEL_FORMAT_FLOAT4;
+
+    OptixDenoiserGuideLayer denoiserGuideLayer = {};
+
+    OptixDenoiserLayer denoiserLayer = {};
+    denoiserLayer.input = inputLayer;
+    denoiserLayer.output = outputLayer;
+
+    OPTIX_CHECK(optixDenoiserInvoke(denoiser,
+        0, // stream
+        &denoiserParams,
+        denoiserState.dev_ptr(),
+        denoiserState.size(),
+        &denoiserGuideLayer,
+        &denoiserLayer,
+        1, // numLayers
+        0, // inputOffsetX
+        0, // inputOffsetY
+        denoiserScratch.dev_ptr(),
+        denoiserScratch.size()
+    ));
+
+    CUDA_CHECK(cudaGraphicsUnmapResources(1, &pboResource));
 }
 
 void OptixRenderer::initShader()
