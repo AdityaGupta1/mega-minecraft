@@ -50,7 +50,6 @@ extern "C" __global__ void __raygen__render() {
         - camera.right * camera.pixelLength.x * ((float)ix - (float)params.windowSize.x * 0.5f + squareSample.x)
         - camera.up * camera.pixelLength.y * -((float)iy - (float)params.windowSize.y * 0.5f + squareSample.y)
     );
-    prd.seed = UINT_MAX * squareSample.y;
 
     optixTrace(params.rootHandle,
         camera.position,
@@ -139,10 +138,8 @@ extern "C" __global__ void __anyhit__radiance()
     else
     {
         PRD& prd = *getPRD<PRD>();
-        float rand = rng(prd.seed);
-        if (rand >= diffuseCol.w)
+        if (rng(prd.seed) >= diffuseCol.w)
         {
-            prd.seed = UINT_MAX * rand;
             optixIgnoreIntersection();
         }
     }
