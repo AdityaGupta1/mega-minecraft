@@ -8,11 +8,12 @@
 #undef max
 #include <optix_stack_size.h>
 #include <optix_function_table_definition.h>
+#include <cuda_gl_interop.h>
 
 constexpr int numRayTypes = 1;
 
 OptixRenderer::OptixRenderer(GLFWwindow* window, ivec2* windowSize, Terrain* terrain, Player* player) 
-    : window(window), windowSize(windowSize), terrain(terrain), player(player), vao(-1), tex_pixels(-1)
+    : window(window), windowSize(windowSize), terrain(terrain), player(player), vao(-1), pbo(-1), tex_pixels(-1)
 {
     int numMaxDrawableChunks = Terrain::getMaxNumDrawableChunks();
     for (int i = 0; i < numMaxDrawableChunks; ++i)
@@ -29,7 +30,6 @@ OptixRenderer::OptixRenderer(GLFWwindow* window, ivec2* windowSize, Terrain* ter
     setCamera();
 
     launchParamsBuffer.alloc(sizeof(OptixParams));
-    frameBuffer.alloc(windowSize->x * windowSize->y * sizeof(glm::vec4));
     launchParams.windowSize = make_int2(windowSize->x, windowSize->y);
     pixels.resize(windowSize->x * windowSize->y);
 
@@ -599,7 +599,9 @@ void OptixRenderer::optixRenderFrame()
 {
     if (launchParams.windowSize.x == 0) return;
 
-    launchParams.frame.colorBuffer = (float4*) frameBuffer.dev_ptr();
+    cudaGLMapBufferObject((void**)&dev_frameBuffer, pbo);
+
+    launchParams.frame.colorBuffer = dev_frameBuffer;
     launchParamsBuffer.populate(&launchParams, 1);
     launchParams.frame.frameId++;
 
@@ -616,12 +618,7 @@ void OptixRenderer::optixRenderFrame()
         1
     ));
 
-    //printf("FrameID %d\n", launchParams.frame.frameId);
-
-    //printf("framebuffer byte size: %u\n", frameBuffer.byteSize);
-    //printf("window x * y: %d\n", launchParams.windowSize.x * launchParams.windowSize.y);
-
-    frameBuffer.retrieve(pixels.data(), windowSize->x * windowSize->y);
+    cudaGLUnmapBufferObject(pbo);
 }
 
 inline float3 vec3ToFloat3(glm::vec3 v)
@@ -656,11 +653,17 @@ void OptixRenderer::initShader()
 
 void OptixRenderer::initTexture()
 {
+    glGenBuffers(1, &pbo);
+    glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pbo);
+    glBufferData(GL_PIXEL_UNPACK_BUFFER, windowSize->x * windowSize->y * sizeof(glm::vec4), NULL, GL_DYNAMIC_COPY);
+    cudaGLRegisterBufferObject(pbo);
+
+    glActiveTexture(GL_TEXTURE0);
     glGenTextures(1, &tex_pixels);
     glBindTexture(GL_TEXTURE_2D, tex_pixels);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, windowSize->x, windowSize->y, 0, GL_RGBA, GL_FLOAT, NULL);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, windowSize->x, windowSize->y, 0, GL_RGBA, GL_FLOAT, pixels.data());
 
     postprocessingShader.setTexBufColor(0);
 }
@@ -668,7 +671,10 @@ void OptixRenderer::initTexture()
 
 void OptixRenderer::updateFrame()
 {
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, windowSize->x, windowSize->y, 0, GL_RGBA, GL_FLOAT, pixels.data());
+    glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pbo);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, tex_pixels);
+    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, windowSize->x, windowSize->y, GL_RGBA, GL_FLOAT, NULL);
     postprocessingShader.draw(fullscreenTri);
     glfwSwapBuffers(window);
 }

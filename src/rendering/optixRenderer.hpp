@@ -96,7 +96,7 @@ protected:
     OptixShaderBindingTable sbt = {};
 
     CUBuffer playerInfoBuffer;
-    CUBuffer frameBuffer;
+    float4* dev_frameBuffer;
 
     uint32_t* dev_frame;
 
@@ -128,6 +128,7 @@ protected:
 
     GLuint vao;
 
+    GLuint pbo;
     GLuint tex_pixels;
 
     void initShader();
