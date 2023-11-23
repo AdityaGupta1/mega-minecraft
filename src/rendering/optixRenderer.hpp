@@ -76,7 +76,7 @@ protected:
 
     std::queue<int> chunkIdsQueue;
 
-    CUBuffer chunkInstancesBuffer;
+    OptixInstance* dev_chunkInstances;
     std::unordered_map<const Chunk*, OptixInstance> chunkInstances;
     std::vector<void*> gasBufferPtrs;
     
@@ -116,7 +116,7 @@ protected:
     void createTextures();
 
 public:
-    void buildChunkAccel(const Chunk* c);
+    void buildChunkAccel(const Chunk* chunkPtr);
     void buildRootAccel();
 
     void destroyChunk(const Chunk* chunkPtr);
