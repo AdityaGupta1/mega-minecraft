@@ -58,6 +58,7 @@ struct PRD {
 
     bool isDone;
     bool foundLightSource;
+    bool isectOnly;
 
     struct
     {
