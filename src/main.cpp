@@ -22,6 +22,7 @@ bool init(int argc, char **argv) {
     int gpuDevice = 0;
     int device_count = 0;
     cudaGetDeviceCount(&device_count);
+    printf("num devices: %d\n", device_count);
     if (gpuDevice > device_count) {
         std::cout
             << "Error: GPU device number is greater than the number of devices!"

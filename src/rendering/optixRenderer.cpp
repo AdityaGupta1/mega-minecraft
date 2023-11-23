@@ -34,6 +34,8 @@ OptixRenderer::OptixRenderer(GLFWwindow* window, ivec2* windowSize, Terrain* ter
     launchParams.windowSize = make_int2(windowSize->x, windowSize->y);
     pixels.resize(windowSize->x * windowSize->y);
 
+    CUDA_CHECK(cudaMalloc((void**)&dev_chunkInstances, numMaxDrawableChunks * sizeof(OptixInstance)));
+
     size_t imageSizeBytes = windowSize->x * windowSize->y * sizeof(float4);
     CUDA_CHECK(cudaMalloc((void**)&dev_renderBuffer, imageSizeBytes));
     CUDA_CHECK(cudaMalloc((void**)&dev_albedoBuffer, imageSizeBytes));
@@ -77,8 +79,12 @@ void OptixRenderer::createContext()
 #endif
 
     OPTIX_CHECK(optixDeviceContextCreate(cudaContext, &options, &optixContext));
-    OPTIX_CHECK(optixDeviceContextSetLogCallback
-    (optixContext, context_log_cb, nullptr, 4));
+    OPTIX_CHECK(optixDeviceContextSetLogCallback(
+        optixContext,
+        context_log_cb,
+        nullptr,
+        options.logCallbackLevel
+    ));
     createModule();
     createProgramGroups();
     createPipeline();
@@ -161,14 +167,14 @@ void OptixRenderer::createTextures()
     }
 }
 
-void OptixRenderer::buildChunkAccel(const Chunk* c)
+void OptixRenderer::buildChunkAccel(const Chunk* chunkPtr)
 {
     // copy mesh data to device
     CUBuffer dev_vertices;
     CUBuffer dev_indices;
 
-    dev_vertices.initFromVector(c->verts);
-    dev_indices.initFromVector(c->idx);
+    dev_vertices.initFromVector(chunkPtr->verts);
+    dev_indices.initFromVector(chunkPtr->idx);
 
     OptixTraversableHandle gasHandle = 0;
 
@@ -185,17 +191,18 @@ void OptixRenderer::buildChunkAccel(const Chunk* c)
     int chunkId = chunkIdsQueue.front();
     chunkIdsQueue.pop();
 
-    chunkIdsMap[c] = chunkId;
+    chunkIdsMap[chunkPtr] = chunkId;
 
     const ChunkData chunkData = {
         (Vertex*)d_vertices,
         (uvec3*)d_indices,
         texObjects[0]
     };
+
     for (int i = 0; i < hitProgramGroups.size(); i++)
     {
         HitGroupRecord rec;
-        OPTIX_CHECK(optixSbtRecordPackHeader(hitProgramGroups[i], &rec));
+        OPTIX_CHECK(optixSbtRecordPackHeader(hitProgramGroups[i], &rec)); // TODO: store this once instead of recreating for each chunk
         rec.data = chunkData;
         host_hitGroupRecords[chunkId * numRayTypes + i] = rec;
     }
@@ -205,12 +212,12 @@ void OptixRenderer::buildChunkAccel(const Chunk* c)
       
     triangleInput.triangleArray.vertexFormat        = OPTIX_VERTEX_FORMAT_FLOAT3;
     triangleInput.triangleArray.vertexStrideInBytes = sizeof(Vertex);
-    triangleInput.triangleArray.numVertices         = (int)c->verts.size();
+    triangleInput.triangleArray.numVertices         = (int)chunkPtr->verts.size();
     triangleInput.triangleArray.vertexBuffers       = &d_vertices;
     
     triangleInput.triangleArray.indexFormat         = OPTIX_INDICES_FORMAT_UNSIGNED_INT3;
     triangleInput.triangleArray.indexStrideInBytes  = sizeof(glm::uvec3);
-    triangleInput.triangleArray.numIndexTriplets    = (int)c->idx.size() / 3;
+    triangleInput.triangleArray.numIndexTriplets    = (int)chunkPtr->idx.size() / 3;
     triangleInput.triangleArray.indexBuffer         = d_indices;
     
     uint32_t triangleInputFlags[1] = { 0 };
@@ -242,11 +249,11 @@ void OptixRenderer::buildChunkAccel(const Chunk* c)
     emitDesc.type = OPTIX_PROPERTY_TYPE_COMPACTED_SIZE;
     emitDesc.result = compactedSizeBuffer.dev_ptr();
 
-    CUBuffer tempBuffer;
-    tempBuffer.alloc(gasBufferSizes.tempSizeInBytes);
-
     CUBuffer outputBuffer;
     outputBuffer.alloc(gasBufferSizes.outputSizeInBytes);
+
+    CUBuffer tempBuffer;
+    tempBuffer.alloc(gasBufferSizes.tempSizeInBytes);
 
     OPTIX_CHECK(optixAccelBuild(optixContext,
         0, // stream
@@ -267,16 +274,13 @@ void OptixRenderer::buildChunkAccel(const Chunk* c)
 
     cudaDeviceSynchronize();
 
-    // don't free these since they're used in hit group records (ChunkData)
-    //dev_vertices.free();
-    //dev_indices.free();
+    // don't free dev_vertices and dev_indices since they're used in hit group records (ChunkData)
     
     // optixAccelCompact
     uint64_t compactedSize;
     compactedSizeBuffer.retrieve(&compactedSize, 1);
 
     CUBuffer gasBuffer;
-
     gasBuffer.alloc(compactedSize);
     OPTIX_CHECK(optixAccelCompact(optixContext,
         0, // stream
@@ -286,16 +290,16 @@ void OptixRenderer::buildChunkAccel(const Chunk* c)
         &gasHandle));
 
     // cleanup
-    outputBuffer.free();
     tempBuffer.free();
+    outputBuffer.free();
     compactedSizeBuffer.free();
 
     // to instance
     OptixInstance gasInstance = {};
     float transform[12] = {
-        1, 0, 0, c->worldBlockPos.x,
+        1, 0, 0, chunkPtr->worldBlockPos.x,
         0, 1, 0, 0,
-        0, 0, 1, c->worldBlockPos.z
+        0, 0, 1, chunkPtr->worldBlockPos.z
     };
     memcpy(gasInstance.transform, transform, sizeof(float) * 12);
     gasInstance.instanceId = chunkId; // this is NOT the SBT geometry-AS index - that would be if one GAS had multiple build inputs
@@ -304,23 +308,24 @@ void OptixRenderer::buildChunkAccel(const Chunk* c)
     gasInstance.flags = OPTIX_INSTANCE_FLAG_NONE;
     gasInstance.traversableHandle = gasHandle;
 
-    chunkInstances[c] = gasInstance;
+    chunkInstances[chunkPtr] = gasInstance;
     gasBufferPtrs[chunkId] = (void*)gasBuffer.dev_ptr();
 }
 
 void OptixRenderer::buildRootAccel()
 {
     std::vector<OptixInstance> chunkInstancesVector;
+    chunkInstancesVector.reserve(chunkInstances.size());
     for (const auto& elem : chunkInstances)
     {
         chunkInstancesVector.push_back(elem.second);
     }
 
-    chunkInstancesBuffer.initFromVector(chunkInstancesVector);
+    CUDA_CHECK(cudaMemcpy(dev_chunkInstances, chunkInstancesVector.data(), chunkInstancesVector.size() * sizeof(OptixInstance), cudaMemcpyHostToDevice));
 
     rootIAS.buildInput = {};
     rootIAS.buildInput.type = OPTIX_BUILD_INPUT_TYPE_INSTANCES;
-    rootIAS.buildInput.instanceArray.instances = chunkInstancesBuffer.dev_ptr();
+    rootIAS.buildInput.instanceArray.instances = (CUdeviceptr)dev_chunkInstances;
     rootIAS.buildInput.instanceArray.numInstances = static_cast<unsigned int>(chunkInstancesVector.size());
 
     rootIAS.buildOptions = {};
@@ -657,7 +662,7 @@ void OptixRenderer::createDenoiser()
     };
 
     OptixDenoiserOptions denoiserOptions = {};
-    OPTIX_CHECK(optixDenoiserCreate(optixContext, OPTIX_DENOISER_MODEL_KIND_LDR, &denoiserOptions, &denoiser)); // TODO: switch to HDR?
+    OPTIX_CHECK(optixDenoiserCreate(optixContext, OPTIX_DENOISER_MODEL_KIND_AOV, &denoiserOptions, &denoiser));
 
     OptixDenoiserSizes denoiserReturnSizes;
     OPTIX_CHECK(optixDenoiserComputeMemoryResources(denoiser, windowSize->x, windowSize->y, &denoiserReturnSizes));
