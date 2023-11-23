@@ -4,7 +4,7 @@
 // DEBUG FLAGS
 // ============================================================
 
-#define DEBUG_USE_GL_RENDERER 0
+#define DEBUG_USE_GL_RENDERER 1
 
 // ============================================================
 // MATH CONSTANTS

@@ -759,21 +759,19 @@ __device__ bool shouldGenerateCaveAtBlock(ivec3 worldPos, float maxHeight, float
         return false;
     }
 
-    vec3 noisePos = vec3(worldPos) * 0.0090f;
+    vec3 noisePos = vec3(worldPos) * 0.0050f;
     float topRatioYOffset = oceanAndBeachWeight * 50.f;
     float topHeightRatio = smoothstep(142.f, 95.f, (float)worldPos.y + topRatioYOffset);
     float bottomHeightRatio = smoothstep(5.f, 20.f, (float)worldPos.y);
 
-    vec3 noiseOffset = fbm3From3<4>(noisePos * 0.5000f) * 1.4f;
-
-    float caveNoise = specialCaveNoise(noisePos * vec3(1.f, 1.8f, 1.f) + noiseOffset);
+    vec3 noiseOffset = fbm3From3<5>(noisePos * 0.8000f) * 1.8f;
+    float caveNoise = specialCaveNoise(noisePos * vec3(1.f, 1.6f, 1.f) + noiseOffset);
 
     float worleyEdgeThreshold = 0.24f + 0.12f * fbm<4>(noisePos * 4.f);
-
     float hugeCaveNoise = smoothstep(0.3f, 0.45f, fbm<4>(noisePos * 0.0700f));
     worleyEdgeThreshold *= (1.f + 1.4f * hugeCaveNoise);
-
     worleyEdgeThreshold *= (topHeightRatio) * (0.3f + 0.7f * bottomHeightRatio);
+
     if (worleyEdgeThreshold > 0.04f && caveNoise < worleyEdgeThreshold)
     {
         return true;
