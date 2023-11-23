@@ -12,6 +12,8 @@
 #define NUM_SAMPLES 2
 #define MAX_RAY_DEPTH 5
 
+#define DO_RUSSIAN_ROULETTE 1
+
 /*! launch parameters in constant memory, filled in by optix upon
       optixLaunch (this gets filled in from the buffer we pass to
       optixLaunch) */
@@ -94,7 +96,7 @@ extern "C" __global__ void __raygen__render() {
                 0,  // missSBTIndex
                 u0, u1);
 
-            // russian roulette
+#if DO_RUSSIAN_ROULETTE
             if (depth > 2)
             {
                 float q = fmax(0.05f, 1.f - luminance(prd.pixelColor));
@@ -106,6 +108,7 @@ extern "C" __global__ void __raygen__render() {
 
                 prd.pixelColor /= (1.f - q);
             }
+#endif
         }
 
         if (!prd.isDone) // reached max depth and didn't hit a light
@@ -228,14 +231,36 @@ extern "C" __global__ void __closesthit__radiance() {
 
     const float3 bary = getBarycentricCoords();
     float2 uv = bary.x * v1.uv + bary.y * v2.uv + bary.z * v3.uv;
+    float3 nor = normalize(bary.x * v1.nor + bary.y * v2.nor + bary.z * v3.nor);
     float3 diffuseCol = make_float3(tex2D<float4>(chunkData.tex_diffuse, uv.x, uv.y));
 
+    const float3 rayOrigin = optixGetWorldRayOrigin();
     const float3 rayDir = optixGetWorldRayDirection();
-    float3 isectPos = optixGetWorldRayOrigin() + rayDir * optixGetRayTmax();
+    const float3 isectPos = rayOrigin + rayDir * optixGetRayTmax();
 
     PRD& prd = *getPRD<PRD>();
 
-    float3 nor = normalize(bary.x * v1.nor + bary.y * v2.nor + bary.z * v3.nor);
+    if (diffuseCol.x == 0.f && diffuseCol.y == 0.f && diffuseCol.z == 0.f)
+    {
+        float4 emissiveTexCol = tex2D<float4>(chunkData.tex_emissive, uv.x, uv.y);
+        if (emissiveTexCol.w > 0.f)
+        {
+            float3 emissiveCol = make_float3(emissiveTexCol) * 3.f;
+
+            prd.pixelColor *= emissiveCol;
+
+            if (prd.needsFirstHitData)
+            {
+                prd.needsFirstHitData = false;
+                prd.pixelAlbedo = emissiveCol;
+                prd.pixelNormal = nor;
+            }
+
+            prd.isDone = true;
+            return;
+        }
+    }
+
     float3 newDir = calculateRandomDirectionInHemisphere(nor, rng2(prd.seed));
     // don't multiply by lambert term since it's canceled out by PDF for uniform hemisphere sampling
 
