@@ -364,7 +364,7 @@ void OptixRenderer::destroyChunk(const Chunk* chunkPtr)
     chunkIdsQueue.push(chunkId);
 }
 
-static constexpr float fovNormal = glm::radians(52.f);
+static constexpr float fovNormal = glm::radians(47.f);
 static constexpr float fovZoomed = glm::radians(20.f);
 
 void OptixRenderer::setZoomed(bool zoomed)

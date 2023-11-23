@@ -173,7 +173,7 @@ extern "C" __global__ void __miss__radiance()
     float3 skyColor;
     if (dot(rayDir, params.sunDir) > 0.99f)
     {
-        skyColor = make_float3(1.0f, 0.8f, 0.6f) * 1.1f;
+        skyColor = make_float3(1.0f, 0.8f, 0.6f) * 100.0f;
     }
     else
     {
@@ -231,7 +231,7 @@ extern "C" __global__ void __closesthit__radiance() {
 
     const float3 bary = getBarycentricCoords();
     float2 uv = bary.x * v1.uv + bary.y * v2.uv + bary.z * v3.uv;
-    float3 nor = normalize(bary.x * v1.nor + bary.y * v2.nor + bary.z * v3.nor);
+    float3 nor = normalize(bary.x * v1.nor + bary.y * v2.nor + bary.z * v3.nor); // TODO: figure out whether to use normal faceforwards (for transparency)
     float3 diffuseCol = make_float3(tex2D<float4>(chunkData.tex_diffuse, uv.x, uv.y));
 
     const float3 rayOrigin = optixGetWorldRayOrigin();
@@ -286,19 +286,29 @@ extern "C" __global__ void __anyhit__radiance()
     float2 uv = bary.x * v1.uv + bary.y * v2.uv + bary.z * v3.uv;
     float4 diffuseCol = tex2D<float4>(chunkData.tex_diffuse, uv.x, uv.y);
 
-    if (diffuseCol.w == 0.f)
+    const float alpha = diffuseCol.w;
+
+    if (alpha > 0.9999f)
+    {
+        return;
+    }
+
+    if (alpha == 0.f)
     {
         optixIgnoreIntersection();
     }
-    // TODO: figure out whether to use normal faceforwards before re-enabling this
-    //else
-    //{
-    //    PRD& prd = *getPRD<PRD>();
-    //    if (rng(prd.seed) >= diffuseCol.w)
-    //    {
-    //        optixIgnoreIntersection();
-    //    }
-    //}
+    else
+    {
+        PRD& prd = *getPRD<PRD>();
+        if (rng(prd.seed) >= alpha)
+        {
+            optixIgnoreIntersection();
+        }
+        else
+        {
+            prd.pixelColor *= make_float3(diffuseCol);
+        }
+    }
 }
 
 extern "C" __global__ void __exception__all()
