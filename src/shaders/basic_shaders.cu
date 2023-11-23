@@ -8,6 +8,7 @@
 #define PI_OVER_FOUR      0.78539816339744830961566084581f
 #define SQRT_2            1.41421356237309504880168872420f
 #define SQRT_ONE_THIRD    0.57735026918962576450914878050f
+#define INV_PI            0.31830988618379067153776752674f
 
 #define NUM_SAMPLES 4
 #define MAX_RAY_DEPTH 2
@@ -41,6 +42,13 @@ static __forceinline__ __device__ T* getPRD()
     return reinterpret_cast<T*>(unpackPointer(u0, u1));
 }
 
+static __forceinline__ __device__ 
+float powerHeuristics(int nf, float pdf_f, int ng, float pdf_g) {
+    float f = nf * pdf_f;
+    float g = ng * pdf_g;
+    return f * f / (f * f + g * g);
+}
+
 __device__ float3 calculateDirectionNotNormal(const float3 normal)
 {
     if (fabs(normal.x) < SQRT_ONE_THIRD)
@@ -72,11 +80,13 @@ __device__ float3 calculateRandomDirectionInHemisphere(float3 normal, float2 sam
         + sin(around) * over * perpendicularDirection2;
 }
 
-__device__ float3 sampleSun(float3 normal, float2 sample)
+__device__ float3 sampleSun(float2 sample)
 {
     // find radius and theta in sun space
 
     // Use not-normal direction to generate two perpendicular directions
+    const float3 normal = params.sunDir;
+
     const float3 perpendicularDirection1 = normalize(cross(normal, calculateDirectionNotNormal(normal)));
     const float3 perpendicularDirection2 = normalize(cross(normal, perpendicularDirection1));
 
@@ -119,12 +129,15 @@ extern "C" __global__ void __raygen__render() {
     {
         prd.isDone = false;
         prd.foundLightSource = false;
-        prd.pixelColor = make_float3(1.f, 1.f, 1.f);
+        prd.rayColor = make_float3(1.f);
+        prd.pixelColor = make_float3(0.f);
         prd.isect.pos = camera.position;
         prd.isect.newDir = rayDir;
 
         for (int depth = 0; depth < MAX_RAY_DEPTH && !prd.isDone; ++depth)
         {
+            // 1. BSDF
+
             optixTrace(params.rootHandle,
                 prd.isect.pos,
                 prd.isect.newDir,
@@ -137,13 +150,56 @@ extern "C" __global__ void __raygen__render() {
                 1,  // SBT stride
                 0,  // missSBTIndex
                 u0, u1);
+
+            if (!prd.isDone) {
+                // MIS: sample light source
+                // 2. pdf from Sun & random point on sun
+                float2 xi = rng2(prd.seed);;
+
+                float3 random_d = sampleSun(xi);
+
+                // 3. test sun intersection
+
+                prd.isectOnly = true;
+                float3 temp = prd.rayColor;
+                prd.rayColor = make_float3(1.f);
+                optixTrace(params.rootHandle,
+                    prd.isect.pos + random_d * 0.001f,
+                    random_d,
+                    0.f,    // tmin
+                    1e20f,  // tmax
+                    0.0f,   // rayTime
+                    OptixVisibilityMask(255),
+                    OPTIX_RAY_FLAG_NONE,  // OPTIX_RAY_FLAG_NONE,
+                    0,  // SBT offset
+                    1,  // SBT stride
+                    0,  // missSBTIndex
+                    u0, u1);
+
+                prd.isectOnly = false;
+
+                // TODO: later, find pdf for each material, using default for now
+                float pdf_material = INV_PI * dot(random_d, prd.isect.newDir);
+                // heuristics uses next direction & sun direction pdfs
+                float3 col = powerHeuristics(1, 0.f, 1, pdf_material) * prd.rayColor;
+                prd.rayColor = temp;
+
+
+                if (prd.foundLightSource) {
+                    col = powerHeuristics(1, 1.f, 1, pdf_material) * prd.rayColor;
+                    prd.foundLightSource = false;
+                    prd.pixelColor += col * prd.rayColor;
+                }
+                
+            }
+            
         }
 
         if (!prd.isDone) // reached max depth and didn't hit a light
                          // TODO: sample direct lighting at this point
         {
             // Direct Lighting
-            prd.isect.newDir = sampleSun(params.sunDir, rng2(prd.seed));
+            prd.isect.newDir = sampleSun(rng2(prd.seed));
             optixTrace(params.rootHandle,
                 prd.isect.pos,
                 prd.isect.newDir,
@@ -218,7 +274,7 @@ extern "C" __global__ void __miss__radiance()
     if (d > 0.99f)
     {
         float hue = dot(params.sunDir, make_float3(0.f, 1.f, 0.f));
-        skyColor = make_float3(1.0f, 0.2f + 0.15f * hue, 0.1f * hue) * (10.0f - 50000.f * (1.f - d) * (1.f - d));
+        skyColor = make_float3(1.0f, 0.5f + 0.15f * hue, 0.3f + 0.1f * hue) * (3.f - 20000.f * (1.f - d) * (1.f - d));
         prd.foundLightSource = true;
     }
     else
@@ -227,12 +283,17 @@ extern "C" __global__ void __miss__radiance()
     }
 
     if (!prd.isectOnly) {
-        prd.pixelColor *= skyColor;
+        prd.pixelColor += skyColor * prd.rayColor;
         prd.isDone = true;
     }
 }
 
 extern "C" __global__ void __closesthit__radiance() {
+    PRD& prd = *getPRD<PRD>();
+    if (prd.isectOnly) {
+        return;
+    }
+
     const ChunkData& chunkData = getChunkData();
     Vertex v1, v2, v3;
     getVerts(chunkData, &v1, &v2, &v3);
@@ -244,22 +305,13 @@ extern "C" __global__ void __closesthit__radiance() {
     const float3 rayDir = optixGetWorldRayDirection();
     float3 isectPos = optixGetWorldRayOrigin() + rayDir * optixGetRayTmax();
 
-    PRD& prd = *getPRD<PRD>();
-
-    // MIS: sample light source
-
-    // 1. pdf from Sun & random point on sun
-    float pdf_sun = 1;
-    float2 xi = rng2(prd.seed);;
-
-    float3 random_d = calculateRandomDirectionInHemisphere(params.sunDir, xi) - xi.x * params.sunDir;
-
-
     float3 nor = normalize(bary.x * v1.nor + bary.y * v2.nor + bary.z * v3.nor);
     float3 newDir = calculateRandomDirectionInHemisphere(nor, rng2(prd.seed));
+
     // don't multiply by lambert term since it's canceled out by PDF for uniform hemisphere sampling
 
-    prd.pixelColor *= make_float3(diffuseCol);
+    prd.pixelColor *= prd.rayColor;
+    prd.rayColor *= make_float3(diffuseCol);
     prd.isect.pos = isectPos + nor * 0.001f;
     prd.isect.newDir = newDir;
 }
