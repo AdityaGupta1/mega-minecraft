@@ -249,11 +249,11 @@ void OptixRenderer::buildChunkAccel(const Chunk* chunkPtr)
     emitDesc.type = OPTIX_PROPERTY_TYPE_COMPACTED_SIZE;
     emitDesc.result = compactedSizeBuffer.dev_ptr();
 
-    CUBuffer tempBuffer;
-    tempBuffer.alloc(gasBufferSizes.tempSizeInBytes);
-
     CUBuffer outputBuffer;
     outputBuffer.alloc(gasBufferSizes.outputSizeInBytes);
+
+    CUBuffer tempBuffer;
+    tempBuffer.alloc(gasBufferSizes.tempSizeInBytes);
 
     OPTIX_CHECK(optixAccelBuild(optixContext,
         0, // stream
@@ -274,16 +274,13 @@ void OptixRenderer::buildChunkAccel(const Chunk* chunkPtr)
 
     cudaDeviceSynchronize();
 
-    // don't free these since they're used in hit group records (ChunkData)
-    //dev_vertices.free();
-    //dev_indices.free();
+    // don't free dev_vertices and dev_indices since they're used in hit group records (ChunkData)
     
     // optixAccelCompact
     uint64_t compactedSize;
     compactedSizeBuffer.retrieve(&compactedSize, 1);
 
     CUBuffer gasBuffer;
-
     gasBuffer.alloc(compactedSize);
     OPTIX_CHECK(optixAccelCompact(optixContext,
         0, // stream
@@ -293,8 +290,8 @@ void OptixRenderer::buildChunkAccel(const Chunk* chunkPtr)
         &gasHandle));
 
     // cleanup
-    outputBuffer.free();
     tempBuffer.free();
+    outputBuffer.free();
     compactedSizeBuffer.free();
 
     // to instance
