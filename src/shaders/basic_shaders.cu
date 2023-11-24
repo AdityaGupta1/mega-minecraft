@@ -154,36 +154,30 @@ extern "C" __global__ void __raygen__render() {
             if (!prd.isDone) {
                 // MIS: sample light source
                 // 2. pdf from Sun & random point on sun
-                float2 xi = rng2(prd.seed);;
+                float2 xi = rng2(prd.seed);
 
                 float3 random_d = sampleSun(xi);
 
                 // 3. test sun intersection
+                prd.foundLightSource = true;
 
-                prd.isectOnly = true;
-                float3 temp = prd.rayColor;
-                prd.rayColor = make_float3(1.f);
                 optixTrace(params.rootHandle,
-                    prd.isect.pos + random_d * 0.001f,
+                    prd.isect.pos,
                     random_d,
                     0.f,    // tmin
                     1e20f,  // tmax
                     0.0f,   // rayTime
                     OptixVisibilityMask(255),
                     OPTIX_RAY_FLAG_NONE,  // OPTIX_RAY_FLAG_NONE,
-                    0,  // SBT offset
+                    1,  // SBT offset
                     1,  // SBT stride
                     0,  // missSBTIndex
                     u0, u1);
-
-                prd.isectOnly = false;
 
                 // TODO: later, find pdf for each material, using default for now
                 float pdf_material = INV_PI * dot(random_d, prd.isect.newDir);
                 // heuristics uses next direction & sun direction pdfs
                 float3 col = powerHeuristics(1, 0.f, 1, pdf_material) * prd.rayColor;
-                prd.rayColor = temp;
-
 
                 if (prd.foundLightSource) {
                     col = powerHeuristics(1, 1.f, 1, pdf_material) * prd.rayColor;
@@ -274,7 +268,7 @@ extern "C" __global__ void __miss__radiance()
     if (d > 0.99f)
     {
         float hue = dot(params.sunDir, make_float3(0.f, 1.f, 0.f));
-        skyColor = make_float3(1.0f, 0.5f + 0.15f * hue, 0.3f + 0.1f * hue) * (3.f - 20000.f * (1.f - d) * (1.f - d));
+        skyColor = make_float3(1.0f, 0.25f + 0.08f * hue, 0.15f + 0.15f * hue) * (3.f - 20000.f * (1.f - d) * (1.f - d));
         prd.foundLightSource = true;
     }
     else
@@ -282,17 +276,12 @@ extern "C" __global__ void __miss__radiance()
         skyColor = make_float3(0.5f, 0.8f, 1.0f) * 0.2f;
     }
 
-    if (!prd.isectOnly) {
-        prd.pixelColor += skyColor * prd.rayColor;
-        prd.isDone = true;
-    }
+    prd.pixelColor += skyColor * prd.rayColor;
+    prd.isDone = true;
 }
 
 extern "C" __global__ void __closesthit__radiance() {
     PRD& prd = *getPRD<PRD>();
-    if (prd.isectOnly) {
-        return;
-    }
 
     const ChunkData& chunkData = getChunkData();
     Vertex v1, v2, v3;
@@ -310,7 +299,7 @@ extern "C" __global__ void __closesthit__radiance() {
 
     // don't multiply by lambert term since it's canceled out by PDF for uniform hemisphere sampling
 
-    prd.pixelColor *= prd.rayColor;
+    // prd.pixelColor *= prd.rayColor;
     prd.rayColor *= make_float3(diffuseCol);
     prd.isect.pos = isectPos + nor * 0.001f;
     prd.isect.newDir = newDir;
@@ -339,6 +328,11 @@ extern "C" __global__ void __anyhit__radiance()
     //        optixIgnoreIntersection();
     //    }
     //}
+}
+
+extern "C" __global__ void __closesthit__shadow() {
+    PRD& prd = *getPRD<PRD>();
+    prd.foundLightSource = false;
 }
 
 extern "C" __global__ void __exception__all()
