@@ -10,8 +10,10 @@
 #define SQRT_ONE_THIRD    0.57735026918962576450914878050f
 #define INV_PI            0.31830988618379067153776752674f
 
+#define DO_RUSSIAN_ROULETTE 1
+
 #define NUM_SAMPLES 2
-#define MAX_RAY_DEPTH 5
+#define MAX_RAY_DEPTH 4
 
 /*! launch parameters in constant memory, filled in by optix upon
       optixLaunch (this gets filled in from the buffer we pass to
@@ -104,7 +106,7 @@ __device__ float3 sampleSun(float2 sample)
 
     // TODO: so I cheesed this a bit for now but 0.01 should be max_r
 
-    return normal + sample.x * 0.01 * dir;
+    return normal + sample.x * 0.01f * dir;
 }
 
 extern "C" __global__ void __raygen__render() {
@@ -140,7 +142,7 @@ extern "C" __global__ void __raygen__render() {
         prd.isect.pos = camera.position;
         prd.isect.newDir = rayDir;
 
-        for (int depth = 0; depth < MAX_RAY_DEPTH && !prd.isDone; ++depth)
+        for (int depth = 0; depth < MAX_RAY_DEPTH; ++depth)
         {
             // 1. BSDF
 
@@ -157,42 +159,44 @@ extern "C" __global__ void __raygen__render() {
                 0,  // missSBTIndex
                 u0, u1);
 
-            if (!prd.isDone) {
-                // MIS: sample light source
-                // 2. pdf from Sun & random point on sun
-                float2 xi = rng2(prd.seed);
-
-                float3 random_d = sampleSun(xi);
-
-                // 3. test sun intersection
-                prd.foundLightSource = true;
-
-                optixTrace(params.rootHandle,
-                    prd.isect.pos,
-                    random_d,
-                    0.f,    // tmin
-                    1e20f,  // tmax
-                    0.0f,   // rayTime
-                    OptixVisibilityMask(255),
-                    OPTIX_RAY_FLAG_NONE,  // OPTIX_RAY_FLAG_NONE,
-                    1,  // SBT offset
-                    1,  // SBT stride
-                    0,  // missSBTIndex
-                    u0, u1);
-
-                // TODO: later, find pdf for each material, using default for now
-                // heuristics uses next direction & sun direction pdfs
-
-                if (prd.foundLightSource) {
-                    float pdf_material = INV_PI * dot(random_d, prd.isect.newDir);
-                    float3 col = powerHeuristics(1, 1.f, 1, pdf_material) * prd.rayColor;
-                    prd.foundLightSource = false;
-                    prd.pixelColor += col * prd.rayColor;
-                }
-                
+            if (prd.isDone)
+            {
+                break;
             }
 
-            // russian roulette
+            // MIS: sample light source
+            // 2. pdf from Sun & random point on sun
+            float2 xi = rng2(prd.seed);
+
+            float3 random_d = sampleSun(xi);
+
+            // 3. test sun intersection
+            prd.foundLightSource = true;
+
+            optixTrace(params.rootHandle,
+                prd.isect.pos,
+                random_d,
+                0.f,    // tmin
+                1e20f,  // tmax
+                0.0f,   // rayTime
+                OptixVisibilityMask(255),
+                OPTIX_RAY_FLAG_DISABLE_CLOSESTHIT,  // OPTIX_RAY_FLAG_NONE,
+                1,  // SBT offset
+                1,  // SBT stride
+                0,  // missSBTIndex
+                u0, u1);
+
+            // TODO: later, find pdf for each material, using default for now
+            // heuristics uses next direction & sun direction pdfs
+
+            if (prd.foundLightSource) {
+                float pdf_material = INV_PI * dot(random_d, prd.isect.newDir);
+                float3 col = powerHeuristics(1, 1.f, 1, pdf_material) * prd.rayColor;
+                prd.foundLightSource = false;
+                prd.pixelColor += col * prd.rayColor;
+            }
+
+#if DO_RUSSIAN_ROULETTE
             if (depth > 2)
             {
                 float q = fmax(0.05f, 1.f - luminance(prd.pixelColor));
@@ -204,6 +208,7 @@ extern "C" __global__ void __raygen__render() {
 
                 prd.pixelColor /= (1.f - q);
             }
+#endif
         }
 
         if (!prd.isDone) // reached max depth and didn't hit a light
@@ -314,12 +319,34 @@ extern "C" __global__ void __closesthit__radiance() {
 
     const float3 bary = getBarycentricCoords();
     float2 uv = bary.x * v1.uv + bary.y * v2.uv + bary.z * v3.uv;
+    float3 nor = normalize(bary.x * v1.nor + bary.y * v2.nor + bary.z * v3.nor); // TODO: figure out whether to use normal faceforwards (for transparency)
     float3 diffuseCol = make_float3(tex2D<float4>(chunkData.tex_diffuse, uv.x, uv.y));
 
+    const float3 rayOrigin = optixGetWorldRayOrigin();
     const float3 rayDir = optixGetWorldRayDirection();
-    float3 isectPos = optixGetWorldRayOrigin() + rayDir * optixGetRayTmax();
+    const float3 isectPos = rayOrigin + rayDir * optixGetRayTmax();
 
-    float3 nor = normalize(bary.x * v1.nor + bary.y * v2.nor + bary.z * v3.nor);
+    if (diffuseCol.x == 0.f && diffuseCol.y == 0.f && diffuseCol.z == 0.f)
+    {
+        float4 emissiveTexCol = tex2D<float4>(chunkData.tex_emissive, uv.x, uv.y);
+        if (emissiveTexCol.w > 0.f)
+        {
+            float3 emissiveCol = make_float3(emissiveTexCol) * 3.f;
+
+            prd.pixelColor += prd.rayColor * emissiveCol;
+
+            if (prd.needsFirstHitData)
+            {
+                prd.needsFirstHitData = false;
+                prd.pixelAlbedo = emissiveCol;
+                prd.pixelNormal = nor;
+            }
+
+            prd.isDone = true;
+            return;
+        }
+    }
+
     float3 newDir = calculateRandomDirectionInHemisphere(nor, rng2(prd.seed));
 
     // don't multiply by lambert term since it's canceled out by PDF for uniform hemisphere sampling
@@ -336,7 +363,9 @@ extern "C" __global__ void __closesthit__radiance() {
     }
 }
 
-extern "C" __global__ void __anyhit__radiance()
+// returns true if ray should continue
+// also multiplies ray color for semi-transparent objects
+static __device__ bool anyhitAlphaTest()
 {
     const ChunkData& chunkData = getChunkData();
     Vertex v1, v2, v3;
@@ -346,28 +375,47 @@ extern "C" __global__ void __anyhit__radiance()
     float2 uv = bary.x * v1.uv + bary.y * v2.uv + bary.z * v3.uv;
     float4 diffuseCol = tex2D<float4>(chunkData.tex_diffuse, uv.x, uv.y);
 
-    if (diffuseCol.w == 0.f)
+    const float alpha = diffuseCol.w;
+
+    if (alpha > 0.9999f)
+    {
+        return false;
+    }
+
+    if (alpha == 0.f)
+    {
+        return true;
+    }
+    else
+    {
+        PRD& prd = *getPRD<PRD>();
+        if (rng(prd.seed) >= alpha)
+        {
+            return false;
+        }
+        else
+        {
+            prd.rayColor *= make_float3(diffuseCol);
+            return true;
+        }
+    }
+}
+
+extern "C" __global__ void __anyhit__radiance()
+{
+    if (anyhitAlphaTest())
     {
         optixIgnoreIntersection();
     }
-    // TODO: figure out whether to use normal faceforwards before re-enabling this
-    //else
-    //{
-    //    PRD& prd = *getPRD<PRD>();
-    //    if (rng(prd.seed) >= diffuseCol.w)
-    //    {
-    //        optixIgnoreIntersection();
-    //    }
-    //}
-}
-
-extern "C" __global__ void __closesthit__shadow()
-{
-    // do nothing
 }
 
 extern "C" __global__ void __anyhit__shadow()
 {
+    if (anyhitAlphaTest())
+    {
+        return;
+    }
+
     PRD& prd = *getPRD<PRD>();
     prd.foundLightSource = false;
     optixTerminateRay();

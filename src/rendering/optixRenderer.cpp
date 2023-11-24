@@ -10,7 +10,7 @@
 #include <optix_function_table_definition.h>
 #include <cuda_gl_interop.h>
 
-#define USE_DENOISING 1
+#define USE_DENOISING 0
 
 constexpr int numRayTypes = 2;
 
@@ -95,76 +95,76 @@ void OptixRenderer::createContext()
 #endif
 }
 
-void OptixRenderer::createTextures()
+void OptixRenderer::loadTexture(const std::string& path, int textureId)
 {
-    // in case we ever get more textures for who knows what
-    int numTextures = 1;
-
-    texArrays.resize(numTextures);
-    texObjects.resize(numTextures);
-
-    stbi_set_flip_vertically_on_load(true);
-
     int width, height, channels;
-    unsigned char* data = stbi_load("textures/blocks_diffuse.png", &width, &height, &channels, 0);
+    unsigned char* host_data = stbi_load(path.c_str(), &width, &height, &channels, 0);
 
     for (int i = 0; i < width * height; ++i)
     {
         for (int j = 0; j < 3; ++j)
         {
-            auto& col = data[i * 4 + j];
+            auto& col = host_data[i * 4 + j];
             col = (unsigned char)(pow(col / 255.f, 2.2f) * 255.f);
         }
     }
-    Texture t = {};
-    t.host_buffer = data;
-    t.width = width;
-    t.height = height;
-    t.channels = channels;
-    textures.push_back(t);
 
-    for (int textureID = 0; textureID < numTextures; textureID++) {
-        const auto& texture = textures[textureID];
+    cudaChannelFormatDesc channel_desc = cudaCreateChannelDesc<uchar4>();
+    int pitch = width * channels * sizeof(uint8_t);
 
-        cudaChannelFormatDesc channel_desc = cudaCreateChannelDesc<uchar4>();
-        int32_t width = texture.width;
-        int32_t height = texture.height;
-        int32_t channels = texture.channels;
-        int32_t pitch = width * channels * sizeof(uint8_t);
+    cudaArray_t& pixelArray = texArrays[textureId];
+    CUDA_CHECK(cudaMallocArray(
+        &pixelArray,
+        &channel_desc,
+        width, 
+        height
+    ));
 
-        cudaArray_t& pixelArray = texArrays[textureID];
-        CUDA_CHECK(cudaMallocArray(&pixelArray,
-            &channel_desc,
-            width, height));
+    CUDA_CHECK(cudaMemcpy2DToArray(pixelArray,
+        0, // wOffset 
+        0, // hOffset
+        host_data,
+        pitch, 
+        pitch, 
+        height,
+        cudaMemcpyHostToDevice
+    ));
 
-        CUDA_CHECK(cudaMemcpy2DToArray(pixelArray,
-            /* offset */0, 0,
-            texture.host_buffer,
-            pitch, pitch, height,
-            cudaMemcpyHostToDevice));
+    stbi_image_free(host_data);
 
-        cudaResourceDesc res_desc = {};
-        res_desc.resType = cudaResourceTypeArray;
-        res_desc.res.array.array = pixelArray;
+    cudaResourceDesc res_desc = {};
+    res_desc.resType = cudaResourceTypeArray;
+    res_desc.res.array.array = pixelArray;
 
-        cudaTextureDesc tex_desc = {};
-        tex_desc.addressMode[0] = cudaAddressModeWrap;
-        tex_desc.addressMode[1] = cudaAddressModeWrap;
-        tex_desc.filterMode = cudaFilterModePoint;
-        tex_desc.readMode = cudaReadModeNormalizedFloat;
-        tex_desc.normalizedCoords = 1;
-        tex_desc.maxAnisotropy = 1;
-        tex_desc.maxMipmapLevelClamp = 99;
-        tex_desc.minMipmapLevelClamp = 0;
-        tex_desc.mipmapFilterMode = cudaFilterModePoint;
-        tex_desc.borderColor[0] = 1.0f;
-        tex_desc.sRGB = 0;
+    cudaTextureDesc tex_desc = {};
+    tex_desc.addressMode[0] = cudaAddressModeWrap;
+    tex_desc.addressMode[1] = cudaAddressModeWrap;
+    tex_desc.filterMode = cudaFilterModePoint;
+    tex_desc.readMode = cudaReadModeNormalizedFloat;
+    tex_desc.normalizedCoords = 1;
+    tex_desc.maxAnisotropy = 1;
+    tex_desc.maxMipmapLevelClamp = 99;
+    tex_desc.minMipmapLevelClamp = 0;
+    tex_desc.mipmapFilterMode = cudaFilterModePoint;
+    tex_desc.borderColor[0] = 1.0f;
+    tex_desc.sRGB = 0;
 
-        // Create texture object
-        cudaTextureObject_t cuda_tex = 0;
-        CUDA_CHECK(cudaCreateTextureObject(&cuda_tex, &res_desc, &tex_desc, nullptr));
-        texObjects[textureID] = cuda_tex;
-    }
+    // Create texture object
+    cudaTextureObject_t cuda_tex;
+    CUDA_CHECK(cudaCreateTextureObject(&cuda_tex, &res_desc, &tex_desc, nullptr));
+    texObjects[textureId] = cuda_tex;
+}
+
+void OptixRenderer::createTextures()
+{
+    int numTextures = 2;
+    texArrays.resize(numTextures);
+    texObjects.resize(numTextures);
+
+    stbi_set_flip_vertically_on_load(true);
+
+    loadTexture("textures/blocks_diffuse.png", 0);
+    loadTexture("textures/blocks_emissive.png", 1);
 }
 
 void OptixRenderer::buildChunkAccel(const Chunk* chunkPtr)
@@ -196,7 +196,8 @@ void OptixRenderer::buildChunkAccel(const Chunk* chunkPtr)
     const ChunkData chunkData = {
         (Vertex*)d_vertices,
         (uvec3*)d_indices,
-        texObjects[0]
+        texObjects[0],
+        texObjects[1]
     };
 
     for (int i = 0; i < hitProgramGroups.size(); i++)
@@ -363,7 +364,7 @@ void OptixRenderer::destroyChunk(const Chunk* chunkPtr)
     chunkIdsQueue.push(chunkId);
 }
 
-static constexpr float fovNormal = glm::radians(52.f);
+static constexpr float fovNormal = glm::radians(47.f);
 static constexpr float fovZoomed = glm::radians(20.f);
 
 void OptixRenderer::setZoomed(bool zoomed)
@@ -524,7 +525,7 @@ void OptixRenderer::createProgramGroups()
         &hitProgramGroups[0]
     ));
 
-    hitDesc.hitgroup.entryFunctionNameCH = "__closesthit__shadow";
+    // no closest hit shader
     hitDesc.hitgroup.entryFunctionNameAH = "__anyhit__shadow";
     OPTIX_CHECK(optixProgramGroupCreate(optixContext,
         &hitDesc,

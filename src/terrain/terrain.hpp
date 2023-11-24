@@ -39,6 +39,7 @@ struct Zone
 
 static constexpr int devBlocksSize = 16 * 384 * 16;
 static constexpr int devFeaturePlacementsSize = MAX_GATHERED_FEATURES_PER_CHUNK;
+static constexpr int devCaveFeaturePlacementsSize = MAX_GATHERED_CAVE_FEATURES_PER_CHUNK;
 
 static constexpr int devHeightfieldSize = 18 * 18;
 static constexpr int devBiomeWeightsSize = 256 * numBiomes;

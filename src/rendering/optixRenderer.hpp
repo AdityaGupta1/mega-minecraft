@@ -62,7 +62,6 @@ protected:
     std::vector<OptixModule>    modules;
     OptixModuleCompileOptions   moduleCompileOptions = {};
 
-    std::vector<Texture> textures;
     std::vector<cudaArray_t> texArrays;
     std::vector<cudaTextureObject_t> texObjects;
 
@@ -113,6 +112,8 @@ protected:
     glm::mat3 sunRotateMat{};
 
     void createContext();
+
+    void loadTexture(const std::string& path, int textureId);
     void createTextures();
 
 public:

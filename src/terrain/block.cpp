@@ -80,6 +80,8 @@ void BlockUtils::init()
     blockDatas[(int)Block::REDWOOD_LEAVES] = { BlockUvs(ivec2(12, 4)), TransparencyType::T_SEMI_TRANSPARENT };
     blockDatas[(int)Block::CYPRESS_WOOD] = { BlockUvs(ivec2(13, 4)) };
     blockDatas[(int)Block::CYPRESS_LEAVES] = { BlockUvs(ivec2(15, 4)), TransparencyType::T_SEMI_TRANSPARENT };
+    blockDatas[(int)Block::GLOWSTONE] = { BlockUvs(ivec2(1, 5)) };
+    blockDatas[(int)Block::SHROOMLIGHT] = { BlockUvs(ivec2(2, 5)) };
 }
 
 BlockData BlockUtils::getBlockData(Block block)
