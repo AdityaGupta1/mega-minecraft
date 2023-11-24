@@ -997,11 +997,21 @@ void Chunk::generateColumnFeaturePlacements(int localX, int localZ)
         if (localX == 0 && localZ == 0)
         {
             this->caveFeaturePlacements.push_back({
-                CaveFeature::TEST_PILLAR,
+                CaveFeature::TEST_GLOWSTONE_PILLAR,
                 featurePos,
                 layerHeight,
                 false
             });
+        }
+
+        if (localX == 8 && localZ == 8)
+        {
+            this->caveFeaturePlacements.push_back({
+                CaveFeature::TEST_SHROOMLIGHT_PILLAR,
+                featurePos,
+                layerHeight,
+                false
+                });
         }
 
         if (groundHeight > caveLayer.start && groundHeight <= caveLayer.end)

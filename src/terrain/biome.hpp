@@ -143,7 +143,8 @@ static constexpr int numFeatures = (int)Feature::CACTUS + 1;
 enum class CaveFeature : unsigned char
 {
     NONE,
-    TEST_PILLAR,
+    TEST_GLOWSTONE_PILLAR,
+    TEST_SHROOMLIGHT_PILLAR,
 
     STONE_PILLAR
 };

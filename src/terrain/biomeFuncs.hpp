@@ -826,8 +826,8 @@ void BiomeUtils::init()
 #define setCaveFeatureHeightBounds(caveFeature, paddingBottom, paddingTop) host_caveFeatureHeightBounds[(int)CaveFeature::caveFeature] = ivec2(paddingBottom, paddingTop)
 
     setCaveFeatureHeightBounds(NONE, 0, 0);
-
-    setCaveFeatureHeightBounds(TEST_PILLAR, -3, 3);
+    setCaveFeatureHeightBounds(TEST_GLOWSTONE_PILLAR, -3, 3);
+    setCaveFeatureHeightBounds(TEST_SHROOMLIGHT_PILLAR, -3, 3);
 
     setCaveFeatureHeightBounds(STONE_PILLAR, -3, 3); // TODO: revisit
 

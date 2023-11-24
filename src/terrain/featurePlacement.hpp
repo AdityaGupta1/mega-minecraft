@@ -970,11 +970,21 @@ __device__ bool placeCaveFeature(CaveFeaturePlacement caveFeaturePlacement, ivec
     {
         return false;
     }
-    case CaveFeature::TEST_PILLAR:
+    case CaveFeature::TEST_GLOWSTONE_PILLAR:
     {
         if (floorPos.x == 0 && floorPos.z == 0 && isInRange(floorPos.y, 0, height))
         {
             *block = Block::GLOWSTONE;
+            return true;
+        }
+
+        return false;
+    }
+    case CaveFeature::TEST_SHROOMLIGHT_PILLAR:
+    {
+        if (floorPos.x == 0 && floorPos.z == 0 && isInRange(floorPos.y, 0, height))
+        {
+            *block = Block::SHROOMLIGHT;
             return true;
         }
 
