@@ -60,12 +60,15 @@ struct PRD {
     bool isDone;
     bool needsFirstHitData;
 
+    bool foundLightSource;
+
     struct
     {
         float3 pos;
         float3 newDir;
     } isect;
 
+    float3  rayColor;
     float3  pixelColor;
     float3  pixelAlbedo;
     float3  pixelNormal;

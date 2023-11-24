@@ -12,7 +12,7 @@
 
 #define USE_DENOISING 1
 
-constexpr int numRayTypes = 1;
+constexpr int numRayTypes = 2;
 
 OptixRenderer::OptixRenderer(GLFWwindow* window, ivec2* windowSize, Terrain* terrain, Player* player) 
     : window(window), windowSize(windowSize), terrain(terrain), player(player), vao(-1), pbo(-1), tex_pixels(-1)
@@ -304,7 +304,7 @@ void OptixRenderer::buildChunkAccel(const Chunk* chunkPtr)
     memcpy(gasInstance.transform, transform, sizeof(float) * 12);
     gasInstance.instanceId = chunkId; // this is NOT the SBT geometry-AS index - that would be if one GAS had multiple build inputs
     gasInstance.visibilityMask = 255;
-    gasInstance.sbtOffset = chunkId; // I_offset (TODO: multiply by number of ray types)
+    gasInstance.sbtOffset = chunkId * numRayTypes; // I_offset (TODO: multiply by number of ray types)
     gasInstance.flags = OPTIX_INSTANCE_FLAG_NONE;
     gasInstance.traversableHandle = gasHandle;
 
@@ -470,7 +470,7 @@ void OptixRenderer::createProgramGroups()
     // change depending on # materials
     raygenProgramGroups.resize(1);
     missProgramGroups.resize(1);
-    hitProgramGroups.resize(1);
+    hitProgramGroups.resize(2);
     exceptionProgramGroups.resize(1);
      
     // Ray Gen
@@ -522,6 +522,16 @@ void OptixRenderer::createProgramGroups()
         &pgOptions,
         log, &sizeof_log,
         &hitProgramGroups[0]
+    ));
+
+    hitDesc.hitgroup.entryFunctionNameCH = "__closesthit__shadow";
+    hitDesc.hitgroup.entryFunctionNameAH = "__anyhit__shadow";
+    OPTIX_CHECK(optixProgramGroupCreate(optixContext,
+        &hitDesc,
+        1,
+        &pgOptions,
+        log, &sizeof_log,
+        &hitProgramGroups[1]
     ));
 
     if (sizeof_log > 1) std::cout << "Hit PG: " << log << std::endl;
