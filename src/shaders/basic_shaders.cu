@@ -10,8 +10,8 @@
 #define SQRT_ONE_THIRD    0.57735026918962576450914878050f
 #define INV_PI            0.31830988618379067153776752674f
 
-#define NUM_SAMPLES 4
-#define MAX_RAY_DEPTH 2
+#define NUM_SAMPLES 2
+#define MAX_RAY_DEPTH 5
 
 /*! launch parameters in constant memory, filled in by optix upon
       optixLaunch (this gets filled in from the buffer we pass to
@@ -329,7 +329,13 @@ extern "C" __global__ void __anyhit__radiance()
     //}
 }
 
-extern "C" __global__ void __anyhit__shadow() {
+extern "C" __global__ void __closesthit__shadow()
+{
+    // do nothing
+}
+
+extern "C" __global__ void __anyhit__shadow()
+{
     PRD& prd = *getPRD<PRD>();
     prd.foundLightSource = false;
     optixTerminateRay();

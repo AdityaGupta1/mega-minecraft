@@ -494,6 +494,7 @@ void OptixRenderer::createProgramGroups()
         &hitProgramGroups[0]
     ));
 
+    hitDesc.hitgroup.entryFunctionNameCH = "__closesthit__shadow";
     hitDesc.hitgroup.entryFunctionNameAH = "__anyhit__shadow";
     OPTIX_CHECK(optixProgramGroupCreate(optixContext,
         &hitDesc,
