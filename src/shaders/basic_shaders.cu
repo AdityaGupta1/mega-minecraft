@@ -175,12 +175,11 @@ extern "C" __global__ void __raygen__render() {
                     u0, u1);
 
                 // TODO: later, find pdf for each material, using default for now
-                float pdf_material = INV_PI * dot(random_d, prd.isect.newDir);
                 // heuristics uses next direction & sun direction pdfs
-                float3 col = powerHeuristics(1, 0.f, 1, pdf_material) * prd.rayColor;
 
                 if (prd.foundLightSource) {
-                    col = powerHeuristics(1, 1.f, 1, pdf_material) * prd.rayColor;
+                    float pdf_material = INV_PI * dot(random_d, prd.isect.newDir);
+                    float3 col = powerHeuristics(1, 1.f, 1, pdf_material) * prd.rayColor;
                     prd.foundLightSource = false;
                     prd.pixelColor += col * prd.rayColor;
                 }
@@ -268,7 +267,7 @@ extern "C" __global__ void __miss__radiance()
     if (d > 0.99f)
     {
         float hue = dot(params.sunDir, make_float3(0.f, 1.f, 0.f));
-        skyColor = make_float3(1.0f, 0.25f + 0.08f * hue, 0.15f + 0.15f * hue) * (3.f - 20000.f * (1.f - d) * (1.f - d));
+        skyColor = make_float3(1.0f, 0.6f + 0.2f * hue, 0.4f + 0.2f * hue) * (1.f - 5000.f * (1.f - d) * (1.f - d));
         prd.foundLightSource = true;
     }
     else
@@ -330,9 +329,10 @@ extern "C" __global__ void __anyhit__radiance()
     //}
 }
 
-extern "C" __global__ void __closesthit__shadow() {
+extern "C" __global__ void __anyhit__shadow() {
     PRD& prd = *getPRD<PRD>();
     prd.foundLightSource = false;
+    optixTerminateRay();
 }
 
 extern "C" __global__ void __exception__all()
