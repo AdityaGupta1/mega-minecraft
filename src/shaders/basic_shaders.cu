@@ -9,10 +9,10 @@
 #define SQRT_2            1.41421356237309504880168872420f
 #define SQRT_ONE_THIRD    0.57735026918962576450914878050f
 
+#define DO_RUSSIAN_ROULETTE 1
+
 #define NUM_SAMPLES 2
 #define MAX_RAY_DEPTH 5
-
-#define DO_RUSSIAN_ROULETTE 1
 
 /*! launch parameters in constant memory, filled in by optix upon
       optixLaunch (this gets filled in from the buffer we pass to

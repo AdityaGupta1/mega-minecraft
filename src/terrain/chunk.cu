@@ -958,103 +958,126 @@ __host__ void Chunk::generateCaves(
 #pragma region feature placements
 
 // TODO: maybe revisit and try to optimize this by calculating thicknesses in a separate pass with better memory access patterns
+void Chunk::generateColumnFeaturePlacements(int localX, int localZ)
+{
+    const int idx2d = posTo2dIndex(localX, localZ);
+
+    const auto& columnBiomeWeights = biomeWeights.data() + idx2d;
+
+    const float height = heightfield[idx2d];
+    int groundHeight = (int)height;
+    const ivec3 worldBlockPos = this->worldBlockPos + ivec3(localX, groundHeight + 1, localZ);
+
+    const ivec2 localPos2d = ivec2(localX, localZ);
+    const ivec2 worldPos2d = localPos2d + ivec2(this->worldBlockPos.x, this->worldBlockPos.z);
+
+    auto blockRng = makeSeededRandomEngine(worldBlockPos.x, worldBlockPos.y, worldBlockPos.z, 7); // arbitrary w so this rng is different than heightfield rng
+    thrust::uniform_real_distribution<float> u01(0, 1);
+
+    bool surfaceIsCave = false;
+    const auto columnCaveLayers = this->caveLayers.data() + (idx2d * MAX_CAVE_LAYERS_PER_COLUMN);
+    for (int caveLayerIdx = 0; caveLayerIdx < MAX_CAVE_LAYERS_PER_COLUMN; ++caveLayerIdx)
+    {
+        const auto& caveLayer = columnCaveLayers[caveLayerIdx];
+
+        if (caveLayer.start == 384)
+        {
+            break;
+        }
+
+        if (groundHeight <= caveLayer.start)
+        {
+            break;
+        }
+
+        ivec3 featurePos = ivec3(worldPos2d.x, caveLayer.start + 1, worldPos2d.y);
+        int layerHeight = caveLayer.end - caveLayer.start;
+
+        // TODO: try generate cave feature placements
+        if (localX == 0 && localZ == 0)
+        {
+            this->caveFeaturePlacements.push_back({
+                CaveFeature::TEST_PILLAR,
+                featurePos,
+                layerHeight,
+                false
+            });
+        }
+
+        if (groundHeight > caveLayer.start && groundHeight <= caveLayer.end)
+        {
+            surfaceIsCave = true;
+            break;
+        }
+    }
+
+    // generate surface features
+    if (!surfaceIsCave)
+    {
+        Biome biome = getRandomBiome<256>(columnBiomeWeights, u01(blockRng));
+        const auto& featureGens = host_biomeFeatureGens[(int)biome];
+
+        const float* columnLayers = this->layers.data() + idx2d;
+
+        Feature feature = Feature::NONE;
+        bool canReplaceBlocks = true;
+        for (int i = 0; i < featureGens.size(); ++i)
+        {
+            const auto& featureGen = featureGens[i];
+
+            if (!featureGen.possibleTopLayers.empty())
+            {
+                bool canPlace = false;
+                for (const auto& possibleTopLayer : featureGen.possibleTopLayers)
+                {
+                    int layerIdx = (int)possibleTopLayer.material;
+                    float layerStart = columnLayers[256 * layerIdx];
+                    float layerEnd = columnLayers[256 * (layerIdx + 1)];
+
+                    if (layerStart > height || layerEnd < height || min(layerEnd, height) - layerStart < possibleTopLayer.minThickness)
+                    {
+                        continue;
+                    }
+
+                    canPlace = true;
+                    break;
+                }
+
+                if (!canPlace)
+                {
+                    continue;
+                }
+            }
+
+            const ivec2 gridCornerWorldPos = ivec2(floor(vec2(worldPos2d) / (float)featureGen.gridCellSize) * (float)featureGen.gridCellSize);
+            const int gridCellInternalSideLength = featureGen.gridCellSize - (2 * featureGen.gridCellPadding);
+            vec2 randPos = rand2From3(vec3(gridCornerWorldPos, (int)featureGen.feature * 59321));
+            const ivec2 gridPlaceWorldPos = gridCornerWorldPos + ivec2(featureGen.gridCellPadding)
+                + ivec2(floor(randPos * (float)gridCellInternalSideLength));
+            const ivec2 gridPlaceLocalPos = gridPlaceWorldPos - ivec2(this->worldBlockPos.x, this->worldBlockPos.z);
+
+            if (localPos2d == gridPlaceLocalPos && u01(blockRng) < featureGen.chancePerGridCell)
+            {
+                feature = featureGen.feature;
+                canReplaceBlocks = featureGen.canReplaceBlocks;
+                break;
+            }
+        }
+
+        if (feature != Feature::NONE)
+        {
+            this->featurePlacements.push_back({ feature, worldBlockPos, canReplaceBlocks });
+        }
+    }
+}
+
 void Chunk::generateFeaturePlacements()
 {
     for (int localZ = 0; localZ < 16; ++localZ)
     {
         for (int localX = 0; localX < 16; ++localX)
         {
-            const int idx2d = posTo2dIndex(localX, localZ);
-
-            const auto& columnBiomeWeights = biomeWeights.data() + idx2d;
-
-            const float height = heightfield[idx2d];
-            int groundHeight = (int)height;
-            const ivec3 worldBlockPos = this->worldBlockPos + ivec3(localX, groundHeight + 1, localZ);
-
-            bool isCave = false;
-            const auto columnCaveLayers = this->caveLayers.data() + (idx2d * MAX_CAVE_LAYERS_PER_COLUMN);
-            for (int caveLayerIdx = 0; caveLayerIdx < MAX_CAVE_LAYERS_PER_COLUMN; ++caveLayerIdx)
-            {
-                const auto& caveLayer = columnCaveLayers[caveLayerIdx];
-
-                if (caveLayer.start == 384)
-                {
-                    break;
-                }
-
-                if (groundHeight > caveLayer.start && groundHeight <= caveLayer.end)
-                {
-                    isCave = true;
-                    break;
-                }
-            }
-
-            if (isCave)
-            {
-                continue;
-            }
-
-            auto blockRng = makeSeededRandomEngine(worldBlockPos.x, worldBlockPos.y, worldBlockPos.z, 7); // arbitrary w so this rng is different than heightfield rng
-            thrust::uniform_real_distribution<float> u01(0, 1);
-
-            Biome biome = getRandomBiome<256>(columnBiomeWeights, u01(blockRng));
-            const auto& featureGens = host_biomeFeatureGens[(int)biome];
-
-            const float* columnLayers = this->layers.data() + idx2d;
-
-            const ivec2 localPos2d = ivec2(localX, localZ);
-            const ivec2 worldPos2d = localPos2d + ivec2(this->worldBlockPos.x, this->worldBlockPos.z);
-
-            Feature feature = Feature::NONE;
-            bool canReplaceBlocks = true;
-            for (int i = 0; i < featureGens.size(); ++i)
-            {
-                const auto& featureGen = featureGens[i];
-
-                if (!featureGen.possibleTopLayers.empty())
-                {
-                    bool canPlace = false;
-                    for (const auto& possibleTopLayer : featureGen.possibleTopLayers)
-                    {
-                        int layerIdx = (int)possibleTopLayer.material;
-                        float layerStart = columnLayers[256 * layerIdx];
-                        float layerEnd = columnLayers[256 * (layerIdx + 1)];
-
-                        if (layerStart > height || layerEnd < height || min(layerEnd, height) - layerStart < possibleTopLayer.minThickness)
-                        {
-                            continue;
-                        }
-
-                        canPlace = true;
-                        break;
-                    }
-
-                    if (!canPlace)
-                    {
-                        continue;
-                    }
-                }
-
-                const ivec2 gridCornerWorldPos = ivec2(floor(vec2(worldPos2d) / (float)featureGen.gridCellSize) * (float)featureGen.gridCellSize);
-                const int gridCellInternalSideLength = featureGen.gridCellSize - (2 * featureGen.gridCellPadding);
-                vec2 randPos = rand2From3(vec3(gridCornerWorldPos, (int)featureGen.feature * 59321));
-                const ivec2 gridPlaceWorldPos = gridCornerWorldPos + ivec2(featureGen.gridCellPadding)
-                    + ivec2(floor(randPos * (float)gridCellInternalSideLength));
-                const ivec2 gridPlaceLocalPos = gridPlaceWorldPos - ivec2(this->worldBlockPos.x, this->worldBlockPos.z);
-
-                if (localPos2d == gridPlaceLocalPos && u01(blockRng) < featureGen.chancePerGridCell)
-                {
-                    feature = featureGen.feature;
-                    canReplaceBlocks = featureGen.canReplaceBlocks;
-                    break;
-                }
-            }
-
-            if (feature != Feature::NONE)
-            {
-                this->featurePlacements.push_back({ feature, worldBlockPos, canReplaceBlocks });
-            }
+            generateColumnFeaturePlacements(localX, localZ);
         }
     }
 
@@ -1079,6 +1102,11 @@ void Chunk::otherChunkGatherFeaturePlacements(Chunk* chunkPtr, Chunk* const (&ne
         for (const auto& neighborFeaturePlacement : neighborPtr->featurePlacements)
         {
             chunkPtr->gatheredFeaturePlacements.push_back(neighborFeaturePlacement);
+        }
+        
+        for (const auto& neighborCaveFeaturePlacement : neighborPtr->caveFeaturePlacements)
+        {
+            chunkPtr->gatheredCaveFeaturePlacements.push_back(neighborCaveFeaturePlacement);
         }
     }
 }
@@ -1154,7 +1182,7 @@ __device__ void chunkFillPlaceBlock(
             break;
         }
 
-        if (y >= caveLayer.start && y < caveLayer.end)
+        if (y > caveLayer.start && y <= caveLayer.end)
         {
             *blockPtr = (y <= LAVA_LEVEL) ? Block::LAVA : Block::AIR;
             return;
@@ -1257,6 +1285,8 @@ __global__ void kernFill(
     CaveLayer* caveLayers,
     FeaturePlacement* featurePlacements,
     ivec2 allFeaturesHeightBounds,
+    CaveFeaturePlacement* caveFeaturePlacements,
+    ivec2 allCaveFeaturesHeightBounds,
     ivec3 chunkWorldBlockPos)
 {
     __shared__ float shared_biomeWeights[numBiomes];
@@ -1305,7 +1335,10 @@ __global__ void kernFill(
     Block block;
     chunkFillPlaceBlock(&block, shared_biomeWeights, shared_layersAndHeight, shared_caveLayers, y, height, worldBlockPos, rng);
 
-    if (y < allFeaturesHeightBounds[0] || y > allFeaturesHeightBounds[1])
+    bool isInFeatureBounds = y >= allFeaturesHeightBounds[0] && y <= allFeaturesHeightBounds[1];
+    bool isInCaveFeatureBounds = y >= allCaveFeaturesHeightBounds[0] && y <= allCaveFeaturesHeightBounds[1];
+
+    if (!isInFeatureBounds && !isInCaveFeatureBounds)
     {
         blocks[idx] = block;
         return;
@@ -1313,30 +1346,64 @@ __global__ void kernFill(
 
     Block featureBlock;
     bool placedFeature = false;
-    for (int featureIdx = 0; featureIdx < MAX_GATHERED_FEATURES_PER_CHUNK; ++featureIdx)
+    if (isInFeatureBounds)
     {
-        const auto& featurePlacement = featurePlacements[featureIdx];
-
-        if (featurePlacement.pos.y == -1)
+        for (int featureIdx = 0; featureIdx < MAX_GATHERED_FEATURES_PER_CHUNK; ++featureIdx)
         {
-            break;
+            const auto& featurePlacement = featurePlacements[featureIdx];
+
+            if (featurePlacement.feature == Feature::NONE)
+            {
+                break;
+            }
+
+            if (block != Block::AIR && !featurePlacement.canReplaceBlocks)
+            {
+                continue;
+            }
+
+            ivec2 featureHeightBounds = dev_featureHeightBounds[(int)featurePlacement.feature] + ivec2(featurePlacement.pos.y);
+            if (y < featureHeightBounds[0] || y > featureHeightBounds[1])
+            {
+                continue;
+            }
+
+            if (placeFeature(featurePlacement, worldBlockPos, &featureBlock))
+            {
+                placedFeature = true;
+                break;
+            }
         }
+    }
 
-        if (block != Block::AIR && !featurePlacement.canReplaceBlocks)
+    if (isInCaveFeatureBounds && !placedFeature)
+    {
+        for (int caveFeatureIdx = 0; caveFeatureIdx < MAX_GATHERED_CAVE_FEATURES_PER_CHUNK; ++caveFeatureIdx)
         {
-            continue;
-        }
+            const auto& caveFeaturePlacement = caveFeaturePlacements[caveFeatureIdx];
 
-        ivec2 featureHeightBounds = dev_featureHeightBounds[(int)featurePlacement.feature] + ivec2(featurePlacement.pos.y);
-        if (y < featureHeightBounds[0] || y > featureHeightBounds[1])
-        {
-            continue;
-        }
+            if (caveFeaturePlacement.feature == CaveFeature::NONE)
+            {
+                break;
+            }
 
-        if (placeFeature(featurePlacement, worldBlockPos, &featureBlock))
-        {
-            placedFeature = true;
-            break;
+            if (block != Block::AIR && !caveFeaturePlacement.canReplaceBlocks)
+            {
+                continue;
+            }
+
+            const int featureY = caveFeaturePlacement.pos.y;
+            ivec2 caveFeatureHeightBounds = ivec2(featureY, featureY + caveFeaturePlacement.height) + dev_caveFeatureHeightBounds[(int)caveFeaturePlacement.feature];
+            if (y < caveFeatureHeightBounds[0] || y > caveFeatureHeightBounds[1])
+            {
+                continue;
+            }
+
+            if (placeCaveFeature(caveFeaturePlacement, worldBlockPos, &featureBlock))
+            {
+                placedFeature = true;
+                break;
+            }
         }
     }
 
@@ -1346,6 +1413,12 @@ __global__ void kernFill(
     }
 
     blocks[idx] = block;
+}
+
+void heightBoundsMinMax(ivec2& in, const ivec2& v)
+{
+    in[0] = min(in[0], v[0]);
+    in[1] = max(in[1], v[1]);
 }
 
 void Chunk::fill(
@@ -1359,6 +1432,7 @@ void Chunk::fill(
     CaveLayer* host_caveLayers,
     CaveLayer* dev_caveLayers,
     FeaturePlacement* dev_featurePlacements,
+    CaveFeaturePlacement* dev_caveFeaturePlacements,
     Block* host_blocks,
     Block* dev_blocks,
     cudaStream_t stream)
@@ -1389,18 +1463,48 @@ void Chunk::fill(
         {
             const auto& featureHeightBounds = host_featureHeightBounds[(int)featurePlacement.feature];
             const ivec2 thisFeatureHeightBounds = ivec2(featurePlacement.pos.y) + featureHeightBounds;
-            allFeaturesHeightBounds[0] = min(allFeaturesHeightBounds[0], thisFeatureHeightBounds[0]);
-            allFeaturesHeightBounds[1] = max(allFeaturesHeightBounds[1], thisFeatureHeightBounds[1]);
+            heightBoundsMinMax(allFeaturesHeightBounds, thisFeatureHeightBounds);
         }
 
+        ivec2 allCaveFeaturesHeightBounds = ivec2(384, -1);
+        for (const auto& caveFeaturePlacement : chunkPtr->gatheredCaveFeaturePlacements)
+        {
+            const auto& caveFeatureHeightBounds = host_caveFeatureHeightBounds[(int)caveFeaturePlacement.feature];
+            const int featureY = caveFeaturePlacement.pos.y;
+            const ivec2 thisCaveFeatureHeightBounds = ivec2(featureY, featureY + caveFeaturePlacement.height) + caveFeatureHeightBounds;
+            heightBoundsMinMax(allCaveFeaturesHeightBounds, thisCaveFeatureHeightBounds);
+        }
+
+        // TODO: extract repeated code to a function
         int numFeaturePlacements = min((int)chunkPtr->gatheredFeaturePlacements.size(), MAX_GATHERED_FEATURES_PER_CHUNK);
         if (numFeaturePlacements < MAX_GATHERED_FEATURES_PER_CHUNK)
         {
-            chunkPtr->gatheredFeaturePlacements.push_back({ Feature::NONE, vec3(0, -1, 0) });
+            chunkPtr->gatheredFeaturePlacements.push_back({ Feature::NONE });
             ++numFeaturePlacements;
         }
-        cudaMemcpyAsync(dev_featurePlacements + (i * MAX_GATHERED_FEATURES_PER_CHUNK), chunkPtr->gatheredFeaturePlacements.data(), numFeaturePlacements * sizeof(FeaturePlacement), cudaMemcpyHostToDevice, stream);
+        cudaMemcpyAsync(
+            dev_featurePlacements + (i * MAX_GATHERED_FEATURES_PER_CHUNK),
+            chunkPtr->gatheredFeaturePlacements.data(),
+            numFeaturePlacements * sizeof(FeaturePlacement),
+            cudaMemcpyHostToDevice,
+            stream
+        );
         chunkPtr->gatheredFeaturePlacements.clear();
+
+        int numCaveFeaturePlacements = min((int)chunkPtr->gatheredCaveFeaturePlacements.size(), MAX_GATHERED_CAVE_FEATURES_PER_CHUNK);
+        if (numCaveFeaturePlacements < MAX_GATHERED_CAVE_FEATURES_PER_CHUNK)
+        {
+            chunkPtr->gatheredCaveFeaturePlacements.push_back({ CaveFeature::NONE });
+            ++numCaveFeaturePlacements;
+        }
+        cudaMemcpyAsync(
+            dev_caveFeaturePlacements + (i * MAX_GATHERED_CAVE_FEATURES_PER_CHUNK),
+            chunkPtr->gatheredCaveFeaturePlacements.data(),
+            numCaveFeaturePlacements * sizeof(CaveFeaturePlacement),
+            cudaMemcpyHostToDevice,
+            stream
+        );
+        chunkPtr->gatheredCaveFeaturePlacements.clear();
 
         const dim3 blockSize3d(1, 128, 1);
         const dim3 blocksPerGrid3d(16, 3, 16);
@@ -1412,6 +1516,8 @@ void Chunk::fill(
             dev_caveLayers + (i * devCaveLayersSize),
             dev_featurePlacements + (i * MAX_GATHERED_FEATURES_PER_CHUNK),
             allFeaturesHeightBounds,
+            dev_caveFeaturePlacements + (i * MAX_GATHERED_CAVE_FEATURES_PER_CHUNK),
+            allCaveFeaturesHeightBounds,
             chunkPtr->worldBlockPos
         );
     }

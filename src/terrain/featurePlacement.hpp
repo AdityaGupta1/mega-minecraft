@@ -950,3 +950,42 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
     printf("placeFeature() reached an unreachable section");
     return false;
 }
+
+// block should not change if return value is false
+__device__ bool placeCaveFeature(CaveFeaturePlacement caveFeaturePlacement, ivec3 worldBlockPos, Block* block)
+{
+    const ivec3& featurePos = caveFeaturePlacement.pos;
+    ivec3 floorPos = worldBlockPos - featurePos;
+    vec3 pos = floorPos;
+    int height = caveFeaturePlacement.height;
+
+    auto featureRng = makeSeededRandomEngine(featurePos.x, featurePos.y, featurePos.z, 10);
+    auto blockRng = makeSeededRandomEngine(worldBlockPos.x, worldBlockPos.y, worldBlockPos.z, 11);
+    thrust::uniform_real_distribution<float> u01(0, 1);
+    thrust::uniform_real_distribution<float> u11(-1, 1);
+
+    switch (caveFeaturePlacement.feature)
+    {
+    case CaveFeature::NONE:
+    {
+        return false;
+    }
+    case CaveFeature::TEST_PILLAR:
+    {
+        if (floorPos.x == 0 && floorPos.z == 0 && isInRange(floorPos.y, 0, height))
+        {
+            *block = Block::GLOWSTONE;
+            return true;
+        }
+
+        return false;
+    }
+    case CaveFeature::STONE_PILLAR:
+    {
+        return false;
+    }
+    }
+
+    printf("placeCaveFeature() reached an unreachable section");
+    return false;
+}
