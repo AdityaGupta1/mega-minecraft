@@ -306,7 +306,7 @@ HRESULT D3D11Renderer::initDevice()
             return E_FAIL;
         }
 
-        float quadRect[4] = { -1.f, -0.9f, 2.0f, 1.9f };
+        float quadRect[4] = { -1.f, -1.f, 2.0f, 2.f };
 
         HRESULT hr;
         D3D11_MAPPED_SUBRESOURCE mappedResource;
