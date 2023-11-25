@@ -19,7 +19,7 @@ OptixRenderer::OptixRenderer(D3D11Renderer* renderer, uvec2* windowSize, Terrain
     : renderer(renderer), windowSize(windowSize), terrain(terrain), player(player), 
       pboResource(*(renderer->getCudaTextureResource())), vao(-1), pbo(-1), tex_pixels(-1)
 #else
-OptixRenderer::OptixRenderer(GLFWwindow* window, ivec2* windowSize, Terrain* terrain, Player* player) 
+OptixRenderer::OptixRenderer(GLFWwindow* window, uvec2* windowSize, Terrain* terrain, Player* player) 
     : window(window), windowSize(windowSize), terrain(terrain), player(player), vao(-1), pbo(-1), tex_pixels(-1)
 #endif
 {

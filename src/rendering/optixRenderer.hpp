@@ -43,7 +43,7 @@ public:
 #if USE_D3D11_RENDERER
     OptixRenderer(D3D11Renderer* renderer, uvec2* windowSize, Terrain* terrain, Player* player);
 #else
-    OptixRenderer(GLFWwindow* window, ivec2* windowSize, Terrain* terrain, Player* player);
+    OptixRenderer(GLFWwindow* window, uvec2* windowSize, Terrain* terrain, Player* player);
 #endif
 
     void render(float deltaTime);
