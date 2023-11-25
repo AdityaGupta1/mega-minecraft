@@ -95,9 +95,9 @@ bool init(int argc, char **argv) {
     optix = std::make_unique<OptixRenderer>(d3dRenderer.get(), &windowSize, terrain.get(), player.get());
 #else
     optix = std::make_unique<OptixRenderer>(window, &windowSize, terrain.get(), player.get());
-    terrain->setOptixRenderer(optix.get());
 #endif
-
+    terrain->setOptixRenderer(optix.get());
+    
     terrain->init(); // call after creating CUDA context in OptixRenderer
 
     return true;
@@ -130,7 +130,8 @@ void mainLoop() {
                 ss << "[" << fps << " fps] " << deviceName;
                 SetWindowText(g_hWnd, ss.str().c_str());
             }
-            timer->Tick(tick);
+            timer->Tick();
+            tick(timer->GetElapsedSeconds());
         }
     }
 #else
@@ -176,6 +177,7 @@ glm::ivec3 playerMovement = glm::ivec3(0);
 glm::vec3 playerMovementSensitivity = glm::vec3(10.0f, 8.0f, 10.0f);
 bool shiftPressed = false;
 bool altPressed = false;
+bool trackInput = false;
 
 #if DEBUG_START_IN_FREE_CAM_MODE
 bool freeCam = true;
@@ -201,7 +203,7 @@ void initD3DWindow()
     wcex.hIconSm = NULL;
     RegisterClassEx(&wcex);
 
-    g_hWnd = CreateWindow(wcex.lpszClassName, "Fancy Terrian Minecraft with RayTracing", WS_OVERLAPPEDWINDOW,
+    g_hWnd = CreateWindow(wcex.lpszClassName, "Mega Minecraft", WS_OVERLAPPEDWINDOW,
         0, 0, windowSize.x + 2 * GetSystemMetrics(SM_CXSIZEFRAME), windowSize.y + 2 * GetSystemMetrics(SM_CYSIZEFRAME) + GetSystemMetrics(SM_CYMENU),
         NULL, NULL, wcex.hInstance, NULL);
 
@@ -221,13 +223,34 @@ LRESULT CALLBACK MsgProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         PostQuitMessage(0);
         break;
 
+    case WM_ACTIVATE:
+        if (LOWORD(wParam) != WA_INACTIVE) {
+            SetCapture(g_hWnd);
+            ShowCursor(FALSE);
+            trackInput = true;
+        }
+        else {
+            ReleaseCapture();
+            // ShowCursor(TRUE);
+            trackInput = false;
+        }
+        break;
+
+    case WM_KILLFOCUS:
+        ReleaseCapture();
+        ShowCursor(TRUE);
+        trackInput = false;
+        break;
+
     case WM_KEYDOWN:
     case WM_KEYUP:
-        keyCallback(hWnd, message, wParam, lParam);
+        if (trackInput)
+            keyCallback(hWnd, message, wParam, lParam);
         break;
 
     case WM_MOUSEMOVE:
-        mousePositionCallback(hWnd, message, wParam, lParam);
+        if (trackInput)
+            mousePositionCallback(hWnd, message, wParam, lParam);
         break;
 
     default:
@@ -244,7 +267,7 @@ int actionToInt(UINT action)
     case WM_KEYDOWN:
         return 1;
     case WM_KEYUP:
-        return -1;
+        return 0;
     default:
         return 0;
     }
@@ -252,29 +275,31 @@ int actionToInt(UINT action)
 
 void keyCallback(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
+    shiftPressed = (GetAsyncKeyState(VK_LSHIFT) & 0x8000) != 0;
+    altPressed = (GetAsyncKeyState(VK_LMENU) & 0x8000) != 0;
     switch (wParam)
     {
     case VK_ESCAPE:
         PostQuitMessage(0);
         break;
     case 'W':
-        playerMovement.z += actionToInt(message);
+        playerMovement.z = actionToInt(message);
         break;
     case 'S':
-        playerMovement.z -= actionToInt(message);
+        playerMovement.z = -actionToInt(message);
         break;
     case 'A':
-        playerMovement.x += actionToInt(message);
+        playerMovement.x = actionToInt(message);
         break;
     case 'D':
-        playerMovement.x -= actionToInt(message);
+        playerMovement.x = -actionToInt(message);
         break;
     case VK_SPACE:
     case 'E':
-        playerMovement.y += actionToInt(message);
+        playerMovement.y = actionToInt(message);
         break;
     case 'Q':
-        playerMovement.y -= actionToInt(message);
+        playerMovement.y = -actionToInt(message);
         break;
     case 'Z':
         if (message == WM_KEYUP)

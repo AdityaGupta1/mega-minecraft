@@ -95,9 +95,8 @@ public:
         m_qpcSecondCounter = 0;
     }
 
-    // Update timer state, calling the specified Update function the appropriate number of times.
-    template<typename TUpdate>
-    void Tick(const TUpdate& update)
+    // Update timer state
+    void Tick()
     {
         // Query the current time.
         LARGE_INTEGER currentTime;
@@ -129,8 +128,6 @@ public:
         m_totalTicks += timeDelta;
         m_leftOverTicks = 0;
         m_frameCount++;
-
-        update(GetElapsedSeconds());
 
         // Track the current framerate.
         if (m_frameCount != lastFrameCount)

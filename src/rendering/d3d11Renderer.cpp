@@ -15,6 +15,15 @@ static const char g_simpleShaders[] =
 "    float4 Pos : SV_POSITION;\n"
 "    float3 Tex : TEXCOORD0; };\n"
 "\n"
+"float3 ACESFilm(float3 x) {\n"
+"    float a = 2.51f;\n"
+"    float b = 0.03f;\n"
+"    float c = 2.43f;\n"
+"    float d = 0.59f;\n"
+"    float e = 0.14f;\n"
+"    return clamp((x * (a * x + b)) / (x * (c * x + d) + e), 0.f, 1.f);\n"
+"}\n"
+"\n"
 "Fragment VS( uint vertexId : SV_VertexID )\n"
 "{\n"
 "    Fragment f;\n"
@@ -30,7 +39,8 @@ static const char g_simpleShaders[] =
 "\n"
 "float4 PS( Fragment f ) : SV_Target\n"
 "{\n"
-"    return g_Texture2D.Sample( samLinear, f.Tex.xy ); "
+"    float3 out_col = g_Texture2D.Sample( samLinear, f.Tex.xy ).rgb;\n"
+"    return float4(pow(ACESFilm(out_col), float3(0.45454545454545454545454545455f, 0.45454545454545454545454545455f, 0.45454545454545454545454545455f)), 1.f);\n"
 "}\n"
 "\n";
 
@@ -47,9 +57,9 @@ D3D11Renderer::~D3D11Renderer() {
     cleanupDevice();
 }
 
-cudaGraphicsResource_t& D3D11Renderer::getCudaTextureResource()
+cudaGraphicsResource_t* D3D11Renderer::getCudaTextureResource()
 {
-    return g_texture_2d.cudaResource;
+    return &g_texture_2d.cudaResource;
 }
 
 HRESULT D3D11Renderer::initDevice()
@@ -296,12 +306,25 @@ HRESULT D3D11Renderer::initDevice()
             return E_FAIL;
         }
 
-        ConstantBuffer cb;
+        float quadRect[4] = { -1.f, -0.9f, 2.0f, 1.9f };
+
+        HRESULT hr;
+        D3D11_MAPPED_SUBRESOURCE mappedResource;
+        ConstantBuffer* pcb;
+        hr = g_pd3dDeviceContext->Map(g_pConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD,
+            0, &mappedResource);
+        pcb = (ConstantBuffer*)mappedResource.pData;
+        {
+            memcpy(pcb->vQuadRect, quadRect, sizeof(float) * 4);
+        }
+        g_pd3dDeviceContext->Unmap(g_pConstantBuffer, 0);
+
+        /*ConstantBuffer cb;
         cb.vQuadRect[0] = -1.f;
         cb.vQuadRect[1] = -1.f;
         cb.vQuadRect[2] = 1.f;
         cb.vQuadRect[3] = 1.f;
-        g_pd3dDeviceContext->UpdateSubresource(g_pConstantBuffer, 0, nullptr, &cb, 0, 0);
+        g_pd3dDeviceContext->UpdateSubresource(g_pConstantBuffer, 0, nullptr, &cb, 0, 0);*/
 
         g_pd3dDeviceContext->VSSetConstantBuffers(0, 1, &g_pConstantBuffer);
         g_pd3dDeviceContext->PSSetConstantBuffers(0, 1, &g_pConstantBuffer);
@@ -310,9 +333,9 @@ HRESULT D3D11Renderer::initDevice()
     {
         D3D11_SAMPLER_DESC sDesc;
         sDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
-        sDesc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
-        sDesc.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
-        sDesc.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
+        sDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
+        sDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
+        sDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
         sDesc.MinLOD = 0;
         sDesc.MaxLOD = 8;
         sDesc.MipLODBias = 0;

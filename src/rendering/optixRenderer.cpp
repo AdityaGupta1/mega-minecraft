@@ -17,7 +17,7 @@ constexpr int numRayTypes = 1;
 #if USE_D3D11_RENDERER
 OptixRenderer::OptixRenderer(D3D11Renderer* renderer, uvec2* windowSize, Terrain* terrain, Player* player)
     : renderer(renderer), windowSize(windowSize), terrain(terrain), player(player), 
-      pboResource(renderer->getCudaTextureResource()), vao(-1), pbo(-1), tex_pixels(-1)
+      pboResource(*(renderer->getCudaTextureResource())), vao(-1), pbo(-1), tex_pixels(-1)
 #else
 OptixRenderer::OptixRenderer(GLFWwindow* window, ivec2* windowSize, Terrain* terrain, Player* player) 
     : window(window), windowSize(windowSize), terrain(terrain), player(player), vao(-1), pbo(-1), tex_pixels(-1)
@@ -46,6 +46,7 @@ OptixRenderer::OptixRenderer(GLFWwindow* window, ivec2* windowSize, Terrain* ter
     CUDA_CHECK(cudaMalloc((void**)&dev_renderBuffer, imageSizeBytes));
     CUDA_CHECK(cudaMalloc((void**)&dev_albedoBuffer, imageSizeBytes));
     CUDA_CHECK(cudaMalloc((void**)&dev_normalBuffer, imageSizeBytes));
+    CUDA_CHECK(cudaMalloc((void**)&dev_denoisedBuffer, imageSizeBytes));
 
 #if !USE_D3D11_RENDERER
     glGenVertexArrays(1, &vao);
@@ -740,10 +741,10 @@ void OptixRenderer::optixRenderFrame()
     ));
 
     size_t pboSize;
-    CUDA_CHECK(cudaGraphicsMapResources(1, &pboResource));
+    CUDA_CHECK(cudaGraphicsMapResources(1, &pboResource, 0));
 #if USE_D3D11_RENDERER
     CUDA_CHECK(cudaGraphicsSubResourceGetMappedArray(&pboArray, pboResource, 0, 0));
-    // cudaMemcpy(dev_denoisedBuffer, pboArray, windowSize->x * windowSize->y * sizeof(float4), cudaMemcpyDeviceToDevice);
+    // cudaMemcpy2DFromArray(dev_denoisedBuffer, windowSize->x * sizeof(float4), pboArray, 0, 0, windowSize->x * sizeof(float4), windowSize->y, cudaMemcpyDeviceToDevice);
 #else
     CUDA_CHECK(cudaGraphicsResourceGetMappedPointer((void**)&dev_denoisedBuffer, &pboSize, pboResource));
 #endif
@@ -811,7 +812,7 @@ void OptixRenderer::optixRenderFrame()
 #endif
 
 #if USE_D3D11_RENDERER
-    cudaMemcpy(pboArray, dev_denoisedBuffer, windowSize->x * windowSize->y * sizeof(float4), cudaMemcpyDeviceToDevice);
+    CUDA_CHECK(cudaMemcpy2DToArray(pboArray, 0, 0, (void*)dev_denoisedBuffer, windowSize->x * sizeof(float4), windowSize->x * sizeof(float4), windowSize->y, cudaMemcpyDeviceToDevice));
 #endif
     CUDA_CHECK(cudaGraphicsUnmapResources(1, &pboResource));
 }

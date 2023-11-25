@@ -24,7 +24,7 @@ public:
     HRESULT initTexture();
 
     void Draw();
-    cudaGraphicsResource_t& getCudaTextureResource();
+    cudaGraphicsResource_t* getCudaTextureResource();
 
 private:
     HWND& g_hWnd;

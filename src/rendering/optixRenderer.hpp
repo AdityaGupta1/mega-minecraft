@@ -108,7 +108,7 @@ protected:
 
     CUBuffer playerInfoBuffer;
 #if USE_D3D11_RENDERER
-    cudaGraphicsResource_t& pboResource;
+    cudaGraphicsResource_t pboResource;
     cudaArray_t pboArray;
 #else
     cudaGraphicsResource_t pboResource;
