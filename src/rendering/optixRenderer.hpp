@@ -18,6 +18,10 @@
 #include "shaderProgram.hpp"
 #include "fullscreenTri.hpp"
 
+#if USE_D3D11_RENDERER
+#include "d3d11Renderer.h"
+#endif
+
 class Terrain;
 class Chunk;
 
@@ -36,13 +40,21 @@ typedef Record<void*>      ExceptionRecord;
 class OptixRenderer
 {
 public:
+#if USE_D3D11_RENDERER
+    OptixRenderer(D3D11Renderer* renderer, uvec2* windowSize, Terrain* terrain, Player* player);
+#else
     OptixRenderer(GLFWwindow* window, ivec2* windowSize, Terrain* terrain, Player* player);
+#endif
 
     void render(float deltaTime);
 
 protected:
+#if USE_D3D11_RENDERER
+    D3D11Renderer* renderer{ nullptr };
+#else
     GLFWwindow* window{ nullptr };
-    ivec2* windowSize{ nullptr };
+#endif
+    uvec2* windowSize{ nullptr };
     Terrain* terrain{ nullptr };
     Player* player{ nullptr };
     OptixParams launchParams = {};
@@ -95,7 +107,12 @@ protected:
     OptixShaderBindingTable sbt = {};
 
     CUBuffer playerInfoBuffer;
+#if USE_D3D11_RENDERER
+    cudaGraphicsResource_t& pboResource;
+    cudaArray_t pboArray;
+#else
     cudaGraphicsResource_t pboResource;
+#endif
 
     OptixDenoiser denoiser{ nullptr };
     CUBuffer denoiserScratch;
@@ -151,6 +168,8 @@ protected:
     GLuint pbo;
     GLuint tex_pixels;
 
+#if !USE_D3D11_RENDERER
     void initShader();
     void initTexture();
+#endif
 };

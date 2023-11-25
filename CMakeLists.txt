@@ -20,6 +20,23 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
 endif()
 
 ########################################
+# DirectX 11 Setup
+########################################
+if (DEFINED VCPKG_TARGET_ARCHITECTURE)
+    set(DIRECTX_ARCH ${VCPKG_TARGET_ARCHITECTURE})
+elseif(CMAKE_GENERATOR_PLATFORM MATCHES "^[Ww][Ii][Nn]32$")
+    set(DIRECTX_ARCH x86)
+elseif(CMAKE_GENERATOR_PLATFORM MATCHES "^[Xx]64$")
+    set(DIRECTX_ARCH x64)
+elseif(CMAKE_GENERATOR_PLATFORM MATCHES "^[Aa][Rr][Mm]$")
+    set(DIRECTX_ARCH arm)
+elseif(CMAKE_GENERATOR_PLATFORM MATCHES "^[Aa][Rr][Mm]64$")
+    set(DIRECTX_ARCH arm64)
+endif()
+
+set(LIBRARIES d3d11.dll dxgi.dll d3dcompiler.lib)
+
+########################################
 # CUDA Setup
 ########################################
 find_package(CUDAToolkit 10 REQUIRED)
@@ -32,7 +49,7 @@ include(${CMAKE_MODULE_PATH}/CUDAComputesList.cmake)
 include_directories(${CUDAToolkit_INCLUDE_DIRS})
 message(STATUS ${CUDA_LIBRARIES})
 message(STATUS ${CUDAToolkit_LIBRARY_DIR})
-set(LIBRARIES CUDA::cudart)
+list(APPEND LIBRARIES CUDA::cudart)
 
 ########################################
 

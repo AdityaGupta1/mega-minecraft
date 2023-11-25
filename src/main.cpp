@@ -1,7 +1,6 @@
 #include "main.hpp"
 
 #include "terrain/block.hpp"
-#include "defines.hpp"
 
 #define DEBUG_START_IN_FREE_CAM_MODE 0
 
@@ -30,6 +29,9 @@ bool init(int argc, char **argv) {
             << std::endl;
         return false;
     }
+
+    CUDA_CHECK(cudaSetDevice(gpuDevice));
+    // CUDA_CHECK(cudaGLSetGLDevice(1));
     cudaGetDeviceProperties(&deviceProp, gpuDevice);
     int major = deviceProp.major;
     int minor = deviceProp.minor;
@@ -37,7 +39,10 @@ bool init(int argc, char **argv) {
     std::ostringstream ss;
     ss << "Mega Minecraft";
     deviceName = ss.str();
-
+#if USE_D3D11_RENDERER
+    initD3DWindow();
+    timer = std::make_unique<StepTimer>();
+#else
     glfwSetErrorCallback(errorCallback);
 
     if (!glfwInit()) {
@@ -72,8 +77,7 @@ bool init(int argc, char **argv) {
     if (glewInit() != GLEW_OK) {
         return false;
     }
-
-    cudaGLSetGLDevice(0);
+#endif
 
     BlockUtils::init();
     BiomeUtils::init();
@@ -86,6 +90,9 @@ bool init(int argc, char **argv) {
     {
         return false;
     }
+#elif USE_D3D11_RENDERER
+    d3dRenderer = std::make_unique<D3D11Renderer>(g_hWnd, &windowSize.x, &windowSize.y);
+    optix = std::make_unique<OptixRenderer>(d3dRenderer.get(), &windowSize, terrain.get(), player.get());
 #else
     optix = std::make_unique<OptixRenderer>(window, &windowSize, terrain.get(), player.get());
     terrain->setOptixRenderer(optix.get());
@@ -103,10 +110,33 @@ void constructTerrainAndPlayer()
 }
 
 void mainLoop() {
+#if USE_D3D11_RENDERER
+    timer->ResetElapsedTime();
+
+    MSG msg = { 0 };
+    while (WM_QUIT != msg.message)
+    {
+        if (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE))
+        {
+            TranslateMessage(&msg);
+            DispatchMessage(&msg);
+        }
+        else
+        {
+            bool newFPS;
+            uint32_t fps = timer->GetFramesPerSecond(&newFPS);
+            if (newFPS) {
+                std::ostringstream ss;
+                ss << "[" << fps << " fps] " << deviceName;
+                SetWindowText(g_hWnd, ss.str().c_str());
+            }
+            timer->Tick(tick);
+        }
+    }
+#else
     double lastTime = 0;
     double fpsLastTime = 0;
     int frames = 0;
-
     while (!glfwWindowShouldClose(window)) 
     {
         glfwPollEvents();
@@ -135,6 +165,7 @@ void mainLoop() {
 
     glfwDestroyWindow(window);
     glfwTerminate();
+#endif
 }
 
 void errorCallback(int error, const char* description) {
@@ -151,6 +182,236 @@ bool freeCam = true;
 #else
 bool freeCam = false;
 #endif
+
+#if USE_D3D11_RENDERER
+void initD3DWindow()
+{
+    WNDCLASSEX wcex;
+    wcex.cbSize = sizeof(WNDCLASSEX);
+    wcex.style = CS_HREDRAW | CS_VREDRAW;
+    wcex.lpfnWndProc = MsgProc;
+    wcex.cbClsExtra = 0;
+    wcex.cbWndExtra = 0;
+    wcex.hInstance = NULL;
+    wcex.hIcon = NULL;
+    wcex.hCursor = LoadCursor(nullptr, IDC_ARROW);
+    wcex.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
+    wcex.lpszMenuName = nullptr;
+    wcex.lpszClassName = "Mega Minecraft";
+    wcex.hIconSm = NULL;
+    RegisterClassEx(&wcex);
+
+    g_hWnd = CreateWindow(wcex.lpszClassName, "Fancy Terrian Minecraft with RayTracing", WS_OVERLAPPEDWINDOW,
+        0, 0, windowSize.x + 2 * GetSystemMetrics(SM_CXSIZEFRAME), windowSize.y + 2 * GetSystemMetrics(SM_CYSIZEFRAME) + GetSystemMetrics(SM_CYMENU),
+        NULL, NULL, wcex.hInstance, NULL);
+
+    ShowWindow(g_hWnd, SW_SHOWDEFAULT);
+    UpdateWindow(g_hWnd);
+}
+
+LRESULT CALLBACK MsgProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
+{
+    switch (message)
+    {
+    case WM_PAINT:
+        ValidateRect(hWnd, NULL);
+        break;
+
+    case WM_DESTROY:
+        PostQuitMessage(0);
+        break;
+
+    case WM_KEYDOWN:
+    case WM_KEYUP:
+        keyCallback(hWnd, message, wParam, lParam);
+        break;
+
+    case WM_MOUSEMOVE:
+        mousePositionCallback(hWnd, message, wParam, lParam);
+        break;
+
+    default:
+        return DefWindowProc(hWnd, message, wParam, lParam);
+    }
+
+    return 0;
+}
+
+int actionToInt(UINT action)
+{
+    switch (action)
+    {
+    case WM_KEYDOWN:
+        return 1;
+    case WM_KEYUP:
+        return -1;
+    default:
+        return 0;
+    }
+}
+
+void keyCallback(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
+{
+    switch (wParam)
+    {
+    case VK_ESCAPE:
+        PostQuitMessage(0);
+        break;
+    case 'W':
+        playerMovement.z += actionToInt(message);
+        break;
+    case 'S':
+        playerMovement.z -= actionToInt(message);
+        break;
+    case 'A':
+        playerMovement.x += actionToInt(message);
+        break;
+    case 'D':
+        playerMovement.x -= actionToInt(message);
+        break;
+    case VK_SPACE:
+    case 'E':
+        playerMovement.y += actionToInt(message);
+        break;
+    case 'Q':
+        playerMovement.y -= actionToInt(message);
+        break;
+    case 'Z':
+        if (message == WM_KEYUP)
+            player->toggleCamMode();
+        break;
+    case VK_RIGHT:
+        if (message == WM_KEYDOWN)
+            player->rotate(-0.1f, 0, true);
+        break;
+    case VK_LEFT:
+        if (message == WM_KEYDOWN)
+            player->rotate(0.1f, 0, true);
+        break;
+    case VK_UP:
+        if (message == WM_KEYDOWN)
+            player->rotate(0, 0.1f, true);
+        break;
+    case VK_DOWN:
+        if (message == WM_KEYDOWN)
+            player->rotate(0, -0.1f, true);
+        break;
+    case VK_LSHIFT:
+        if (message == WM_KEYDOWN)
+        {
+            shiftPressed = true;
+        }
+        else if (message == WM_KEYUP)
+        {
+            shiftPressed = false;
+        }
+        break;
+    case VK_LMENU:
+        if (message == WM_KEYDOWN)
+        {
+            altPressed = true;
+        }
+        else if (message == WM_KEYUP)
+        {
+            altPressed = false;
+        }
+        break;
+    case 'C':
+#if DEBUG_USE_GL_RENDERER
+        if (message == WM_KEYDOWN)
+        {
+            renderer->setZoomed(true);
+        }
+        else if (message == WM_KEYUP)
+        {
+            renderer->setZoomed(false);
+        }
+#else
+        if (message == WM_KEYDOWN)
+        {
+            optix->setZoomed(true);
+        }
+        else if (message == WM_KEYUP)
+        {
+            optix->setZoomed(false);
+        }
+#endif
+        break;
+    case 'P':
+        if (message == WM_KEYUP)
+        {
+#if DEBUG_USE_GL_RENDERER
+            renderer->toggleTimePaused();
+#else
+            optix->toggleTimePaused();
+#endif
+        }
+        break;
+    case 'O':
+        if (message == WM_KEYUP)
+        {
+            const vec3 playerPos = player->getPos();
+            terrain->debugPrintCurrentChunkInfo(vec2(playerPos.x, playerPos.z));
+        }
+        break;
+    case 'V':
+        if (message == WM_KEYUP)
+        {
+            const vec3 playerPos = player->getPos();
+            terrain->debugPrintCurrentZoneInfo(vec2(playerPos.x, playerPos.z));
+        }
+        break;
+    case 'L':
+        if (message == WM_KEYUP)
+        {
+            const vec3 playerPos = player->getPos();
+            terrain->debugPrintCurrentColumnLayers(vec2(playerPos.x, playerPos.z));
+        }
+        break;
+    case 'X':
+        if (message == WM_KEYUP)
+        {
+            const vec3 playerPos = player->getPos();
+            terrain->debugForceGatherHeightfield(vec2(playerPos.x, playerPos.z));
+        }
+        break;
+    case 'F':
+        if (message == WM_KEYUP)
+        {
+            freeCam = !freeCam;
+        }
+        break;
+    case 'K':
+        if (message == WM_KEYDOWN)
+        {
+            auto playerPos = player->getPos();
+            printf("player position: (%.2f, %.2f, %.2f)\n", playerPos.x, playerPos.y, playerPos.z);
+        }
+        break;
+    }
+}
+
+const float mouseSensitivity = -0.0025f;
+
+void mousePositionCallback(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
+    float centerX = windowSize.x / 2.f;
+    float centerY = windowSize.y / 2.f;
+
+    int mouseX = GET_X_LPARAM(lParam);
+    int mouseY = GET_Y_LPARAM(lParam);
+
+    float dTheta = (mouseX - centerX) * mouseSensitivity;
+    float dPhi = (mouseY - centerY) * mouseSensitivity;
+
+    if (dTheta != 0 || dPhi != 0)
+    {
+        player->rotate(dTheta, dPhi, false);
+    }
+
+    SetCursorPos(centerX, centerY);
+}
+
+#else
 
 int actionToInt(int action)
 {
@@ -337,6 +598,7 @@ void framebufferSizeCallback(GLFWwindow* window, int width, int height)
     windowSize = glm::ivec2(width, height);
     windowSizeChanged = true;
 }
+#endif
 
 void tick(float deltaTime)
 {
