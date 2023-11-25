@@ -44,6 +44,18 @@ static constexpr int numBiomes = (int)Biome::MOUNTAINS + 1;
 static constexpr int numOceanBiomes = (int)Biome::COOL_OCEAN + 1;
 static constexpr int numOceanAndBeachBiomes = (int)Biome::BEACH + 1;
 
+enum class CaveBiome : unsigned char
+{
+    NONE,
+
+    LUSH_CAVES,
+
+    WARPED_FOREST,
+    AMBER_FOREST
+};
+
+static constexpr int numCaveBiomes = (int)CaveBiome::AMBER_FOREST + 1;
+
 struct BiomeBlocks
 {
     Block grassBlock{ Block::DIRT };

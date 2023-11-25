@@ -331,7 +331,7 @@ extern "C" __global__ void __closesthit__radiance() {
         float4 emissiveTexCol = tex2D<float4>(chunkData.tex_emissive, uv.x, uv.y);
         if (emissiveTexCol.w > 0.f)
         {
-            float3 emissiveCol = make_float3(emissiveTexCol) * 3.f;
+            float3 emissiveCol = make_float3(emissiveTexCol) * 2.2f;
 
             prd.pixelColor += prd.rayColor * emissiveCol;
 

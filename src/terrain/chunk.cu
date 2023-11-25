@@ -777,7 +777,7 @@ __device__ bool shouldGenerateCaveAtBlock(ivec3 worldPos, float maxHeight, float
         return true;
     }
 
-    vec2 ravineNoisePos = vec2(worldPos.x, worldPos.z) * 0.0020f;
+    vec2 ravineNoisePos = vec2(worldPos.x, worldPos.z) * 0.0015f;
     vec2 ravineWorleyOffset = 0.03f * fbm2From2<4>(ravineNoisePos * 10.f);
     vec3 ravineWorleyColor;
     float ravineWorley = worley(ravineNoisePos + ravineWorleyOffset, &ravineWorleyColor);
@@ -1172,6 +1172,7 @@ __device__ void chunkFillPlaceBlock(
     bool isTopBlock = y >= height - 1.f;
 
 #define doBlockPostProcess() biomeBlockPostProcess(blockPtr, randBiome, worldBlockPos, height, isTopBlock)
+#define doCaveBlockPostProcess() caveBiomeBlockPostProcess(blockPtr, getCaveBiome(worldBlockPos, height), worldBlockPos, nullptr, isCaveTopBlock)
 
     if (y > height && y <= SEA_LEVEL)
     {
@@ -1184,17 +1185,24 @@ __device__ void chunkFillPlaceBlock(
         }
     }
 
+    bool isCaveTopBlock = false;
     for (int caveLayerIdx = 0; caveLayerIdx < MAX_CAVE_LAYERS_PER_COLUMN; ++caveLayerIdx)
     {
         const auto& caveLayer = shared_caveLayers[caveLayerIdx];
-        if (caveLayer.start == 384)
+        if (caveLayer.start == 384 || y < caveLayer.start)
         {
             break;
+        }
+
+        if (y == caveLayer.start)
+        {
+            isCaveTopBlock = true;
         }
 
         if (y > caveLayer.start && y <= caveLayer.end)
         {
             *blockPtr = (y <= LAVA_LEVEL) ? Block::LAVA : Block::AIR;
+            doCaveBlockPostProcess();
             return;
         }
     }
@@ -1283,8 +1291,10 @@ __device__ void chunkFillPlaceBlock(
 #endif
 
     doBlockPostProcess();
+    doCaveBlockPostProcess();
 
 #undef doBlockPostProcess
+#undef doCaveBlockPostProcess
 }
 
 __global__ void kernFill(

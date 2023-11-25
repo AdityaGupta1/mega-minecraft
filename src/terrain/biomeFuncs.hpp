@@ -66,6 +66,13 @@ struct BiomeNoise
     float moisture;
 };
 
+struct CaveBiomeNoise
+{
+    float none;
+    float shallow;
+    float warped;
+};
+
 enum class BiomeWeightType : unsigned char
 {
     W_IGNORE,
@@ -83,18 +90,27 @@ struct BiomeWeights
     BiomeWeightType moisture;
 };
 
+struct CaveBiomeWeights
+{
+    BiomeWeightType none;
+    BiomeWeightType shallow;
+    BiomeWeightType warped;
+};
+
 static constexpr float overallBiomeScale = 0.32f;
 __constant__ BiomeWeights dev_biomeNoiseWeights[numBiomes];
+static constexpr float overallCaveBiomeScale = 1.f;
+__constant__ CaveBiomeWeights dev_caveBiomeNoiseWeights[numCaveBiomes];
 
 __device__ float getSingleBiomeNoise(vec2 pos, float noiseScale, vec2 offset, float smoothstepThreshold)
 {
     return smoothstep(-smoothstepThreshold, smoothstepThreshold, simplex(pos * noiseScale + offset));
 }
 
-__device__ BiomeNoise getBiomeNoise(const vec2 worldPos)
+__device__ BiomeNoise getBiomeNoise(const vec2 worldBlockPos)
 {
-    const vec2 noiseOffset = fbm2From2<3>(worldPos * 0.015f) * 20.f;
-    const vec2 biomeNoisePos = (worldPos + noiseOffset) * overallBiomeScale;
+    const vec2 noiseOffset = fbm2From2<3>(worldBlockPos * 0.0150f) * 20.f;
+    const vec2 biomeNoisePos = (worldBlockPos + noiseOffset) * overallBiomeScale;
 
     BiomeNoise noise;
     float oceanNoise = simplex(biomeNoisePos * 0.0007f + vec2(2853.49f, -9481.42f));
@@ -104,6 +120,33 @@ __device__ BiomeNoise getBiomeNoise(const vec2 worldPos)
     noise.magic = getSingleBiomeNoise(biomeNoisePos, 0.0030f, vec2(5612.35f, 9182.49f), 0.07f);
     noise.temperature = getSingleBiomeNoise(biomeNoisePos, 0.0012f, vec2(-4021.34f, -8720.12f), 0.06f);
     noise.moisture = getSingleBiomeNoise(biomeNoisePos, 0.0050f, vec2(1835.32f, 3019.39f), 0.12f);
+    return noise;
+}
+
+__device__ float getSingleCaveBiomeNoise(vec3 pos, float noiseScale, vec3 offset, float smoothstepThreshold)
+{
+    return smoothstep(-smoothstepThreshold, smoothstepThreshold, simplex(pos * noiseScale + offset));
+}
+
+__device__ CaveBiomeNoise getCaveBiomeNoise(const vec3 worldBlockPos, float maxHeight)
+{
+    const vec3 noiseOffset = fbm3From3<3>(worldBlockPos * 0.0470f) * vec3(30.f, 24.f, 30.f);
+    const vec3 caveBiomeNoisePos = (worldBlockPos + noiseOffset) * vec3(overallCaveBiomeScale, 1.f, overallCaveBiomeScale);
+
+    const vec2 noisePos2d = vec2(caveBiomeNoisePos.x, caveBiomeNoisePos.z) * 0.2000f;
+
+    float caveNoiseTopHeight = SEA_LEVEL + 0.15f * (maxHeight - SEA_LEVEL);
+
+    float noneToShallowStart = caveNoiseTopHeight - 16.f + 26.f * fbm<3>(noisePos2d);
+    float noneToShallowEnd = noneToShallowStart - 5.f + 3.f * fbm<3>(noisePos2d + vec2(3821.34f, 4920.32f));
+
+    float shallowToDeepStart = caveNoiseTopHeight - 72.f + 18.f * fbm<3>(noisePos2d + vec2(-4921.34f, 8402.13f));
+    float shallowToDeepEnd = shallowToDeepStart - 10.f + 7.f * fbm<3>(noisePos2d + vec2(9411.32f, -3921.34f));
+
+    CaveBiomeNoise noise;
+    noise.none = smoothstep(noneToShallowEnd, noneToShallowStart, caveBiomeNoisePos.y);
+    noise.shallow = smoothstep(shallowToDeepEnd, shallowToDeepStart, caveBiomeNoisePos.y);
+    noise.warped = getSingleCaveBiomeNoise(caveBiomeNoisePos, 0.0030f, vec3(5821.32f, 4920.12f, 7931.59f), 0.05f);
     return noise;
 }
 
@@ -132,6 +175,38 @@ __device__ float getBiomeWeight(Biome biome, const BiomeNoise& noise)
     applySingleBiomeNoise(totalWeight, biomeWeights.temperature, noise.temperature);
     applySingleBiomeNoise(totalWeight, biomeWeights.moisture, noise.moisture);
     return totalWeight;
+}
+
+__device__ float getCaveBiomeWeight(CaveBiome biome, const CaveBiomeNoise& noise)
+{
+    const auto& caveBiomeWeights = dev_caveBiomeNoiseWeights[(int)biome];
+
+    float totalWeight = 1.f;
+    applySingleBiomeNoise(totalWeight, caveBiomeWeights.none, noise.none);
+    applySingleBiomeNoise(totalWeight, caveBiomeWeights.shallow, noise.shallow);
+    applySingleBiomeNoise(totalWeight, caveBiomeWeights.warped, noise.warped);
+    return totalWeight;
+}
+
+__device__ CaveBiome getCaveBiome(ivec3 worldBlockPos, float maxHeight)
+{
+    CaveBiomeNoise noise = getCaveBiomeNoise(worldBlockPos, maxHeight);
+
+    auto rng = makeSeededRandomEngine(worldBlockPos.x, worldBlockPos.y, worldBlockPos.z, 24);
+    thrust::uniform_real_distribution<float> u01(0, 1);
+    float rand = u01(rng);
+    for (int caveBiomeIdx = 0; caveBiomeIdx < numCaveBiomes; ++caveBiomeIdx)
+    {
+        CaveBiome caveBiome = (CaveBiome)caveBiomeIdx;
+        float weight = getCaveBiomeWeight(caveBiome, noise);
+        rand -= weight;
+        if (rand <= 0.f)
+        {
+            return caveBiome;
+        }
+    }
+
+    return CaveBiome::NONE;
 }
 
 #pragma endregion
@@ -297,7 +372,7 @@ __device__ float getHeight(Biome biome, vec2 pos)
     return SEA_LEVEL;
 }
 
-__device__ bool biomeBlockPreProcess(Block* blockPtr, Biome biome, vec3 worldBlockPos, float height)
+__device__ bool biomeBlockPreProcess(Block* blockPtr, Biome biome, ivec3 worldBlockPos, float height)
 {
     switch (biome)
     {
@@ -320,7 +395,7 @@ __device__ bool biomeBlockPreProcess(Block* blockPtr, Biome biome, vec3 worldBlo
     return false;
 }
 
-__device__ bool biomeBlockPostProcess(Block* blockPtr, Biome biome, vec3 worldBlockPos, float height, bool isTopBlock)
+__device__ bool biomeBlockPostProcess(Block* blockPtr, Biome biome, ivec3 worldBlockPos, float height, bool isTopBlock)
 {
     switch (biome)
     {
@@ -458,7 +533,7 @@ __device__ bool biomeBlockPostProcess(Block* blockPtr, Biome biome, vec3 worldBl
             return false;
         }
 
-        float sandstoneStartHeight = 112.f + 14.f * fbm<3>(vec2(worldBlockPos.x, worldBlockPos.z) * 0.0040f);
+        float sandstoneStartHeight = 112.f + 16.f * fbm<3>(vec2(worldBlockPos.x, worldBlockPos.z) * 0.0200f);
 
         if (worldBlockPos.y < sandstoneStartHeight)
         {
@@ -489,6 +564,68 @@ __device__ bool biomeBlockPostProcess(Block* blockPtr, Biome biome, vec3 worldBl
     return false;
 }
 
+__device__ bool caveBiomeBlockPostProcess(Block* blockPtr, CaveBiome caveBiome, ivec3 worldBlockPos, const CaveLayer* caveLayer, bool isTopBlock)
+{
+    if (caveBiome == CaveBiome::NONE)
+    {
+        return false;
+    }
+
+    switch (caveBiome)
+    {
+    case CaveBiome::LUSH_CAVES:
+    {
+        if (isTopBlock)
+        {
+            *blockPtr = Block::MOSS;
+            return true;
+        }
+
+        return false;
+    }
+    case CaveBiome::WARPED_FOREST:
+    {
+        if (!isTopBlock)
+        {
+            return false;
+        }
+
+        if (*blockPtr == Block::DEEPSLATE)
+        {
+            *blockPtr = Block::WARPED_DEEPSLATE;
+            return true;
+        }
+        else if (*blockPtr == Block::BLACKSTONE)
+        {
+            *blockPtr = Block::WARPED_BLACKSTONE;
+            return true;
+        }
+
+        return false;
+    }
+    case CaveBiome::AMBER_FOREST:
+    {
+        if (!isTopBlock)
+        {
+            return false;
+        }
+
+        if (*blockPtr == Block::DEEPSLATE)
+        {
+            *blockPtr = Block::AMBER_DEEPSLATE;
+            return true;
+        }
+        else if (*blockPtr == Block::BLACKSTONE)
+        {
+            *blockPtr = Block::AMBER_BLACKSTONE;
+            return true;
+        }
+
+        return false;
+    }
+    }
+}
+
 __constant__ BiomeBlocks dev_biomeBlocks[numBiomes];
 __constant__ MaterialInfo dev_materialInfos[numMaterials];
 __constant__ float dev_biomeMaterialWeights[numBiomes * numMaterials];
@@ -503,12 +640,13 @@ __constant__ ivec2 dev_caveFeatureHeightBounds[numCaveFeatures];
 
 void BiomeUtils::init()
 {
-    BiomeWeights* host_biomeNoiseWeights = new BiomeWeights[numBiomes];
-
 #define biomeWeights(biome) host_biomeNoiseWeights[(int)Biome::biome]
+#define caveBiomeWeights(caveBiome) host_caveBiomeNoiseWeights[(int)CaveBiome::caveBiome]
 #define wI BiomeWeightType::W_IGNORE
 #define wP BiomeWeightType::W_POSITIVE
 #define wN BiomeWeightType::W_NEGATIVE
+
+    BiomeWeights* host_biomeNoiseWeights = new BiomeWeights[numBiomes];
 
                                         // ocean, beach, rocky, magic, temperature, moisture
     biomeWeights(CORAL_REEF) =          { wP, wN, wP, wP, wI, wI };
@@ -541,6 +679,19 @@ void BiomeUtils::init()
 
     cudaMemcpyToSymbol(dev_biomeNoiseWeights, host_biomeNoiseWeights, numBiomes * sizeof(BiomeWeights));
     delete[] host_biomeNoiseWeights;
+
+    CaveBiomeWeights* host_caveBiomeNoiseWeights = new CaveBiomeWeights[numCaveBiomes];
+
+                                        // none, warped
+    caveBiomeWeights(NONE) =            { wP, wI, wI };
+
+    caveBiomeWeights(LUSH_CAVES) =      { wN, wP, wI };
+
+    caveBiomeWeights(WARPED_FOREST) =   { wI, wN, wP };
+    caveBiomeWeights(AMBER_FOREST) =    { wI, wN, wN };
+
+    cudaMemcpyToSymbol(dev_caveBiomeNoiseWeights, host_caveBiomeNoiseWeights, numCaveBiomes * sizeof(CaveBiomeWeights));
+    delete[] host_caveBiomeNoiseWeights;
 
 #undef biomeWeights
 #undef wI

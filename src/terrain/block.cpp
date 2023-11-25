@@ -82,6 +82,11 @@ void BlockUtils::init()
     blockDatas[(int)Block::CYPRESS_LEAVES] = { BlockUvs(ivec2(15, 4)), TransparencyType::T_SEMI_TRANSPARENT };
     blockDatas[(int)Block::GLOWSTONE] = { BlockUvs(ivec2(1, 5)) };
     blockDatas[(int)Block::SHROOMLIGHT] = { BlockUvs(ivec2(2, 5)) };
+    blockDatas[(int)Block::WARPED_DEEPSLATE] = { BlockUvs(ivec2(4, 5), ivec2(3, 5), ivec2(4, 1)).setRandomFlip(false, false, true).setRandomRotation(false, true, false) };
+    blockDatas[(int)Block::WARPED_BLACKSTONE] = { BlockUvs(ivec2(5, 5), ivec2(3, 5), ivec2(1, 1)).setRandomRotation(false, true, false) };
+    blockDatas[(int)Block::MOSS] = { BlockUvs(ivec2(13, 6)) };
+    blockDatas[(int)Block::AMBER_DEEPSLATE] = { BlockUvs(ivec2(7, 5), ivec2(6, 5), ivec2(4, 1)).setRandomFlip(false, false, true).setRandomRotation(false, true, false) };
+    blockDatas[(int)Block::AMBER_BLACKSTONE] = { BlockUvs(ivec2(8, 5), ivec2(6, 5), ivec2(1, 1)).setRandomRotation(false, true, false) };
 }
 
 BlockData BlockUtils::getBlockData(Block block)

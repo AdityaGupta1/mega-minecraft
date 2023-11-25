@@ -3,7 +3,7 @@
 #include "terrain/block.hpp"
 #include "defines.hpp"
 
-#define DEBUG_START_IN_FREE_CAM_MODE 0
+#define DEBUG_START_IN_FREE_CAM_MODE 1
 
 int main(int argc, char* argv[]) {
   if (init(argc, argv)) {
