@@ -43,12 +43,5 @@ struct ChunkData
     Vertex* verts;
     glm::uvec3* idx;
     cudaTextureObject_t tex_diffuse;
-};
-
-struct Texture
-{
-    uint8_t* host_buffer;
-    int32_t width;
-    int32_t height;
-    int32_t channels;
+    cudaTextureObject_t tex_emissive;
 };

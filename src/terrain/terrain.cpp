@@ -13,7 +13,7 @@
 
 #define DESTROY_ZONES 0 // disabled because it causes crashes
 
-static constexpr int chunkVbosGenRadius = 12;
+static constexpr int chunkVbosGenRadius = 16;
 static constexpr int chunkMaxGenRadius = chunkVbosGenRadius + (ZONE_SIZE * 2);
 static constexpr int zoneKeepRadius = chunkMaxGenRadius + ((3 * ZONE_SIZE) / 2);
 
@@ -82,6 +82,7 @@ static constexpr int numStreams = 4 + numDevGatheredLayers;
 static Block* host_blocks;
 static Block* dev_blocks;
 static FeaturePlacement* dev_featurePlacements;
+static CaveFeaturePlacement* dev_caveFeaturePlacements;
 
 static float* host_heightfields;
 static float* dev_heightfields;
@@ -106,6 +107,7 @@ void Terrain::initCuda()
     cudaMallocHost((void**)&host_blocks, numHostBlocks * devBlocksSize * sizeof(Block));
     cudaMalloc((void**)&dev_blocks, numDevBlocks * devBlocksSize * sizeof(Block));
     cudaMalloc((void**)&dev_featurePlacements, numDevFeaturePlacements * devFeaturePlacementsSize * sizeof(FeaturePlacement));
+    cudaMalloc((void**)&dev_caveFeaturePlacements, numDevFeaturePlacements * devCaveFeaturePlacementsSize * sizeof(CaveFeaturePlacement));
 
     cudaMallocHost((void**)&host_heightfields, numHostHeightfields * devHeightfieldSize * sizeof(float));
     cudaMalloc((void**)&dev_heightfields, numDevHeightfields * devHeightfieldSize * sizeof(float));
@@ -138,6 +140,7 @@ void Terrain::freeCuda()
     cudaFreeHost(host_blocks);
     cudaFree(dev_blocks);
     cudaFree(dev_featurePlacements);
+    cudaFree(dev_caveFeaturePlacements);
 
     cudaFreeHost(host_heightfields);
     cudaFree(dev_heightfields);
@@ -647,6 +650,7 @@ void Terrain::tick(float deltaTime)
                 host_caveLayers + (hostCaveLayersIdx * devCaveLayersSize),
                 dev_caveLayers + (devCaveLayersIdx * devCaveLayersSize),
                 dev_featurePlacements + (devFeaturePlacementsIdx * devFeaturePlacementsSize),
+                dev_caveFeaturePlacements + (devFeaturePlacementsIdx * devCaveFeaturePlacementsSize),
                 host_blocks + (hostBlocksIdx * devBlocksSize),
                 dev_blocks + (devBlocksIdx * devBlocksSize),
                 streams[streamIdx]

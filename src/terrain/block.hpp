@@ -74,10 +74,12 @@ enum class Block : unsigned char
     REDWOOD_WOOD,
     REDWOOD_LEAVES,
     CYPRESS_WOOD,
-    CYPRESS_LEAVES
+    CYPRESS_LEAVES,
+    GLOWSTONE,
+    SHROOMLIGHT
 };
 
-static constexpr int numBlocks = (int)Block::CYPRESS_LEAVES + 1;
+static constexpr int numBlocks = (int)Block::SHROOMLIGHT + 1;
 
 struct SideUv
 {

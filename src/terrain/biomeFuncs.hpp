@@ -497,7 +497,9 @@ __constant__ ivec2 dev_dirVecs2d[8];
 
 static std::array<std::vector<FeatureGen>, numBiomes> host_biomeFeatureGens;
 static std::array<ivec2, numFeatures> host_featureHeightBounds;
+static std::array<ivec2, numCaveFeatures> host_caveFeatureHeightBounds;
 __constant__ ivec2 dev_featureHeightBounds[numFeatures];
+__constant__ ivec2 dev_caveFeatureHeightBounds[numCaveFeatures];
 
 void BiomeUtils::init()
 {
@@ -572,10 +574,10 @@ void BiomeUtils::init()
 #define setMaterialInfoSameBlock(material, v1, v2, v3) setMaterialInfo(material, material, v1, v2, v3)
 
     // material/block, thickness, noise amplitude, noise scale
-    setMaterialInfoSameBlock(BLACKSTONE, 56.f, 32.f, 0.0030f);
-    setMaterialInfoSameBlock(DEEPSLATE, 52.f, 20.f, 0.0045f);
+    setMaterialInfoSameBlock(BLACKSTONE, 32.f, 32.f, 0.0030f);
+    setMaterialInfoSameBlock(DEEPSLATE, 66.f, 20.f, 0.0045f);
     setMaterialInfoSameBlock(SLATE, 6.f, 24.f, 0.0062f);
-    setMaterialInfoSameBlock(STONE, 32.f, 30.f, 0.0050f);
+    setMaterialInfoSameBlock(STONE, 40.f, 30.f, 0.0050f);
     setMaterialInfoSameBlock(TUFF, 24.f, 42.f, 0.0060f);
     setMaterialInfoSameBlock(CALCITE, 20.f, 30.f, 0.0040f);
     setMaterialInfoSameBlock(GRANITE, 18.f, 36.f, 0.0034f);
@@ -784,6 +786,7 @@ void BiomeUtils::init()
         { Feature::CACTUS, 16, 2, 0.70f, { {Material::SAND, 0.5f} } }
     };
 
+    // for surface features, actual bounds = (pos.y + bounds[0], pos.y + bounds[1])
 #define setFeatureHeightBounds(feature, yMin, yMax) host_featureHeightBounds[(int)Feature::feature] = ivec2(yMin, yMax)
 
     setFeatureHeightBounds(NONE, 0, 0);
@@ -818,4 +821,18 @@ void BiomeUtils::init()
 #undef setFeatureHeightBounds
 
     cudaMemcpyToSymbol(dev_featureHeightBounds, host_featureHeightBounds.data(), numFeatures * sizeof(ivec2));
+
+    // for cave features, actual bounds = (pos.y - bounds[0], pos.y + height + bounds[1])
+#define setCaveFeatureHeightBounds(caveFeature, paddingBottom, paddingTop) host_caveFeatureHeightBounds[(int)CaveFeature::caveFeature] = ivec2(paddingBottom, paddingTop)
+
+    setCaveFeatureHeightBounds(NONE, 0, 0);
+    setCaveFeatureHeightBounds(TEST_GLOWSTONE_PILLAR, -3, 3);
+    setCaveFeatureHeightBounds(TEST_SHROOMLIGHT_PILLAR, -3, 3);
+
+    setCaveFeatureHeightBounds(STONE_PILLAR, -3, 3); // TODO: revisit
+
+#undef setCaveFeatureHeightBounds
+
+    cudaMemcpyToSymbol(dev_caveFeatureHeightBounds, host_caveFeatureHeightBounds.data(), numCaveFeatures * sizeof(ivec2));
+
 }

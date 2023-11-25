@@ -41,6 +41,8 @@ private:
 
     std::vector<FeaturePlacement> featurePlacements;
     std::vector<FeaturePlacement> gatheredFeaturePlacements;
+    std::vector<CaveFeaturePlacement> caveFeaturePlacements;
+    std::vector<CaveFeaturePlacement> gatheredCaveFeaturePlacements;
 
 public:
     const ivec2 worldChunkPos; // world space pos in terms of chunks (e.g. (3, -4) chunk pos = (48, -64) block pos)
@@ -138,6 +140,7 @@ public:
         CaveLayer* dev_caveLayers,
         cudaStream_t stream);
 
+    void generateColumnFeaturePlacements(int localX, int localZ);
     void generateFeaturePlacements();
     void gatherFeaturePlacements();
 
@@ -152,6 +155,7 @@ public:
         CaveLayer* host_caveLayers,
         CaveLayer* dev_caveLayers,
         FeaturePlacement* dev_featurePlacements,
+        CaveFeaturePlacement* dev_caveFeaturePlacements,
         Block* host_blocks,
         Block* dev_blocks,
         cudaStream_t stream);

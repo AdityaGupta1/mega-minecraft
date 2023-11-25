@@ -6,7 +6,7 @@ using namespace glm;
 
 class Player {
 private:
-    vec3 pos{ 0, 160, -20 };
+    vec3 pos{ 0, 200, -20 };
     float theta{ 0 };
     float phi{ 0 }; // -pi/2 to pi/2
 
