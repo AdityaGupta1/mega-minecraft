@@ -893,7 +893,9 @@ __global__ void kernGenerateCaves(
 
     for (int i = 0; i < numFlips; ++i)
     {
-        columnCaveLayersInts[startStoreIdx + i] = shared_flipHeights[startLoadIdx + i];
+        int storeIdx = startStoreIdx + i;
+        storeIdx += (storeIdx >> 1); // skip biome and padding
+        columnCaveLayersInts[storeIdx] = shared_flipHeights[startLoadIdx + i];
     }
 }
 

@@ -109,6 +109,8 @@ struct CaveLayer
 
     int start; // exclusive
     int end; // inclusive
+    CaveBiome biome; // for feature placement
+    char padding[3];
 };
 
 enum class Feature : unsigned char
