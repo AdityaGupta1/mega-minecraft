@@ -754,7 +754,7 @@ void Chunk::fixBackwardStratifiedLayers()
 
 __device__ bool shouldGenerateCaveAtBlock(ivec3 worldPos, float maxHeight, float oceanAndBeachWeight)
 {
-    if (worldPos.y == 0 || worldPos.y > max(maxHeight, (float)SEA_LEVEL) + 4.f)
+    if (worldPos.y == 0 || worldPos.y > (max(maxHeight, (float)SEA_LEVEL) + 4.f))
     {
         return false;
     }
@@ -804,7 +804,6 @@ __device__ bool shouldGenerateCaveAtBlock(ivec3 worldPos, float maxHeight, float
     return false;
 }
 
-// TODO: pass in heightfield and skip evaluating noise if y > max height
 __global__ void kernGenerateCaves(
     float* heightfield,
     float* biomeWeights,
@@ -857,45 +856,54 @@ __global__ void kernGenerateCaves(
 
     __syncthreads();
 
-    if (y >= 12)
+    if (y < (384 / 32))
     {
-        return;
-    }
-
-    const int startLoadIdx = 32 * y;
-    int endLoadIdx = startLoadIdx;
-    // TODO: see if this causes bank conflicts (pretty sure it does), could be fixable by making shared_flipHeights size 33 * 12
-    for (int i = startLoadIdx; i < startLoadIdx + 32; ++i)
-    {
-        int flipHeight = shared_flipHeights[i];
-        if (flipHeight != -1)
+        const int startLoadIdx = 32 * y;
+        int endLoadIdx = startLoadIdx;
+        // TODO: see if this causes bank conflicts (pretty sure it does), could be fixable by making shared_flipHeights size 33 * 12
+        for (int i = startLoadIdx; i < startLoadIdx + 32; ++i)
         {
-            shared_flipHeights[endLoadIdx] = flipHeight;
-            ++endLoadIdx;
+            int flipHeight = shared_flipHeights[i];
+            if (flipHeight != -1)
+            {
+                shared_flipHeights[endLoadIdx] = flipHeight;
+                ++endLoadIdx;
+            }
+        }
+
+        const int numFlips = endLoadIdx - startLoadIdx;
+        int startStoreIdx = 0;
+
+        // add up numFlips from all threads with lower y and store into startStoreIdx
+        // TODO: replace with parallel version
+        for (int srcLane = 0; srcLane < 12; ++srcLane)
+        {
+            int srcLaneNumFlips = __shfl_sync(0x00000fffu, numFlips, srcLane);
+            if (srcLane < y)
+            {
+                startStoreIdx += srcLaneNumFlips;
+            }
+        }
+
+        int* columnCaveLayersInts = (int*)(caveLayers + (256 * MAX_CAVE_LAYERS_PER_COLUMN * chunkIdx) + (MAX_CAVE_LAYERS_PER_COLUMN * idx2d));
+
+        for (int i = 0; i < numFlips; ++i)
+        {
+            int storeIdx = startStoreIdx + i;
+            storeIdx += (storeIdx >> 1); // skip biome and padding
+            columnCaveLayersInts[storeIdx] = shared_flipHeights[startLoadIdx + i];
         }
     }
 
-    const int numFlips = endLoadIdx - startLoadIdx;
-    int startStoreIdx = 0;
-
-    // add up numFlips from all threads with lower y and store into startStoreIdx
-    // TODO: replace with parallel version
-    for (int srcLane = 0; srcLane < 12; ++srcLane)
+    if (y < MAX_CAVE_LAYERS_PER_COLUMN)
     {
-        int srcLaneNumFlips = __shfl_sync(0x00000fffu, numFlips, srcLane);
-        if (srcLane < y)
+        CaveLayer& caveLayer = caveLayers[y];
+
+        if (caveLayer.start != 384)
         {
-            startStoreIdx += srcLaneNumFlips;
+            const ivec3 biomeWorldPos = ivec3(chunkWorldBlockPos.x + x, caveLayer.start, chunkWorldBlockPos.y + z);
+            caveLayer.biome = getCaveBiome(biomeWorldPos, shared_maxHeight, 329271348);
         }
-    }
-
-    int* columnCaveLayersInts = (int*)(caveLayers + (256 * MAX_CAVE_LAYERS_PER_COLUMN * chunkIdx) + (MAX_CAVE_LAYERS_PER_COLUMN * idx2d));
-
-    for (int i = 0; i < numFlips; ++i)
-    {
-        int storeIdx = startStoreIdx + i;
-        storeIdx += (storeIdx >> 1); // skip biome and padding
-        columnCaveLayersInts[storeIdx] = shared_flipHeights[startLoadIdx + i];
     }
 }
 
@@ -959,6 +967,17 @@ __host__ void Chunk::generateCaves(
 
 #pragma region feature placements
 
+bool isFeaturePos(ivec2 worldBlockPos2d, int gridCellSize, int gridCellPadding, int seed)
+{
+    const ivec2 gridCornerWorldPos = ivec2(floor(vec2(worldBlockPos2d) / (float)gridCellSize) * (float)gridCellSize);
+    const int gridCellInternalSideLength = gridCellSize - (2 * gridCellPadding);
+    vec2 randPos = rand2From3(vec3(gridCornerWorldPos, seed));
+    const ivec2 gridPlaceWorldPos = gridCornerWorldPos
+        + ivec2(gridCellPadding)
+        + ivec2(floor(randPos * (float)gridCellInternalSideLength));
+    return worldBlockPos2d == gridPlaceWorldPos;
+}
+
 // TODO: maybe revisit and try to optimize this by calculating thicknesses in a separate pass with better memory access patterns
 void Chunk::generateColumnFeaturePlacements(int localX, int localZ)
 {
@@ -967,13 +986,12 @@ void Chunk::generateColumnFeaturePlacements(int localX, int localZ)
     const auto& columnBiomeWeights = biomeWeights.data() + idx2d;
 
     const float height = heightfield[idx2d];
-    int groundHeight = (int)height;
-    const ivec3 worldBlockPos = this->worldBlockPos + ivec3(localX, groundHeight + 1, localZ);
+    const int groundHeight = (int)height;
 
-    const ivec2 localPos2d = ivec2(localX, localZ);
-    const ivec2 worldPos2d = localPos2d + ivec2(this->worldBlockPos.x, this->worldBlockPos.z);
+    const ivec2 localBlockPos2d = ivec2(localX, localZ);
+    const ivec2 worldBlockPos2d = ivec2(this->worldBlockPos.x, this->worldBlockPos.z) + localBlockPos2d;
 
-    auto blockRng = makeSeededRandomEngine(worldBlockPos.x, worldBlockPos.y, worldBlockPos.z, 7); // arbitrary w so this rng is different than heightfield rng
+    auto blockRng = makeSeededRandomEngine(worldBlockPos2d.x, worldBlockPos2d.y, 329828101);
     thrust::uniform_real_distribution<float> u01(0, 1);
 
     bool surfaceIsCave = false;
@@ -982,24 +1000,19 @@ void Chunk::generateColumnFeaturePlacements(int localX, int localZ)
     {
         const auto& caveLayer = columnCaveLayers[caveLayerIdx];
 
-        if (caveLayer.start == 384)
+        if (caveLayer.start == 384 || groundHeight <= caveLayer.start)
         {
             break;
         }
 
-        if (groundHeight <= caveLayer.start)
-        {
-            break;
-        }
-
-        ivec3 featurePos = ivec3(worldPos2d.x, caveLayer.start + 1, worldPos2d.y);
+        ivec3 featurePos = ivec3(worldBlockPos2d.x, caveLayer.start + 1, worldBlockPos2d.y);
         int layerHeight = caveLayer.end - caveLayer.start;
 
         // TODO: try generate cave feature placements
         if (localX == 0 && localZ == 0)
         {
             this->caveFeaturePlacements.push_back({
-                CaveFeature::TEST_GLOWSTONE_PILLAR,
+                CaveFeature::WARPED_FUNGUS,
                 featurePos,
                 layerHeight,
                 false
@@ -1009,11 +1022,11 @@ void Chunk::generateColumnFeaturePlacements(int localX, int localZ)
         if (localX == 8 && localZ == 8)
         {
             this->caveFeaturePlacements.push_back({
-                CaveFeature::TEST_SHROOMLIGHT_PILLAR,
+                CaveFeature::AMBER_FUNGUS,
                 featurePos,
                 layerHeight,
                 false
-                });
+            });
         }
 
         if (groundHeight > caveLayer.start && groundHeight <= caveLayer.end)
@@ -1036,6 +1049,11 @@ void Chunk::generateColumnFeaturePlacements(int localX, int localZ)
         for (int i = 0; i < featureGens.size(); ++i)
         {
             const auto& featureGen = featureGens[i];
+
+            if (u01(blockRng) >= featureGen.chancePerGridCell)
+            {
+                continue;
+            }
 
             if (!featureGen.possibleTopLayers.empty())
             {
@@ -1061,14 +1079,7 @@ void Chunk::generateColumnFeaturePlacements(int localX, int localZ)
                 }
             }
 
-            const ivec2 gridCornerWorldPos = ivec2(floor(vec2(worldPos2d) / (float)featureGen.gridCellSize) * (float)featureGen.gridCellSize);
-            const int gridCellInternalSideLength = featureGen.gridCellSize - (2 * featureGen.gridCellPadding);
-            vec2 randPos = rand2From3(vec3(gridCornerWorldPos, (int)featureGen.feature * 59321));
-            const ivec2 gridPlaceWorldPos = gridCornerWorldPos + ivec2(featureGen.gridCellPadding)
-                + ivec2(floor(randPos * (float)gridCellInternalSideLength));
-            const ivec2 gridPlaceLocalPos = gridPlaceWorldPos - ivec2(this->worldBlockPos.x, this->worldBlockPos.z);
-
-            if (localPos2d == gridPlaceLocalPos && u01(blockRng) < featureGen.chancePerGridCell)
+            if (isFeaturePos(worldBlockPos2d, featureGen.gridCellSize, featureGen.gridCellPadding, (int)featureGen.feature * 51949321))
             {
                 feature = featureGen.feature;
                 canReplaceBlocks = featureGen.canReplaceBlocks;
@@ -1078,7 +1089,11 @@ void Chunk::generateColumnFeaturePlacements(int localX, int localZ)
 
         if (feature != Feature::NONE)
         {
-            this->featurePlacements.push_back({ feature, worldBlockPos, canReplaceBlocks });
+            this->featurePlacements.push_back({ 
+                feature,
+                ivec3(worldBlockPos2d.x, groundHeight + 1, worldBlockPos2d.y),
+                canReplaceBlocks
+            });
         }
     }
 }
@@ -1174,7 +1189,7 @@ __device__ void chunkFillPlaceBlock(
     bool isTopBlock = y >= height - 1.f;
 
 #define doBlockPostProcess() biomeBlockPostProcess(blockPtr, randBiome, worldBlockPos, height, isTopBlock)
-#define doCaveBlockPostProcess() caveBiomeBlockPostProcess(blockPtr, getCaveBiome(worldBlockPos, height), worldBlockPos, nullptr, isCaveTopBlock)
+#define doCaveBlockPostProcess() caveBiomeBlockPostProcess(blockPtr, getCaveBiome(worldBlockPos, height, 190249401), worldBlockPos, nullptr, isCaveTopBlock)
 
     if (y > height && y <= SEA_LEVEL)
     {

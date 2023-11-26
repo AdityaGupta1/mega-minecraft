@@ -188,11 +188,11 @@ __device__ float getCaveBiomeWeight(CaveBiome biome, const CaveBiomeNoise& noise
     return totalWeight;
 }
 
-__device__ CaveBiome getCaveBiome(ivec3 worldBlockPos, float maxHeight)
+__device__ CaveBiome getCaveBiome(ivec3 worldBlockPos, float maxHeight, int seed)
 {
     CaveBiomeNoise noise = getCaveBiomeNoise(worldBlockPos, maxHeight);
 
-    auto rng = makeSeededRandomEngine(worldBlockPos.x, worldBlockPos.y, worldBlockPos.z, 24);
+    auto rng = makeSeededRandomEngine(worldBlockPos.x, worldBlockPos.y, worldBlockPos.z, seed);
     thrust::uniform_real_distribution<float> u01(0, 1);
     float rand = u01(rng);
     for (int caveBiomeIdx = 0; caveBiomeIdx < numCaveBiomes; ++caveBiomeIdx)
@@ -980,7 +980,8 @@ void BiomeUtils::init()
     setCaveFeatureHeightBounds(TEST_GLOWSTONE_PILLAR, -3, 3);
     setCaveFeatureHeightBounds(TEST_SHROOMLIGHT_PILLAR, -3, 3);
 
-    setCaveFeatureHeightBounds(STONE_PILLAR, -3, 3); // TODO: revisit
+    setCaveFeatureHeightBounds(WARPED_FUNGUS, -4, 4); // TODO: revisit
+    setCaveFeatureHeightBounds(AMBER_FUNGUS, -4, 4); // TODO: revisit
 
 #undef setCaveFeatureHeightBounds
 

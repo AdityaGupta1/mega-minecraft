@@ -109,7 +109,7 @@ struct CaveLayer
 
     int start; // exclusive
     int end; // inclusive
-    CaveBiome biome; // for feature placement
+    CaveBiome biome; // random biome of block at y = start, for feature placement
     char padding[3];
 };
 
@@ -160,10 +160,11 @@ enum class CaveFeature : unsigned char
     TEST_GLOWSTONE_PILLAR,
     TEST_SHROOMLIGHT_PILLAR,
 
-    STONE_PILLAR
+    WARPED_FUNGUS,
+    AMBER_FUNGUS
 };
 
-static constexpr int numCaveFeatures = (int)CaveFeature::STONE_PILLAR + 1;
+static constexpr int numCaveFeatures = (int)CaveFeature::AMBER_FUNGUS + 1;
 
 struct FeatureGenTopLayer
 {
@@ -186,6 +187,15 @@ struct FeaturePlacement
     Feature feature;
     glm::ivec3 pos;
     bool canReplaceBlocks;
+};
+
+struct CaveFeatureGen
+{
+    CaveFeature caveFeature;
+    int gridCellSize;
+    int gridCellPadding;
+    float chancePerGridCell;
+    bool canReplaceBlocks{ true };
 };
 
 struct CaveFeaturePlacement

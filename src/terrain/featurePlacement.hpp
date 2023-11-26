@@ -952,7 +952,7 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
 }
 
 // block should not change if return value is false
-__device__ bool placeCaveFeature(CaveFeaturePlacement caveFeaturePlacement, ivec3 worldBlockPos, Block* block)
+__device__ bool placeCaveFeature(CaveFeaturePlacement caveFeaturePlacement, ivec3 worldBlockPos, Block* blockPtr)
 {
     const ivec3& featurePos = caveFeaturePlacement.pos;
     ivec3 floorPos = worldBlockPos - featurePos;
@@ -974,7 +974,7 @@ __device__ bool placeCaveFeature(CaveFeaturePlacement caveFeaturePlacement, ivec
     {
         if (floorPos.x == 0 && floorPos.z == 0 && isInRange(floorPos.y, 0, height))
         {
-            *block = Block::GLOWSTONE;
+            *blockPtr = Block::GLOWSTONE;
             return true;
         }
 
@@ -984,14 +984,30 @@ __device__ bool placeCaveFeature(CaveFeaturePlacement caveFeaturePlacement, ivec
     {
         if (floorPos.x == 0 && floorPos.z == 0 && isInRange(floorPos.y, 0, height))
         {
-            *block = Block::SHROOMLIGHT;
+            *blockPtr = Block::SHROOMLIGHT;
             return true;
         }
 
         return false;
     }
-    case CaveFeature::STONE_PILLAR:
+    case CaveFeature::WARPED_FUNGUS:
     {
+        if (length(pos) < 2.f)
+        {
+            *blockPtr = Block::SHROOMLIGHT;
+            return true;
+        }
+
+        return false;
+    }
+    case CaveFeature::AMBER_FUNGUS:
+    {
+        if (length(pos) < 2.f)
+        {
+            *blockPtr = Block::GLOWSTONE;
+            return true;
+        }
+
         return false;
     }
     }
