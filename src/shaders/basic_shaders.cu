@@ -413,6 +413,7 @@ extern "C" __global__ void __anyhit__shadow()
 {
     if (anyhitAlphaTest())
     {
+        optixIgnoreIntersection();
         return;
     }
 
