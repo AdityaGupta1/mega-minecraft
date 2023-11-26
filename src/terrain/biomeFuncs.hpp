@@ -987,7 +987,7 @@ void BiomeUtils::init()
     // caveFeature, gridCellSize, gridCellPadding, chancePerGridCell
     host_caveBiomeFeatureGens[(int)CaveBiome::LUSH_CAVES] = {
         CaveFeatureGen(CaveFeature::GLOWSTONE_CLUSTER, 24, 3, 0.60f).setMinLayerHeight(16).setNotReplaceBlocks().setGeneratesFromCeiling(),
-        CaveFeatureGen(CaveFeature::CAVE_VINE, 3, 0, 0.50f).setMinLayerHeight(4).setNotReplaceBlocks().setGeneratesFromCeiling(),
+        CaveFeatureGen(CaveFeature::CAVE_VINE, 4, 0, 0.40f).setMinLayerHeight(4).setNotReplaceBlocks().setGeneratesFromCeiling(),
     };
 
     host_caveBiomeFeatureGens[(int)CaveBiome::WARPED_FOREST] = {
