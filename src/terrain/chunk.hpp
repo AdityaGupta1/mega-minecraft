@@ -140,6 +140,13 @@ public:
         CaveLayer* dev_caveLayers,
         cudaStream_t stream);
 
+    bool tryGenerateCaveFeaturePlacement(
+        const CaveFeatureGen& caveFeatureGen,
+        const CaveLayer& caveLayer,
+        bool top,
+        int caveFeaturePlacementSeed,
+        float rand,
+        ivec2 worldBlockPos2d);
     void generateColumnFeaturePlacements(int localX, int localZ);
     void generateFeaturePlacements();
     void gatherFeaturePlacements();

@@ -130,8 +130,8 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
     ivec3 floorPos = worldBlockPos - featurePos;
     vec3 pos = floorPos;
 
-    auto featureRng = makeSeededRandomEngine(featurePos.x, featurePos.y, featurePos.z, 8);
-    auto blockRng = makeSeededRandomEngine(worldBlockPos.x, worldBlockPos.y, worldBlockPos.z, 9);
+    auto featureRng = makeSeededRandomEngine(featurePos.x, featurePos.y, featurePos.z, 1293012);
+    auto blockRng = makeSeededRandomEngine(worldBlockPos.x, worldBlockPos.y, worldBlockPos.z, 57847812);
     thrust::uniform_real_distribution<float> u01(0, 1);
     thrust::uniform_real_distribution<float> u11(-1, 1);
 
@@ -751,7 +751,7 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
             return true;
         }
 
-        if (manhattanDistance(floorPos, vec3(0, height, 0)) == 1)
+        if (manhattanDistance(floorPos, ivec3(0, height, 0)) == 1)
         {
             *block = Block::JUNGLE_LEAVES_PLAIN;
             return true;
@@ -955,12 +955,14 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
 __device__ bool placeCaveFeature(CaveFeaturePlacement caveFeaturePlacement, ivec3 worldBlockPos, Block* blockPtr)
 {
     const ivec3& featurePos = caveFeaturePlacement.pos;
+    const int layerHeight = caveFeaturePlacement.height;
     ivec3 floorPos = worldBlockPos - featurePos;
+    //ivec3 floorTopPos = worldBlockPos - (featurePos + ivec3(0, layerHeight, 0));
     vec3 pos = floorPos;
-    int height = caveFeaturePlacement.height;
+    //vec3 topPos = floorTopPos;
 
-    auto featureRng = makeSeededRandomEngine(featurePos.x, featurePos.y, featurePos.z, 10);
-    auto blockRng = makeSeededRandomEngine(worldBlockPos.x, worldBlockPos.y, worldBlockPos.z, 11);
+    auto featureRng = makeSeededRandomEngine(featurePos.x, featurePos.y, featurePos.z, 398132);
+    auto blockRng = makeSeededRandomEngine(worldBlockPos.x, worldBlockPos.y, worldBlockPos.z, 932243);
     thrust::uniform_real_distribution<float> u01(0, 1);
     thrust::uniform_real_distribution<float> u11(-1, 1);
 
@@ -972,7 +974,7 @@ __device__ bool placeCaveFeature(CaveFeaturePlacement caveFeaturePlacement, ivec
     }
     case CaveFeature::TEST_GLOWSTONE_PILLAR:
     {
-        if (floorPos.x == 0 && floorPos.z == 0 && isInRange(floorPos.y, 0, height))
+        if (floorPos.x == 0 && floorPos.z == 0 && isInRange(floorPos.y, 0, layerHeight))
         {
             *blockPtr = Block::GLOWSTONE;
             return true;
@@ -982,9 +984,30 @@ __device__ bool placeCaveFeature(CaveFeaturePlacement caveFeaturePlacement, ivec
     }
     case CaveFeature::TEST_SHROOMLIGHT_PILLAR:
     {
-        if (floorPos.x == 0 && floorPos.z == 0 && isInRange(floorPos.y, 0, height))
+        if (floorPos.x == 0 && floorPos.z == 0 && isInRange(floorPos.y, 0, layerHeight))
         {
             *blockPtr = Block::SHROOMLIGHT;
+            return true;
+        }
+
+        return false;
+    }
+    case CaveFeature::GLOWSTONE_CLUSTER:
+    {
+        pos.y *= 1.35f;
+        pos *= 1.f + 0.5f * u01(featureRng);
+
+        float thisRadius = length(pos);
+        if (thisRadius > 6.f)
+        {
+            return false;
+        }
+
+        float xzAngle = atan2f(pos.z, pos.x);
+        float maxRadius = 3.5f + 2.f * simplex(vec2(xzAngle, worldBlockPos.y) * 1.5f);
+        if (thisRadius < maxRadius)
+        {
+            *blockPtr = Block::GLOWSTONE;
             return true;
         }
 
@@ -992,9 +1015,45 @@ __device__ bool placeCaveFeature(CaveFeaturePlacement caveFeaturePlacement, ivec
     }
     case CaveFeature::WARPED_FUNGUS:
     {
-        if (length(pos) < 2.f)
+        int height = (int)(2.5f + 3.0f * u01(featureRng));
+
+        if (floorPos.y < -2 || floorPos.y > height + 3)
         {
-            *blockPtr = Block::SHROOMLIGHT;
+            return false;
+        }
+
+        if (floorPos.x == 0 && floorPos.z == 0 && isInRange(floorPos.y, 0, height))
+        {
+            *blockPtr = Block::WARPED_STEM;
+            return true;
+        }
+
+        int shroomlightHeight = floorPos.y - (height - 1);
+        if (isInRange(shroomlightHeight, 0, 1) && manhattanLength(ivec2(floorPos.x, floorPos.z)) == 1)
+        {
+            float shroomlightChance = shroomlightHeight == 0 ? 0.2f : 0.5f;
+            if (u01(blockRng) < shroomlightChance)
+            {
+                *blockPtr = Block::SHROOMLIGHT;
+                return true;
+            }
+        }
+
+        float capRadius = length(vec2(pos.x, pos.z));
+        if (capRadius > 3.7f)
+        {
+            return false;
+        }
+
+        int capHeightEnd = height + 1 - (int)(capRadius / 2.5f);
+        int capHeightStart = capHeightEnd - (
+            4.2f 
+            * simplex((vec2(worldBlockPos.x, worldBlockPos.z) + vec2(featurePos.y)) * 3.f) 
+            * fmax(capRadius - 2.3f, 0.f)
+        );
+        if (isInRange(floorPos.y, capHeightStart, capHeightEnd))
+        {
+            *blockPtr = Block::WARPED_WART;
             return true;
         }
 
@@ -1002,11 +1061,11 @@ __device__ bool placeCaveFeature(CaveFeaturePlacement caveFeaturePlacement, ivec
     }
     case CaveFeature::AMBER_FUNGUS:
     {
-        if (length(pos) < 2.f)
-        {
-            *blockPtr = Block::GLOWSTONE;
-            return true;
-        }
+        //if (length(pos) < 2.f)
+        //{
+        //    *blockPtr = Block::GLOWSTONE;
+        //    return true;
+        //}
 
         return false;
     }

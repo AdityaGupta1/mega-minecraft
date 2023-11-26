@@ -81,10 +81,14 @@ enum class Block : unsigned char
     WARPED_BLACKSTONE,
     MOSS,
     AMBER_DEEPSLATE,
-    AMBER_BLACKSTONE
+    AMBER_BLACKSTONE,
+    WARPED_STEM,
+    WARPED_WART,
+    AMBER_STEM,
+    AMBER_WART,
 };
 
-static constexpr int numBlocks = (int)Block::AMBER_BLACKSTONE + 1;
+static constexpr int numBlocks = (int)Block::AMBER_WART + 1;
 
 struct SideUv
 {

@@ -87,6 +87,10 @@ void BlockUtils::init()
     blockDatas[(int)Block::MOSS] = { BlockUvs(ivec2(13, 6)) };
     blockDatas[(int)Block::AMBER_DEEPSLATE] = { BlockUvs(ivec2(7, 5), ivec2(6, 5), ivec2(4, 1)).setRandomFlip(false, false, true).setRandomRotation(false, true, false) };
     blockDatas[(int)Block::AMBER_BLACKSTONE] = { BlockUvs(ivec2(8, 5), ivec2(6, 5), ivec2(1, 1)).setRandomRotation(false, true, false) };
+    blockDatas[(int)Block::WARPED_STEM] = { BlockUvs(ivec2(11, 5), ivec2(12, 5)) };
+    blockDatas[(int)Block::WARPED_WART] = { BlockUvs(ivec2(0, 6)) };
+    blockDatas[(int)Block::AMBER_STEM] = { BlockUvs(ivec2(2, 6), ivec2(3, 6)) };
+    blockDatas[(int)Block::AMBER_WART] = { BlockUvs(ivec2(7, 6)) };
 }
 
 BlockData BlockUtils::getBlockData(Block block)

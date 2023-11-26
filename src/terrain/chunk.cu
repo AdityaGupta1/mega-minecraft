@@ -825,8 +825,8 @@ __global__ void kernGenerateCaves(
 
     const int idx2d = posTo2dIndex(x, z);
 
-    const ivec2 chunkWorldBlockPos = chunkWorldBlockPositions[chunkIdx];
-    const ivec3 worldPos = ivec3(chunkWorldBlockPos.x + x, y, chunkWorldBlockPos.y + z);
+    const ivec2 chunkWorldBlockPos2d = chunkWorldBlockPositions[chunkIdx];
+    const ivec3 worldPos = ivec3(chunkWorldBlockPos2d.x + x, y, chunkWorldBlockPos2d.y + z);
 
     if (y == 0)
     {
@@ -897,7 +897,7 @@ __global__ void kernGenerateCaves(
         for (int i = 0; i < numFlips; ++i)
         {
             int storeIdx = startStoreIdx + i;
-            storeIdx += (storeIdx >> 1); // skip biome and padding
+            storeIdx += (storeIdx >> 1); // skip biomes and padding
             columnCaveLayersInts[storeIdx] = shared_flipHeights[startLoadIdx + i];
         }
     }
@@ -905,11 +905,20 @@ __global__ void kernGenerateCaves(
     if (y < MAX_CAVE_LAYERS_PER_COLUMN)
     {
         CaveLayer& caveLayer = columnCaveLayers[y];
+        const ivec2 worldBlockPos2d = chunkWorldBlockPos2d + ivec2(x, z);
 
         if (caveLayer.start != 384)
         {
-            const ivec3 biomeWorldPos = ivec3(chunkWorldBlockPos.x + x, caveLayer.start, chunkWorldBlockPos.y + z);
-            caveLayer.biome = getCaveBiome(biomeWorldPos, shared_maxHeight, 329271348);
+            caveLayer.bottomBiome = getCaveBiome(ivec3(worldBlockPos2d.x, caveLayer.start, worldBlockPos2d.y), shared_maxHeight, 329271348);
+        }
+
+        if (caveLayer.end == 384)
+        {
+            caveLayer.topBiome = CaveBiome::NONE;
+        }
+        else
+        {
+            caveLayer.topBiome = getCaveBiome(ivec3(worldBlockPos2d.x, caveLayer.end + 1, worldBlockPos2d.y), shared_maxHeight, 4982921);
         }
     }
 }
@@ -985,6 +994,37 @@ bool isFeaturePos(ivec2 worldBlockPos2d, int gridCellSize, int gridCellPadding, 
     return worldBlockPos2d == gridPlaceWorldPos;
 }
 
+bool Chunk::tryGenerateCaveFeaturePlacement(
+    const CaveFeatureGen& caveFeatureGen,
+    const CaveLayer& caveLayer,
+    bool top,
+    int caveFeaturePlacementSeed,
+    float rand,
+    ivec2 worldBlockPos2d)
+{
+    int layerHeight = caveLayer.end - caveLayer.start;
+    int y = top ? caveLayer.end : (caveLayer.start + 1);
+
+    if (rand >= caveFeatureGen.chancePerGridCell
+        || (top != caveFeatureGen.generatesFromCeiling)
+        || (!caveFeatureGen.canGenerateInLava && y <= LAVA_LEVEL)
+        || layerHeight < caveFeatureGen.minLayerHeight)
+    {
+        return false;
+    }
+
+    if (isFeaturePos(worldBlockPos2d, caveFeatureGen.gridCellSize, caveFeatureGen.gridCellPadding, caveFeaturePlacementSeed))
+    {
+        this->caveFeaturePlacements.push_back({
+            caveFeatureGen.caveFeature,
+            ivec3(worldBlockPos2d.x, y, worldBlockPos2d.y),
+            layerHeight,
+            caveFeatureGen.canReplaceBlocks
+        });
+        return true;
+    }
+}
+
 // TODO: maybe revisit and try to optimize this by calculating thicknesses in a separate pass with better memory access patterns
 void Chunk::generateColumnFeaturePlacements(int localX, int localZ)
 {
@@ -1012,29 +1052,24 @@ void Chunk::generateColumnFeaturePlacements(int localX, int localZ)
             break;
         }
 
-        for (const auto& caveFeatureGen : host_caveBiomeFeatureGens[(int)caveLayer.biome])
+        for (const auto& caveFeatureGen : host_caveBiomeFeatureGens[(int)caveLayer.bottomBiome])
         {
-            if (u01(blockRng) >= caveFeatureGen.chancePerGridCell)
+            int caveFeaturePlacementSeed = (int)caveFeatureGen.caveFeature * 98239 + caveLayerIdx * 191702;
+            if (tryGenerateCaveFeaturePlacement(caveFeatureGen, caveLayer, false, caveFeaturePlacementSeed, u01(blockRng), worldBlockPos2d))
             {
-                continue;
-            }
-
-            int layerHeight = caveLayer.end - caveLayer.start;
-            if (layerHeight < caveFeatureGen.minHeight || layerHeight > caveFeatureGen.maxHeight)
-            {
-                continue;
-            }
-
-            int caveFeaturePlacementSeed = (int)caveFeatureGen.caveFeature * 98239 + caveLayerIdx * 19102;
-            if (isFeaturePos(worldBlockPos2d, caveFeatureGen.gridCellSize, caveFeatureGen.gridCellPadding, caveFeaturePlacementSeed))
-            {
-                this->caveFeaturePlacements.push_back({
-                    caveFeatureGen.caveFeature,
-                    ivec3(worldBlockPos2d.x, caveLayer.start + 1, worldBlockPos2d.y),
-                    caveLayer.end - caveLayer.start,
-                    caveFeatureGen.canReplaceBlocks
-                });
                 break;
+            }
+        }
+
+        if (caveLayer.end != 384)
+        {
+            for (const auto& caveFeatureGen : host_caveBiomeFeatureGens[(int)caveLayer.topBiome])
+            {
+                int caveFeaturePlacementSeed = (int)caveFeatureGen.caveFeature * 58321 + caveLayerIdx * 871503;
+                if (tryGenerateCaveFeaturePlacement(caveFeatureGen, caveLayer, true, caveFeaturePlacementSeed, u01(blockRng), worldBlockPos2d))
+                {
+                    break;
+                }
             }
         }
 

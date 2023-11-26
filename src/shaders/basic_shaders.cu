@@ -12,7 +12,7 @@
 
 #define DO_RUSSIAN_ROULETTE 1
 
-#define NUM_SAMPLES 2
+#define NUM_SAMPLES 1
 #define MAX_RAY_DEPTH 4
 
 /*! launch parameters in constant memory, filled in by optix upon
@@ -132,6 +132,7 @@ extern "C" __global__ void __raygen__render() {
     float3 finalAlbedo = make_float3(0);
     float3 finalNormal = make_float3(0);
 
+    #pragma unroll
     for (int sample = 0; sample < NUM_SAMPLES; ++sample)
     {
         prd.isDone = false;
@@ -142,6 +143,7 @@ extern "C" __global__ void __raygen__render() {
         prd.isect.pos = camera.position;
         prd.isect.newDir = rayDir;
 
+        #pragma unroll
         for (int depth = 0; depth < MAX_RAY_DEPTH; ++depth)
         {
             // 1. BSDF
@@ -331,7 +333,7 @@ extern "C" __global__ void __closesthit__radiance() {
         float4 emissiveTexCol = tex2D<float4>(chunkData.tex_emissive, uv.x, uv.y);
         if (emissiveTexCol.w > 0.f)
         {
-            float3 emissiveCol = make_float3(emissiveTexCol) * 2.2f;
+            float3 emissiveCol = make_float3(emissiveTexCol) * (prd.needsFirstHitData ? 2.f : 10.f); // make indirect emissive lighting much stronger
 
             prd.pixelColor += prd.rayColor * emissiveCol;
 

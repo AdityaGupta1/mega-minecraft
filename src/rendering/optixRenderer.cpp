@@ -10,7 +10,8 @@
 #include <optix_function_table_definition.h>
 #include <cuda_gl_interop.h>
 
-#define USE_DENOISING 0
+#define USE_DENOISING 1
+#define RESET_CAMERA_ON_BUILD_IAS 0
 
 constexpr int numRayTypes = 2;
 
@@ -346,7 +347,9 @@ void OptixRenderer::buildRootAccel()
 
     buildSBT(true);
 
+#if RESET_CAMERA_ON_BUILD_IAS
     cameraChanged = true;
+#endif
 }
 
 void OptixRenderer::destroyChunk(const Chunk* chunkPtr)

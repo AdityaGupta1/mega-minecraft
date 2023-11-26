@@ -6,7 +6,14 @@
 
 #pragma region utility functions
 
-__device__ int manhattanDistance(ivec3 a, ivec3 b)
+template<class T>
+__device__ int manhattanLength(T v)
+{
+    return compAdd(abs(v));
+}
+
+template<class T>
+__device__ int manhattanDistance(T a, T b)
 {
     return compAdd(abs(a - b));
 }

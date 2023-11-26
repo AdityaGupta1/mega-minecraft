@@ -109,8 +109,9 @@ struct CaveLayer
 
     int start; // exclusive
     int end; // inclusive
-    CaveBiome biome; // random biome of block at y = start, for feature placement
-    char padding[3];
+    CaveBiome bottomBiome; // random biome of block at y = start, for feature placement
+    CaveBiome topBiome; // y = end + 1
+    char padding[2];
 };
 
 enum class Feature : unsigned char
@@ -160,6 +161,8 @@ enum class CaveFeature : unsigned char
     TEST_GLOWSTONE_PILLAR,
     TEST_SHROOMLIGHT_PILLAR,
 
+    GLOWSTONE_CLUSTER,
+
     WARPED_FUNGUS,
     AMBER_FUNGUS
 };
@@ -191,13 +194,42 @@ struct FeaturePlacement
 
 struct CaveFeatureGen
 {
+    CaveFeatureGen(CaveFeature caveFeature, int gridCellSize, int gridCellPadding, float chancePerGridCell)
+        : caveFeature(caveFeature), gridCellSize(gridCellSize), gridCellPadding(gridCellPadding), chancePerGridCell(chancePerGridCell)
+    {}
+
     CaveFeature caveFeature;
     int gridCellSize;
     int gridCellPadding;
     float chancePerGridCell;
-    int minHeight{ 0 };
-    int maxHeight{ INT_MAX };
+    int minLayerHeight{ 0 };
     bool canReplaceBlocks{ true };
+    bool generatesFromCeiling{ false };
+    bool canGenerateInLava{ false };
+
+    inline CaveFeatureGen& setMinLayerHeight(int minLayerHeight)
+    {
+        this->minLayerHeight = minLayerHeight;
+        return *this;
+    }
+
+    inline CaveFeatureGen& setNotReplaceBlocks()
+    {
+        this->canReplaceBlocks = false;
+        return *this;
+    }
+
+    inline CaveFeatureGen& setGeneratesFromCeiling()
+    {
+        this->generatesFromCeiling = true;
+        return *this;
+    }
+
+    inline CaveFeatureGen& setCanGenerateInLava()
+    {
+        this->canGenerateInLava = true;
+        return *this;
+    }
 };
 
 struct CaveFeaturePlacement
