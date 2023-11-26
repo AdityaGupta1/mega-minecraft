@@ -377,11 +377,6 @@ static __device__ bool anyhitAlphaTest()
 
     const float alpha = diffuseCol.w;
 
-    if (alpha > 0.9999f)
-    {
-        return false;
-    }
-
     if (alpha == 0.f)
     {
         return true;
@@ -389,7 +384,7 @@ static __device__ bool anyhitAlphaTest()
     else
     {
         PRD& prd = *getPRD<PRD>();
-        if (rng(prd.seed) >= alpha)
+        if (rng(prd.seed) < alpha)
         {
             return false;
         }
@@ -413,6 +408,7 @@ extern "C" __global__ void __anyhit__shadow()
 {
     if (anyhitAlphaTest())
     {
+        optixIgnoreIntersection();
         return;
     }
 
