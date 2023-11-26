@@ -195,6 +195,8 @@ struct CaveFeatureGen
     int gridCellSize;
     int gridCellPadding;
     float chancePerGridCell;
+    int minHeight{ 0 };
+    int maxHeight{ INT_MAX };
     bool canReplaceBlocks{ true };
 };
 

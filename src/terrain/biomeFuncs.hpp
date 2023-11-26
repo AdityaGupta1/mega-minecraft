@@ -634,6 +634,7 @@ __constant__ ivec2 dev_dirVecs2d[8];
 
 static std::array<std::vector<FeatureGen>, numBiomes> host_biomeFeatureGens;
 static std::array<ivec2, numFeatures> host_featureHeightBounds;
+static std::array<std::vector<CaveFeatureGen>, numCaveBiomes> host_caveBiomeFeatureGens;
 static std::array<ivec2, numCaveFeatures> host_caveFeatureHeightBounds;
 __constant__ ivec2 dev_featureHeightBounds[numFeatures];
 __constant__ ivec2 dev_caveFeatureHeightBounds[numCaveFeatures];
@@ -719,6 +720,7 @@ void BiomeUtils::init()
     delete[] host_biomeBlocks;
 
 #pragma region material infos
+
     MaterialInfo* host_materialInfos = new MaterialInfo[numMaterials];
 
 #define setMaterialInfo(material, block, v1, v2, v3) host_materialInfos[(int)Material::material] = { Block::block, v1, v2, v3 }
@@ -762,9 +764,11 @@ void BiomeUtils::init()
 
     cudaMemcpyToSymbol(dev_materialInfos, host_materialInfos, numMaterials * sizeof(MaterialInfo));
     delete[] host_materialInfos;
+
 #pragma endregion
 
 #pragma region biome material weights
+
     float* host_biomeMaterialWeights = new float[numBiomes * numMaterials];
 
 #define setCurrentBiomeMaterialWeight(material, weight) host_biomeMaterialWeights[posTo2dIndex<numMaterials>((int)Material::material, biomeIdx)] = weight
@@ -872,11 +876,14 @@ void BiomeUtils::init()
 
     cudaMemcpyToSymbol(dev_biomeMaterialWeights, host_biomeMaterialWeights, numBiomes * numMaterials * sizeof(float));
     delete[] host_biomeMaterialWeights;
+
 #pragma endregion
 
     cudaMemcpyToSymbol(dev_dirVecs2d, DirectionEnums::dirVecs2d.data(), 8 * sizeof(ivec2));
 
-    // feature, gridCellSize, gridCellPadding, chancePerGridCell, possibleTopLayers
+#pragma region feature gens
+
+    // feature, gridCellSize, gridCellPadding, chancePerGridCell, possibleTopLayers, canReplaceBlocks
     host_biomeFeatureGens[(int)Biome::ICEBERGS] = {
         { Feature::ICEBERG, 112, 6, 0.70f, {} }
     };
@@ -973,6 +980,19 @@ void BiomeUtils::init()
 
     cudaMemcpyToSymbol(dev_featureHeightBounds, host_featureHeightBounds.data(), numFeatures * sizeof(ivec2));
 
+#pragma endregion
+
+#pragma region cave feature gens
+
+    // caveFeature, gridCellSize, gridCellPadding, chancePerGridCell, minHeight, maxHeight, canReplaceBlocks
+    host_caveBiomeFeatureGens[(int)CaveBiome::WARPED_FOREST] = {
+        { CaveFeature::WARPED_FUNGUS, 8, 1, 0.80f, 6 }
+    };
+
+    host_caveBiomeFeatureGens[(int)CaveBiome::AMBER_FOREST] = {
+        { CaveFeature::AMBER_FUNGUS, 8, 1, 0.70f, 6 }
+    };
+
     // for cave features, actual bounds = (pos.y - bounds[0], pos.y + height + bounds[1])
 #define setCaveFeatureHeightBounds(caveFeature, paddingBottom, paddingTop) host_caveFeatureHeightBounds[(int)CaveFeature::caveFeature] = ivec2(paddingBottom, paddingTop)
 
@@ -987,4 +1007,5 @@ void BiomeUtils::init()
 
     cudaMemcpyToSymbol(dev_caveFeatureHeightBounds, host_caveFeatureHeightBounds.data(), numCaveFeatures * sizeof(ivec2));
 
+#pragma endregion
 }

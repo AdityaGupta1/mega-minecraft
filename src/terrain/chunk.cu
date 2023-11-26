@@ -856,6 +856,13 @@ __global__ void kernGenerateCaves(
 
     __syncthreads();
 
+    if (y >= max(384 / 32, MAX_CAVE_LAYERS_PER_COLUMN))
+    {
+        return;
+    }
+
+    CaveLayer* columnCaveLayers = caveLayers + (256 * MAX_CAVE_LAYERS_PER_COLUMN * chunkIdx) + (MAX_CAVE_LAYERS_PER_COLUMN * idx2d);
+
     if (y < (384 / 32))
     {
         const int startLoadIdx = 32 * y;
@@ -885,7 +892,7 @@ __global__ void kernGenerateCaves(
             }
         }
 
-        int* columnCaveLayersInts = (int*)(caveLayers + (256 * MAX_CAVE_LAYERS_PER_COLUMN * chunkIdx) + (MAX_CAVE_LAYERS_PER_COLUMN * idx2d));
+        int* columnCaveLayersInts = (int*)columnCaveLayers;
 
         for (int i = 0; i < numFlips; ++i)
         {
@@ -897,7 +904,7 @@ __global__ void kernGenerateCaves(
 
     if (y < MAX_CAVE_LAYERS_PER_COLUMN)
     {
-        CaveLayer& caveLayer = caveLayers[y];
+        CaveLayer& caveLayer = columnCaveLayers[y];
 
         if (caveLayer.start != 384)
         {
@@ -1005,28 +1012,30 @@ void Chunk::generateColumnFeaturePlacements(int localX, int localZ)
             break;
         }
 
-        ivec3 featurePos = ivec3(worldBlockPos2d.x, caveLayer.start + 1, worldBlockPos2d.y);
-        int layerHeight = caveLayer.end - caveLayer.start;
-
-        // TODO: try generate cave feature placements
-        if (localX == 0 && localZ == 0)
+        for (const auto& caveFeatureGen : host_caveBiomeFeatureGens[(int)caveLayer.biome])
         {
-            this->caveFeaturePlacements.push_back({
-                CaveFeature::WARPED_FUNGUS,
-                featurePos,
-                layerHeight,
-                false
-            });
-        }
+            if (u01(blockRng) >= caveFeatureGen.chancePerGridCell)
+            {
+                continue;
+            }
 
-        if (localX == 8 && localZ == 8)
-        {
-            this->caveFeaturePlacements.push_back({
-                CaveFeature::AMBER_FUNGUS,
-                featurePos,
-                layerHeight,
-                false
-            });
+            int layerHeight = caveLayer.end - caveLayer.start;
+            if (layerHeight < caveFeatureGen.minHeight || layerHeight > caveFeatureGen.maxHeight)
+            {
+                continue;
+            }
+
+            int caveFeaturePlacementSeed = (int)caveFeatureGen.caveFeature * 98239 + caveLayerIdx * 19102;
+            if (isFeaturePos(worldBlockPos2d, caveFeatureGen.gridCellSize, caveFeatureGen.gridCellPadding, caveFeaturePlacementSeed))
+            {
+                this->caveFeaturePlacements.push_back({
+                    caveFeatureGen.caveFeature,
+                    ivec3(worldBlockPos2d.x, caveLayer.start + 1, worldBlockPos2d.y),
+                    caveLayer.end - caveLayer.start,
+                    caveFeatureGen.canReplaceBlocks
+                });
+                break;
+            }
         }
 
         if (groundHeight > caveLayer.start && groundHeight <= caveLayer.end)
@@ -1044,12 +1053,8 @@ void Chunk::generateColumnFeaturePlacements(int localX, int localZ)
 
         const float* columnLayers = this->layers.data() + idx2d;
 
-        Feature feature = Feature::NONE;
-        bool canReplaceBlocks = true;
-        for (int i = 0; i < featureGens.size(); ++i)
+        for (const auto& featureGen : featureGens)
         {
-            const auto& featureGen = featureGens[i];
-
             if (u01(blockRng) >= featureGen.chancePerGridCell)
             {
                 continue;
@@ -1079,21 +1084,15 @@ void Chunk::generateColumnFeaturePlacements(int localX, int localZ)
                 }
             }
 
-            if (isFeaturePos(worldBlockPos2d, featureGen.gridCellSize, featureGen.gridCellPadding, (int)featureGen.feature * 51949321))
+            if (isFeaturePos(worldBlockPos2d, featureGen.gridCellSize, featureGen.gridCellPadding, (int)featureGen.feature * 518721))
             {
-                feature = featureGen.feature;
-                canReplaceBlocks = featureGen.canReplaceBlocks;
+                this->featurePlacements.push_back({
+                    featureGen.feature,
+                    ivec3(worldBlockPos2d.x, groundHeight + 1, worldBlockPos2d.y),
+                    featureGen.canReplaceBlocks
+                });
                 break;
             }
-        }
-
-        if (feature != Feature::NONE)
-        {
-            this->featurePlacements.push_back({ 
-                feature,
-                ivec3(worldBlockPos2d.x, groundHeight + 1, worldBlockPos2d.y),
-                canReplaceBlocks
-            });
         }
     }
 }
