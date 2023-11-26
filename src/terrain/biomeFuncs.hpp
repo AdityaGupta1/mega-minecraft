@@ -985,6 +985,11 @@ void BiomeUtils::init()
 #pragma region cave feature gens
 
     // caveFeature, gridCellSize, gridCellPadding, chancePerGridCell
+    host_caveBiomeFeatureGens[(int)CaveBiome::LUSH_CAVES] = {
+        CaveFeatureGen(CaveFeature::GLOWSTONE_CLUSTER, 24, 3, 0.60f).setMinLayerHeight(16).setNotReplaceBlocks().setGeneratesFromCeiling(),
+        CaveFeatureGen(CaveFeature::CAVE_VINE, 3, 0, 0.50f).setMinLayerHeight(4).setNotReplaceBlocks().setGeneratesFromCeiling(),
+    };
+
     host_caveBiomeFeatureGens[(int)CaveBiome::WARPED_FOREST] = {
         CaveFeatureGen(CaveFeature::GLOWSTONE_CLUSTER, 16, 3, 0.80f).setMinLayerHeight(16).setNotReplaceBlocks().setGeneratesFromCeiling(),
         CaveFeatureGen(CaveFeature::WARPED_FUNGUS, 8, 1, 0.80f).setMinLayerHeight(6).setNotReplaceBlocks()
@@ -1000,6 +1005,8 @@ void BiomeUtils::init()
     setCaveFeatureHeightBounds(NONE, 0, 0);
     setCaveFeatureHeightBounds(TEST_GLOWSTONE_PILLAR, -3, 3);
     setCaveFeatureHeightBounds(TEST_SHROOMLIGHT_PILLAR, -3, 3);
+
+    setCaveFeatureHeightBounds(CAVE_VINE, 0, 0);
 
     setCaveFeatureHeightBounds(GLOWSTONE_CLUSTER, 0, 6);
 

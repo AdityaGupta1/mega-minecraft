@@ -321,11 +321,17 @@ extern "C" __global__ void __closesthit__radiance() {
 
     const float3 bary = getBarycentricCoords();
     float2 uv = bary.x * v1.uv + bary.y * v2.uv + bary.z * v3.uv;
-    float3 nor = normalize(bary.x * v1.nor + bary.y * v2.nor + bary.z * v3.nor); // TODO: figure out whether to use normal faceforwards (for transparency)
+    float3 nor = normalize(bary.x * v1.nor + bary.y * v2.nor + bary.z * v3.nor);
+
+    const float3 rayDir = optixGetWorldRayDirection();
+    if (dot(rayDir, nor) > 0.f)
+    {
+        nor = -nor;
+    }
+
     float3 diffuseCol = make_float3(tex2D<float4>(chunkData.tex_diffuse, uv.x, uv.y));
 
     const float3 rayOrigin = optixGetWorldRayOrigin();
-    const float3 rayDir = optixGetWorldRayDirection();
     const float3 isectPos = rayOrigin + rayDir * optixGetRayTmax();
 
     if (diffuseCol.x == 0.f && diffuseCol.y == 0.f && diffuseCol.z == 0.f)

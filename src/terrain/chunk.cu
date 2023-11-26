@@ -1003,11 +1003,10 @@ bool Chunk::tryGenerateCaveFeaturePlacement(
     ivec2 worldBlockPos2d)
 {
     int layerHeight = caveLayer.end - caveLayer.start;
-    int y = top ? caveLayer.end : (caveLayer.start + 1);
 
     if (rand >= caveFeatureGen.chancePerGridCell
         || (top != caveFeatureGen.generatesFromCeiling)
-        || (!caveFeatureGen.canGenerateInLava && y <= LAVA_LEVEL)
+        || (!caveFeatureGen.canGenerateInLava && (top ? caveLayer.end : (caveLayer.start + 1)) <= LAVA_LEVEL)
         || layerHeight < caveFeatureGen.minLayerHeight)
     {
         return false;
@@ -1017,7 +1016,7 @@ bool Chunk::tryGenerateCaveFeaturePlacement(
     {
         this->caveFeaturePlacements.push_back({
             caveFeatureGen.caveFeature,
-            ivec3(worldBlockPos2d.x, y, worldBlockPos2d.y),
+            ivec3(worldBlockPos2d.x, caveLayer.start + 1, worldBlockPos2d.y),
             layerHeight,
             caveFeatureGen.canReplaceBlocks
         });
@@ -1142,7 +1141,7 @@ void Chunk::generateFeaturePlacements()
         }
     }
 
-    // this probably won't include decorators (single block/column things) since those can be done on the CPU at the end of Chunk::fill()
+    // this probably won't include decorators (single block things) since those can be done on the CPU at the end of Chunk::fill()
 }
 
 static const std::array<ivec2, 25> gatherFeaturePlacementsChunkOffsets = {
@@ -1464,7 +1463,7 @@ __global__ void kernFill(
             }
 
             const int featureY = caveFeaturePlacement.pos.y;
-            ivec2 caveFeatureHeightBounds = ivec2(featureY, featureY + caveFeaturePlacement.height) + dev_caveFeatureHeightBounds[(int)caveFeaturePlacement.feature];
+            ivec2 caveFeatureHeightBounds = ivec2(featureY, featureY + caveFeaturePlacement.layerHeight) + dev_caveFeatureHeightBounds[(int)caveFeaturePlacement.feature];
             if (y < caveFeatureHeightBounds[0] || y > caveFeatureHeightBounds[1])
             {
                 continue;
@@ -1542,7 +1541,7 @@ void Chunk::fill(
         {
             const auto& caveFeatureHeightBounds = host_caveFeatureHeightBounds[(int)caveFeaturePlacement.feature];
             const int featureY = caveFeaturePlacement.pos.y;
-            const ivec2 thisCaveFeatureHeightBounds = ivec2(featureY, featureY + caveFeaturePlacement.height) + caveFeatureHeightBounds;
+            const ivec2 thisCaveFeatureHeightBounds = ivec2(featureY, featureY + caveFeaturePlacement.layerHeight) + caveFeatureHeightBounds;
             heightBoundsMinMax(allCaveFeaturesHeightBounds, thisCaveFeatureHeightBounds);
         }
 
@@ -1611,6 +1610,21 @@ void Chunk::fill(
 
 #pragma region VBOs
 
+static const float xShapedPosOffset = 0.5f * sinf(glm::radians(45.f));
+static const std::array<vec3, 8> xShapedVertPositions = {
+    vec3(xShapedPosOffset, 0.f, xShapedPosOffset),
+    vec3(-xShapedPosOffset, 0.f, -xShapedPosOffset),
+    vec3(-xShapedPosOffset, 1.f, -xShapedPosOffset),
+    vec3(xShapedPosOffset, 1.f, xShapedPosOffset),
+
+    vec3(-xShapedPosOffset, 0.f, xShapedPosOffset),
+    vec3(xShapedPosOffset, 0.f, -xShapedPosOffset),
+    vec3(xShapedPosOffset, 1.f, -xShapedPosOffset),
+    vec3(-xShapedPosOffset, 1.f, xShapedPosOffset)
+};
+static const vec3 xShapedFaceNormal1 = normalize(vec3(1, 0, -1));
+static const vec3 xShapedFaceNormal2 = normalize(vec3(1, 0, 1));
+
 static const std::array<ivec3, 24> directionVertPositions = {
     ivec3(0, 0, 1), ivec3(1, 0, 1), ivec3(1, 1, 1), ivec3(0, 1, 1),
     ivec3(1, 0, 1), ivec3(1, 0, 0), ivec3(1, 1, 0), ivec3(1, 1, 1),
@@ -1620,7 +1634,7 @@ static const std::array<ivec3, 24> directionVertPositions = {
     ivec3(0, 0, 0), ivec3(1, 0, 0), ivec3(1, 0, 1), ivec3(0, 0, 1)
 };
 
-static const std::array<ivec2, 16> uvOffsets = {
+static const std::array<ivec2, 4> uvOffsets = {
     ivec2(0, 0), ivec2(1, 0), ivec2(1, 1), ivec2(0, 1)
 };
 
@@ -1647,6 +1661,42 @@ void Chunk::createVBOs()
 
                 BlockData thisBlockData = BlockUtils::getBlockData(thisBlock);
                 const auto thisTrans = thisBlockData.transparency;
+
+                if (thisTrans == TransparencyType::T_X_SHAPED)
+                {
+                    vec3 basePos = vec3(x + 0.5f, y, z + 0.5f);
+                    // TODO random offset
+
+                    int idx1 = verts.size();
+
+                    for (int i = 0; i < 8; i++)
+                    {
+                        auto posOffset = xShapedVertPositions[i];
+
+                        verts.emplace_back();
+                        Vertex& vert = verts.back();
+
+                        vert.pos = basePos + posOffset;
+                        vert.nor = i < 4 ? xShapedFaceNormal1 : xShapedFaceNormal2;
+                        vert.uv = vec2(thisBlockData.uvs.side.uv + uvOffsets[i % 4]) * 0.0625f;
+                    }
+
+                    idx.push_back(idx1);
+                    idx.push_back(idx1 + 1);
+                    idx.push_back(idx1 + 2);
+                    idx.push_back(idx1);
+                    idx.push_back(idx1 + 2);
+                    idx.push_back(idx1 + 3);
+
+                    idx.push_back(idx1 + 4);
+                    idx.push_back(idx1 + 5);
+                    idx.push_back(idx1 + 6);
+                    idx.push_back(idx1 + 4);
+                    idx.push_back(idx1 + 6);
+                    idx.push_back(idx1 + 7);
+
+                    continue;
+                }
 
                 for (int dirIdx = 0; dirIdx < 6; ++dirIdx)
                 {
@@ -1690,7 +1740,7 @@ void Chunk::createVBOs()
                         // OPAQUE displays if neighbor is not OPAQUE
                         // SEMI_TRANSPARENT if neighbor is not OPAQUE
                         // TRANSPARENT (except AIR) displays if neighbor is AIR or SEMI_TRANSPARENT (may need to revise this if two different transparent blocks are adjacent)
-                        // X_SHAPED displays no matter what
+                        // X_SHAPED displays no matter what (handled above)
                         bool shouldDisplay;
                         switch (thisTrans)
                         {
@@ -1700,9 +1750,6 @@ void Chunk::createVBOs()
                             break;
                         case TransparencyType::T_TRANSPARENT:
                             shouldDisplay = neighborBlock == Block::AIR || neighborTrans == TransparencyType::T_SEMI_TRANSPARENT;
-                            break;
-                        case TransparencyType::T_X_SHAPED:
-                            shouldDisplay = true;
                             break;
                         }
 

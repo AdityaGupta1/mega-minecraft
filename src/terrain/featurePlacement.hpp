@@ -955,14 +955,14 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
 __device__ bool placeCaveFeature(CaveFeaturePlacement caveFeaturePlacement, ivec3 worldBlockPos, Block* blockPtr)
 {
     const ivec3& featurePos = caveFeaturePlacement.pos;
-    const int layerHeight = caveFeaturePlacement.height;
+    const int layerHeight = caveFeaturePlacement.layerHeight;
     ivec3 floorPos = worldBlockPos - featurePos;
-    //ivec3 floorTopPos = worldBlockPos - (featurePos + ivec3(0, layerHeight, 0));
+    ivec3 floorTopPos = worldBlockPos - (featurePos + ivec3(0, layerHeight, 0));
     vec3 pos = floorPos;
-    //vec3 topPos = floorTopPos;
+    vec3 topPos = floorTopPos;
 
     auto featureRng = makeSeededRandomEngine(featurePos.x, featurePos.y, featurePos.z, 398132);
-    auto blockRng = makeSeededRandomEngine(worldBlockPos.x, worldBlockPos.y, worldBlockPos.z, 932243);
+    auto blockRng = makeSeededRandomEngine(worldBlockPos.x, worldBlockPos.y, worldBlockPos.z, 9322743);
     thrust::uniform_real_distribution<float> u01(0, 1);
     thrust::uniform_real_distribution<float> u11(-1, 1);
 
@@ -992,18 +992,46 @@ __device__ bool placeCaveFeature(CaveFeaturePlacement caveFeaturePlacement, ivec
 
         return false;
     }
+    case CaveFeature::CAVE_VINE:
+    {
+        if (floorTopPos.x != 0 || floorTopPos.z != 0)
+        {
+            return false;
+        }
+
+        int height = (int)(3.f + 12.f * u01(featureRng));
+        height = min(height, layerHeight);
+
+        if (!isInRange(floorTopPos.y, -height, 0))
+        {
+            return false;
+        }
+
+        bool glowing = u01(blockRng) < 0.2f;
+        bool isEnd = floorTopPos.y == -height;
+        if (isEnd)
+        {
+            *blockPtr = glowing ? Block::CAVE_VINES_GLOW_END : Block::CAVE_VINES_END;
+        }
+        else
+        {
+            *blockPtr = glowing ? Block::CAVE_VINES_GLOW_MAIN : Block::CAVE_VINES_MAIN;
+        }
+
+        return true;
+    }
     case CaveFeature::GLOWSTONE_CLUSTER:
     {
-        pos.y *= 1.35f;
-        pos *= 1.f + 0.5f * u01(featureRng);
+        topPos.y *= 1.35f;
+        topPos *= 1.f + 0.5f * u01(featureRng);
 
-        float thisRadius = length(pos);
+        float thisRadius = length(topPos);
         if (thisRadius > 6.f)
         {
             return false;
         }
 
-        float xzAngle = atan2f(pos.z, pos.x);
+        float xzAngle = atan2f(pos.z, pos.x); // pos instead of topPos since pos isn't scaled
         float maxRadius = 3.5f + 2.f * simplex(vec2(xzAngle, worldBlockPos.y) * 1.5f);
         if (thisRadius < maxRadius)
         {

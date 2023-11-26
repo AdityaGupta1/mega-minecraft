@@ -4,7 +4,7 @@
 
 #define MAX_CAVE_LAYERS_PER_COLUMN 32
 #define MAX_GATHERED_FEATURES_PER_CHUNK 1024 // ~40 per chunk
-#define MAX_GATHERED_CAVE_FEATURES_PER_CHUNK 1024 // ~40 per chunk
+#define MAX_GATHERED_CAVE_FEATURES_PER_CHUNK 4096 // ~160 per chunk
 
 #define SEA_LEVEL 128
 #define LAVA_LEVEL 8
@@ -161,6 +161,8 @@ enum class CaveFeature : unsigned char
     TEST_GLOWSTONE_PILLAR,
     TEST_SHROOMLIGHT_PILLAR,
 
+    CAVE_VINE,
+
     GLOWSTONE_CLUSTER,
 
     WARPED_FUNGUS,
@@ -236,7 +238,7 @@ struct CaveFeaturePlacement
 {
     CaveFeature feature;
     glm::ivec3 pos; // lowest air block of cave layer
-    int height; // block at (pos.y + height) is highest air block of cave layer
+    int layerHeight; // block at (pos.y + layerHeight) is highest air block of cave layer
     bool canReplaceBlocks;
 };
 

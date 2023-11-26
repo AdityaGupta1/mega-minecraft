@@ -91,6 +91,10 @@ void BlockUtils::init()
     blockDatas[(int)Block::WARPED_WART] = { BlockUvs(ivec2(0, 6)) };
     blockDatas[(int)Block::AMBER_STEM] = { BlockUvs(ivec2(2, 6), ivec2(3, 6)) };
     blockDatas[(int)Block::AMBER_WART] = { BlockUvs(ivec2(7, 6)) };
+    blockDatas[(int)Block::CAVE_VINES_MAIN] = { BlockUvs(ivec2(2, 7)), TransparencyType::T_X_SHAPED };
+    blockDatas[(int)Block::CAVE_VINES_GLOW_MAIN] = { BlockUvs(ivec2(3, 7)), TransparencyType::T_X_SHAPED };
+    blockDatas[(int)Block::CAVE_VINES_END] = { BlockUvs(ivec2(4, 7)), TransparencyType::T_X_SHAPED };
+    blockDatas[(int)Block::CAVE_VINES_GLOW_END] = { BlockUvs(ivec2(5, 7)), TransparencyType::T_X_SHAPED };
 }
 
 BlockData BlockUtils::getBlockData(Block block)
