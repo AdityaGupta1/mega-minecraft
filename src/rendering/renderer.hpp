@@ -10,7 +10,7 @@ class Renderer
 {
 private:
     GLFWwindow* window{ nullptr };
-    ivec2* windowSize{ nullptr };
+    uvec2* windowSize{ nullptr };
     Terrain* terrain{ nullptr };
     Player* player{ nullptr };
 
@@ -63,7 +63,7 @@ private:
     mat3 sunRotateMat{};
 
 public:
-    Renderer(GLFWwindow* window, ivec2* windowSize, Terrain* terrain, Player* player);
+    Renderer(GLFWwindow* window, uvec2* windowSize, Terrain* terrain, Player* player);
 
     ~Renderer();
 
