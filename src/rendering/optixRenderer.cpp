@@ -722,6 +722,8 @@ void OptixRenderer::render(float deltaTime)
 void OptixRenderer::onResize()
 {
     pboResource = *(renderer->getCudaTextureResource());
+    CUDA_CHECK(cudaFree(dev_denoisedBuffer));
+    CUDA_CHECK(cudaMalloc((void**)&dev_denoisedBuffer, windowSize->x * windowSize->y * sizeof(float4)));
 }
 
 void OptixRenderer::updateSunDirection()

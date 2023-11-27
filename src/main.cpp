@@ -207,7 +207,7 @@ void initD3DWindow()
         0, 0, windowSize.x + 2 * GetSystemMetrics(SM_CXSIZEFRAME), windowSize.y + 2 * GetSystemMetrics(SM_CYSIZEFRAME) + GetSystemMetrics(SM_CYMENU),
         NULL, NULL, wcex.hInstance, NULL);
 
-    ShowWindow(g_hWnd, SW_SHOWDEFAULT);
+    ShowWindow(g_hWnd, SW_SHOWMAXIMIZED);
     UpdateWindow(g_hWnd);
 }
 
