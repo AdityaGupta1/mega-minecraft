@@ -16,7 +16,7 @@
 #define DEBUG_CREATE_PASSTHROUGH_SHADERS 0
 #define DEBUG_DISPLAY_SHADOW_MAP 0
 
-Renderer::Renderer(GLFWwindow* window, ivec2* windowSize, Terrain* terrain, Player* player)
+Renderer::Renderer(GLFWwindow* window, uvec2* windowSize, Terrain* terrain, Player* player)
     : window(window), windowSize(windowSize), terrain(terrain), player(player), vao(-1),
       fbo_main(-1), rbo_main(-1), fbo_shadow(-1), fbo_postprocess1(-1), fbo_bloom1(-1), fbo_bloom2(-1),
       tex_blockDiffuse(-1), tex_bufColor1(-1), tex_bufColor2(-1), tex_shadow(-1), tex_volume(-1), tex_bufBloomColor1(-1), tex_bufBloomColor2(-1)

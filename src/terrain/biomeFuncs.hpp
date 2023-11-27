@@ -311,14 +311,14 @@ __device__ float getHeight(Biome biome, vec2 pos)
         vec2 noiseOffset = simplex2From2(pos * 0.0800f) * 3.0f;
         vec2 noisePos = (pos + noiseOffset) * 0.0300f;
 
-        float worley1 = smoothstep(0.45f, 0.35f, worley(noisePos)) * 0.8f;
-        float worley2 = smoothstep(0.45f, 0.35f, worley(noisePos * 1.8f)) * 0.2f;
+        float worley1 = smoothstep(0.45f, 0.35f, worley(noisePos)) * 1.2f;
+        float worley2 = smoothstep(0.45f, 0.35f, worley(noisePos * 1.4f + vec2(4292.12f, 9183.27f))) * 0.6f;
         float mountainsHeight = worley1 + worley2;
-        mountainsHeight *= 65.f + 5.f * fbm<3>(noisePos * 1.6f);
+        mountainsHeight *= 54.f + 7.f * fbm<3>(noisePos * 1.7f);
 
         float hillsHeight = 16.f * simplex(pos * 0.0150f);
 
-        return 131.f + hillsHeight + 9.f * fbm<3>(pos * 0.0070f) + mountainsHeight;
+        return 128.f + hillsHeight + 9.f * fbm<3>(pos * 0.0070f) + mountainsHeight;
     }
     case Biome::JUNGLE:
     {
@@ -992,11 +992,12 @@ void BiomeUtils::init()
 
     host_caveBiomeFeatureGens[(int)CaveBiome::WARPED_FOREST] = {
         CaveFeatureGen(CaveFeature::GLOWSTONE_CLUSTER, 16, 3, 0.80f).setMinLayerHeight(16).setNotReplaceBlocks().setGeneratesFromCeiling(),
-        CaveFeatureGen(CaveFeature::WARPED_FUNGUS, 8, 1, 0.80f).setMinLayerHeight(6).setNotReplaceBlocks()
+        CaveFeatureGen(CaveFeature::WARPED_FUNGUS, 7, 1, 0.75f).setMinLayerHeight(6).setNotReplaceBlocks()
     };
 
     host_caveBiomeFeatureGens[(int)CaveBiome::AMBER_FOREST] = {
-        CaveFeatureGen(CaveFeature::AMBER_FUNGUS, 8, 1, 0.70f).setMinLayerHeight(6).setNotReplaceBlocks()
+        CaveFeatureGen(CaveFeature::GLOWSTONE_CLUSTER, 18, 3, 0.75f).setMinLayerHeight(16).setNotReplaceBlocks().setGeneratesFromCeiling(),
+        CaveFeatureGen(CaveFeature::AMBER_FUNGUS, 5, 1, 0.60f).setMinLayerHeight(9).setNotReplaceBlocks()
     };
 
     // for cave features, actual bounds = (pos.y - bounds[0], pos.y + height + bounds[1])
@@ -1011,7 +1012,7 @@ void BiomeUtils::init()
     setCaveFeatureHeightBounds(GLOWSTONE_CLUSTER, 0, 6);
 
     setCaveFeatureHeightBounds(WARPED_FUNGUS, -2, 3);
-    setCaveFeatureHeightBounds(AMBER_FUNGUS, -4, 4); // TODO: revisit
+    setCaveFeatureHeightBounds(AMBER_FUNGUS, -2, 5);
 
 #undef setCaveFeatureHeightBounds
 
