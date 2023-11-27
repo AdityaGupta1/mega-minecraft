@@ -47,6 +47,7 @@ public:
 #endif
 
     void render(float deltaTime);
+    void onResize();
 
 protected:
 #if USE_D3D11_RENDERER
@@ -106,11 +107,9 @@ protected:
     OptixShaderBindingTable sbt = {};
 
     CUBuffer playerInfoBuffer;
+    cudaGraphicsResource_t pboResource;
 #if USE_D3D11_RENDERER
-    cudaGraphicsResource_t pboResource;
     cudaArray_t pboArray;
-#else
-    cudaGraphicsResource_t pboResource;
 #endif
 
     OptixDenoiser denoiser{ nullptr };

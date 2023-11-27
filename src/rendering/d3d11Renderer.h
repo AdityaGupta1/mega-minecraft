@@ -24,6 +24,7 @@ public:
     HRESULT initTexture();
 
     void Draw();
+    void onResize();
     cudaGraphicsResource_t* getCudaTextureResource();
 
 private:

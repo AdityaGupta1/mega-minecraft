@@ -10,7 +10,7 @@
 #include <optix_function_table_definition.h>
 #include <cuda_gl_interop.h>
 
-#define USE_DENOISING 0
+#define USE_DENOISING 1
 
 constexpr int numRayTypes = 2;
 
@@ -717,6 +717,11 @@ void OptixRenderer::render(float deltaTime)
 
     optixRenderFrame();
     updateFrame();
+}
+
+void OptixRenderer::onResize()
+{
+    pboResource = *(renderer->getCudaTextureResource());
 }
 
 void OptixRenderer::updateSunDirection()

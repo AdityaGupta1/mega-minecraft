@@ -242,6 +242,19 @@ LRESULT CALLBACK MsgProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         trackInput = false;
         break;
 
+    case WM_SIZE:
+        if (wParam != SIZE_MINIMIZED) {
+            UINT newWidth = LOWORD(lParam);
+            UINT newHeight = HIWORD(lParam);
+            windowSize.x = newWidth;
+            windowSize.y = newHeight;
+            if (d3dRenderer)
+                d3dRenderer->onResize();
+            if (optix)
+                optix->onResize();
+        }
+        break;
+
     case WM_KEYDOWN:
     case WM_KEYUP:
         if (trackInput)
@@ -417,10 +430,13 @@ void keyCallback(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 }
 
 const float mouseSensitivity = -0.0025f;
+const float movementThreshold = 0.002f;
 
 void mousePositionCallback(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
     float centerX = windowSize.x / 2.f;
     float centerY = windowSize.y / 2.f;
+    POINT centerPoint = { centerX, centerY };
+    ClientToScreen(g_hWnd, &centerPoint);
 
     int mouseX = GET_X_LPARAM(lParam);
     int mouseY = GET_Y_LPARAM(lParam);
@@ -428,12 +444,12 @@ void mousePositionCallback(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam
     float dTheta = (mouseX - centerX) * mouseSensitivity;
     float dPhi = (mouseY - centerY) * mouseSensitivity;
 
-    if (dTheta != 0 || dPhi != 0)
+    if (abs(dTheta) > movementThreshold || abs(dPhi) > movementThreshold)
     {
         player->rotate(dTheta, dPhi, false);
     }
 
-    SetCursorPos(centerX, centerY);
+    SetCursorPos(centerPoint.x, centerPoint.y);
 }
 
 #else

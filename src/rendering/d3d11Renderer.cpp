@@ -306,7 +306,7 @@ HRESULT D3D11Renderer::initDevice()
             return E_FAIL;
         }
 
-        float quadRect[4] = { -1.f, -1.f, 2.0f, 2.f };
+        float quadRect[4] = { -1.f, -1.f, 2.f, 2.f };
 
         HRESULT hr;
         D3D11_MAPPED_SUBRESOURCE mappedResource;
@@ -433,6 +433,64 @@ HRESULT D3D11Renderer::initTexture() {
         &g_texture_2d.pSRView);
 
     return S_OK;
+}
+
+void D3D11Renderer::onResize()
+{
+    HRESULT hr = S_OK;
+
+    hr = g_pSwapChainRTV->Release();
+    if (FAILED(hr)) {
+        fprintf(stderr, "Releasing old Render Target View failed with 0x%X\n", hr);
+        return;
+    }
+
+    // Resize Swapchain
+    hr = g_pSwapChain->ResizeBuffers(0, *g_WindowWidth, *g_WindowHeight, DXGI_FORMAT_UNKNOWN, 0);
+    if (FAILED(hr)) {
+        fprintf(stderr, "Resizing Swap Chain failed with 0x%X\n", hr);
+        return;
+    }
+
+    // Create a render target view of the swapchain
+    ID3D11Texture2D* pBuffer;
+    hr = g_pSwapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), (LPVOID*)&pBuffer);
+    if (FAILED(hr)) {
+        fprintf(stderr, "Getting Swap Chain Buffer failed with 0x%X\n", hr);
+        return;
+    }
+
+    hr = g_pd3dDevice->CreateRenderTargetView(pBuffer, NULL, &g_pSwapChainRTV);
+    if (FAILED(hr)) {
+        fprintf(stderr, "Creating Render Target View failed with 0x%X\n", hr);
+        return;
+    }
+
+    pBuffer->Release();
+
+    g_pd3dDeviceContext->OMSetRenderTargets(1, &g_pSwapChainRTV, NULL);
+
+    // Setup the viewport
+    D3D11_VIEWPORT vp;
+    vp.Width = *g_WindowWidth;
+    vp.Height = *g_WindowHeight;
+    vp.MinDepth = 0.0f;
+    vp.MaxDepth = 1.0f;
+    vp.TopLeftX = 0;
+    vp.TopLeftY = 0;
+    g_pd3dDeviceContext->RSSetViewports(1, &vp);
+
+    // Recreate Texture
+    CUDA_CHECK(cudaGraphicsUnregisterResource(g_texture_2d.cudaResource));
+    g_texture_2d.pSRView->Release();
+    g_texture_2d.pTexture->Release();
+
+    hr = initTexture();
+    if (FAILED(hr)) {
+        return;
+    }
+
+    CUDA_CHECK(cudaGraphicsD3D11RegisterResource(&g_texture_2d.cudaResource, g_texture_2d.pTexture, cudaGraphicsRegisterFlagsNone));
 }
 
 void D3D11Renderer::Draw()
