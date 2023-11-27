@@ -4,6 +4,12 @@ Minecraft with OptiX path tracing and CUDA-accelerated terrain generation.
 
 Proper README to come at some point in the near future.
 
+### 11/26/2023
+
+![](screenshots/11-26-2023/cave_1.png)
+![](screenshots/11-26-2023/cave_3.png)
+![](screenshots/11-26-2023/cave_2.png)
+
 ### 11/23/2023
 
 ![](screenshots/11-23-2023/terrain.png)
