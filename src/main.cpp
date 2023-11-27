@@ -2,8 +2,6 @@
 
 #include "terrain/block.hpp"
 
-#define DEBUG_START_IN_FREE_CAM_MODE 1
-
 int main(int argc, char* argv[]) {
   if (init(argc, argv)) {
     mainLoop();
@@ -18,7 +16,7 @@ GLFWwindow *window;
 
 bool init(int argc, char **argv) {
     cudaDeviceProp deviceProp;
-    int gpuDevice = 0;
+    int gpuDevice = GPU_DEVICE;
     int device_count = 0;
     cudaGetDeviceCount(&device_count);
     printf("num devices: %d\n", device_count);

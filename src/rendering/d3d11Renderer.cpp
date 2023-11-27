@@ -86,7 +86,7 @@ HRESULT D3D11Renderer::initDevice()
         }
     }
 
-    g_pCudaCapableAdapter = vAdapters[0];
+    g_pCudaCapableAdapter = vAdapters[GPU_DEVICE];
 
     if (pFactory) {
         pFactory->Release();
