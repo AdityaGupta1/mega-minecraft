@@ -1654,9 +1654,21 @@ void Chunk::createVBOs()
                 ivec3 thisPos = ivec3(x, y, z);
                 Block thisBlock = blocks[posTo3dIndex(thisPos)];
 
+                Mat mat;
+
                 if (thisBlock == Block::AIR)
                 {
                     continue;
+                }
+                else if (thisBlock == Block::WATER) {
+                    mat.ior = 1.33f;
+                    mat.reflecting = true;
+                    mat.refracting = true;
+                }
+                else {
+                    mat.ior = 0.f;
+                    mat.reflecting = false;
+                    mat.refracting = false;
                 }
 
                 BlockData thisBlockData = BlockUtils::getBlockData(thisBlock);
@@ -1679,6 +1691,7 @@ void Chunk::createVBOs()
                         vert.pos = basePos + posOffset;
                         vert.nor = i < 4 ? xShapedFaceNormal1 : xShapedFaceNormal2;
                         vert.uv = vec2(thisBlockData.uvs.side.uv + uvOffsets[i % 4]) * 0.0625f;
+                        vert.m = mat;
                     }
 
                     idx.push_back(idx1);
@@ -1814,6 +1827,7 @@ void Chunk::createVBOs()
                             }
                         }
                         vert.uv = vec2(sideUv.uv + uvOffset) * 0.0625f;
+                        vert.m = mat;
                     }
 
                     idx.push_back(idx1);

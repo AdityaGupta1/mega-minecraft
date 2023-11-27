@@ -5,11 +5,19 @@
 #include <cuda_runtime.h>
 #include "vector_math.h"
 
+struct Mat
+{
+    float ior;
+    bool reflecting;
+    bool refracting;
+};
+
 struct Vertex
 {
     float3 pos;
     float3 nor; // TODO: compact this
     float2 uv;
+    Mat m;
 };
 
 struct OptixParams
@@ -60,6 +68,7 @@ struct PRD {
 
     bool isDone;
     bool needsFirstHitData;
+    bool specularHit;
 
     bool foundLightSource;
 

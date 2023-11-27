@@ -12,7 +12,7 @@
 
 #define DO_RUSSIAN_ROULETTE 1
 
-#define NUM_SAMPLES 1
+#define NUM_SAMPLES 2
 #define MAX_RAY_DEPTH 4
 
 /*! launch parameters in constant memory, filled in by optix upon
@@ -142,6 +142,7 @@ extern "C" __global__ void __raygen__render() {
         prd.pixelColor = make_float3(0.f);
         prd.isect.pos = camera.position;
         prd.isect.newDir = rayDir;
+        prd.specularHit = false;
 
         #pragma unroll
         for (int depth = 0; depth < MAX_RAY_DEPTH; ++depth)
@@ -168,35 +169,38 @@ extern "C" __global__ void __raygen__render() {
 
             // MIS: sample light source
             // 2. pdf from Sun & random point on sun
-            float2 xi = rng2(prd.seed);
+            if (!prd.specularHit) {
+                float2 xi = rng2(prd.seed);
 
-            float3 random_d = sampleSun(xi);
+                float3 random_d = sampleSun(xi);
 
-            // 3. test sun intersection
-            prd.foundLightSource = true;
+                // 3. test sun intersection
+                prd.foundLightSource = true;
 
-            optixTrace(params.rootHandle,
-                prd.isect.pos,
-                random_d,
-                0.f,    // tmin
-                1e20f,  // tmax
-                0.0f,   // rayTime
-                OptixVisibilityMask(255),
-                OPTIX_RAY_FLAG_DISABLE_CLOSESTHIT,  // OPTIX_RAY_FLAG_NONE,
-                1,  // SBT offset
-                1,  // SBT stride
-                0,  // missSBTIndex
-                u0, u1);
+                optixTrace(params.rootHandle,
+                    prd.isect.pos,
+                    random_d,
+                    0.f,    // tmin
+                    1e20f,  // tmax
+                    0.0f,   // rayTime
+                    OptixVisibilityMask(255),
+                    OPTIX_RAY_FLAG_DISABLE_CLOSESTHIT,  // OPTIX_RAY_FLAG_NONE,
+                    1,  // SBT offset
+                    1,  // SBT stride
+                    0,  // missSBTIndex
+                    u0, u1);
 
-            // TODO: later, find pdf for each material, using default for now
-            // heuristics uses next direction & sun direction pdfs
+                // TODO: later, find pdf for each material, using default for now
+                // heuristics uses next direction & sun direction pdfs
 
-            if (prd.foundLightSource) {
-                float pdf_material = INV_PI * dot(random_d, prd.isect.newDir);
-                float3 col = powerHeuristics(1, 1.f, 1, pdf_material) * prd.rayColor;
-                prd.foundLightSource = false;
-                prd.pixelColor += col * prd.rayColor;
+                if (prd.foundLightSource) {
+                    float pdf_material = INV_PI * dot(random_d, prd.isect.newDir);
+                    float3 col = powerHeuristics(1, 1.f, 1, pdf_material) * prd.rayColor;
+                    prd.foundLightSource = false;
+                    prd.pixelColor += col * prd.rayColor;
+                }
             }
+            
 
 #if DO_RUSSIAN_ROULETTE
             if (depth > 2)
@@ -229,9 +233,6 @@ extern "C" __global__ void __raygen__render() {
                 1,  // SBT stride
                 0,  // missSBTIndex
                 u0, u1);
-            if (!prd.foundLightSource) {
-                prd.pixelColor = make_float3(0.f);
-            }
         }
 
         finalColor += prd.pixelColor;
@@ -283,6 +284,40 @@ float3 getBarycentricCoords()
     return make_float3(1.f - u - v, u, v);
 }
 
+static __forceinline__ __device__
+float3 refract(float3 wo, float3 n, float eta) {
+    float k = 1.f - eta * eta * (1.f - dot(n, wo) * dot(n, wo));
+    if (k < 0.f) {
+        return make_float3(0.f);
+    }
+    else {
+        return normalize(eta * wo - (eta * dot(n, wo) + sqrt(k)) * n);
+    }
+}
+
+static __forceinline__ __device__
+float dielectric(float cosThetaI, float etaI, float etaT) {
+    cosThetaI = clamp(cosThetaI, -1.f, 1.f);
+    float sinThetaI = sqrt(1 - cosThetaI * cosThetaI);
+    if (sinThetaI < 0.f) {
+        sinThetaI = 0.f;
+    }
+    float sinThetaT = etaI / etaT * sinThetaI;
+
+    if (sinThetaT >= 1.f) {
+        return 1.f;
+    }
+
+    float cosThetaT = sqrt(1 - sinThetaT * sinThetaT);  
+    if (cosThetaT < 0.f) {
+        cosThetaT = 0.f;
+    }
+
+    float Rparl = ((etaT * cosThetaI) - (etaI * cosThetaT)) / ((etaT * cosThetaI) + (etaI * cosThetaT));
+    float Rperp = ((etaI * cosThetaI) - (etaT * cosThetaT)) / ((etaI * cosThetaI) + (etaT * cosThetaT));
+    return (Rparl * Rparl + Rperp * Rperp) / 2.f;
+}
+
 extern "C" __global__ void __miss__radiance()
 {
     const float3 rayDir = optixGetWorldRayDirection();
@@ -324,15 +359,70 @@ extern "C" __global__ void __closesthit__radiance() {
     float3 nor = normalize(bary.x * v1.nor + bary.y * v2.nor + bary.z * v3.nor);
 
     const float3 rayDir = optixGetWorldRayDirection();
-    if (dot(rayDir, nor) > 0.f)
-    {
-        nor = -nor;
-    }
-
     float3 diffuseCol = make_float3(tex2D<float4>(chunkData.tex_diffuse, uv.x, uv.y));
 
     const float3 rayOrigin = optixGetWorldRayOrigin();
     const float3 isectPos = rayOrigin + rayDir * optixGetRayTmax();
+
+    // REFL REFR
+    if (v1.m.refracting) {
+        prd.specularHit = true;
+        prd.needsFirstHitData = false;
+        float f;
+        float cosThetaI = dot(nor, rayDir);
+        float a;
+
+        // entering
+        if (cosThetaI < 0.f)
+        {
+            prd.isect.newDir = refract(rayDir, nor, 1.0f / v1.m.ior);
+            f = dielectric(-cosThetaI, 1.0f, v1.m.ior);
+            cosThetaI = clamp(-cosThetaI, 0.2f, 1.f);
+            a = cosThetaI;
+        }
+
+        // leaving
+        else
+        {
+            prd.isect.newDir = refract(rayDir, -nor, v1.m.ior);
+            f = dielectric(cosThetaI, v1.m.ior, 1.0f);
+            if (f < 1.f) {
+                float sinThetaT = v1.m.ior * sqrt(1 - cosThetaI * cosThetaI);
+                a = 1.f - sinThetaT * sinThetaT;
+            }
+            nor = -nor;
+        }
+
+        if (rng(prd.seed) < a && f < 1.f) {
+            if ((1.0f - f) / cosThetaI > 1.f) {
+                diffuseCol *= (1.0f - f) / cosThetaI;
+            }
+            prd.rayColor *= diffuseCol;
+            prd.isect.pos = isectPos - nor * 0.001f;
+            return;
+        }
+
+        if (f / cosThetaI > 1.f) {
+            diffuseCol *= f / cosThetaI;
+        }
+
+    }
+    if (v1.m.reflecting) {
+        prd.specularHit = true;
+        prd.needsFirstHitData = false;
+        prd.rayColor *= diffuseCol;
+        prd.isect.pos = isectPos + nor * 0.001f;
+        prd.isect.newDir = reflect(rayDir, nor);
+        return;
+    }
+
+    // EMISSION
+    prd.specularHit = false;
+    if (dot(rayDir, nor) > 0.f)
+    {
+        nor = -nor;
+    }
+    float3 newDir = calculateRandomDirectionInHemisphere(nor, rng2(prd.seed));
 
     if (diffuseCol.x == 0.f && diffuseCol.y == 0.f && diffuseCol.z == 0.f)
     {
@@ -355,7 +445,6 @@ extern "C" __global__ void __closesthit__radiance() {
         }
     }
 
-    float3 newDir = calculateRandomDirectionInHemisphere(nor, rng2(prd.seed));
 
     // don't multiply by lambert term since it's canceled out by PDF for uniform hemisphere sampling
 
@@ -392,7 +481,7 @@ static __device__ bool anyhitAlphaTest()
     else
     {
         PRD& prd = *getPRD<PRD>();
-        if (rng(prd.seed) < alpha)
+        if (rng(prd.seed) < alpha || prd.needsFirstHitData)
         {
             return false;
         }

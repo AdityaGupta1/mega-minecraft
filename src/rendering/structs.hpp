@@ -4,11 +4,19 @@
 #include <optix.h>
 #include <cuda_runtime.h>
 
+struct Mat
+{
+    float ior;
+    bool reflecting;
+    bool refracting;
+};
+
 struct Vertex
 {
     glm::vec3 pos;
     glm::vec3 nor; // TODO: compact this
     glm::vec2 uv;
+    Mat m;
 };
 
 struct OptixParams
