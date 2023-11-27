@@ -11,7 +11,7 @@
 #include <cuda_gl_interop.h>
 
 #define USE_DENOISING 1
-#define RESET_CAMERA_ON_BUILD_IAS 0
+#define RESET_CAMERA_ON_BUILD_IAS 1
 
 constexpr int numRayTypes = 2;
 
