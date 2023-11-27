@@ -15,8 +15,14 @@
 
 constexpr int numRayTypes = 2;
 
-OptixRenderer::OptixRenderer(GLFWwindow* window, ivec2* windowSize, Terrain* terrain, Player* player) 
+#if USE_D3D11_RENDERER
+OptixRenderer::OptixRenderer(D3D11Renderer* renderer, uvec2* windowSize, Terrain* terrain, Player* player)
+    : renderer(renderer), windowSize(windowSize), terrain(terrain), player(player), 
+      pboResource(*(renderer->getCudaTextureResource())), vao(-1), pbo(-1), tex_pixels(-1)
+#else
+OptixRenderer::OptixRenderer(GLFWwindow* window, uvec2* windowSize, Terrain* terrain, Player* player) 
     : window(window), windowSize(windowSize), terrain(terrain), player(player), vao(-1), pbo(-1), tex_pixels(-1)
+#endif
 {
     int numMaxDrawableChunks = Terrain::getMaxNumDrawableChunks();
     for (int i = 0; i < numMaxDrawableChunks; ++i)
@@ -41,7 +47,9 @@ OptixRenderer::OptixRenderer(GLFWwindow* window, ivec2* windowSize, Terrain* ter
     CUDA_CHECK(cudaMalloc((void**)&dev_renderBuffer, imageSizeBytes));
     CUDA_CHECK(cudaMalloc((void**)&dev_albedoBuffer, imageSizeBytes));
     CUDA_CHECK(cudaMalloc((void**)&dev_normalBuffer, imageSizeBytes));
+    CUDA_CHECK(cudaMalloc((void**)&dev_denoisedBuffer, imageSizeBytes));
 
+#if !USE_D3D11_RENDERER
     glGenVertexArrays(1, &vao);
     glBindVertexArray(vao);
 
@@ -50,6 +58,7 @@ OptixRenderer::OptixRenderer(GLFWwindow* window, ivec2* windowSize, Terrain* ter
     initShader();
 
     initTexture();
+#endif
 
     const glm::vec3 sunAxisForward = normalize(vec3(6.0f, -2.0f, 2.0f));
     const glm::vec3 sunAxisRight = normalize(cross(sunAxisForward, vec3(0, 1, 0)));
@@ -713,6 +722,13 @@ void OptixRenderer::render(float deltaTime)
     updateFrame();
 }
 
+void OptixRenderer::onResize()
+{
+    pboResource = *(renderer->getCudaTextureResource());
+    CUDA_CHECK(cudaFree(dev_denoisedBuffer));
+    CUDA_CHECK(cudaMalloc((void**)&dev_denoisedBuffer, windowSize->x * windowSize->y * sizeof(float4)));
+}
+
 void OptixRenderer::updateSunDirection()
 {
     const float sunTime = time * 0.2f + 0.4f;
@@ -746,8 +762,13 @@ void OptixRenderer::optixRenderFrame()
     ));
 
     size_t pboSize;
-    CUDA_CHECK(cudaGraphicsMapResources(1, &pboResource));
+    CUDA_CHECK(cudaGraphicsMapResources(1, &pboResource, 0));
+#if USE_D3D11_RENDERER
+    CUDA_CHECK(cudaGraphicsSubResourceGetMappedArray(&pboArray, pboResource, 0, 0));
+    // cudaMemcpy2DFromArray(dev_denoisedBuffer, windowSize->x * sizeof(float4), pboArray, 0, 0, windowSize->x * sizeof(float4), windowSize->y, cudaMemcpyDeviceToDevice);
+#else
     CUDA_CHECK(cudaGraphicsResourceGetMappedPointer((void**)&dev_denoisedBuffer, &pboSize, pboResource));
+#endif
 
 #if USE_DENOISING
     OptixDenoiserParams denoiserParams = {};
@@ -811,9 +832,18 @@ void OptixRenderer::optixRenderFrame()
     cudaMemcpy(dev_denoisedBuffer, dev_renderBuffer, windowSize->x * windowSize->y * sizeof(float4), cudaMemcpyDeviceToDevice);
 #endif
 
+#if USE_D3D11_RENDERER
+    CUDA_CHECK(cudaMemcpy2DToArray(pboArray, 0, 0, (void*)dev_denoisedBuffer, windowSize->x * sizeof(float4), windowSize->x * sizeof(float4), windowSize->y, cudaMemcpyDeviceToDevice));
+#endif
     CUDA_CHECK(cudaGraphicsUnmapResources(1, &pboResource));
 }
 
+#if USE_D3D11_RENDERER
+void OptixRenderer::updateFrame()
+{
+    renderer->Draw();
+}
+#else
 void OptixRenderer::initShader()
 {
     bool success = true;
@@ -830,6 +860,10 @@ void OptixRenderer::initTexture()
     glGenBuffers(1, &pbo);
     glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pbo);
     glBufferData(GL_PIXEL_UNPACK_BUFFER, windowSize->x * windowSize->y * sizeof(glm::vec4), NULL, GL_DYNAMIC_COPY);
+    uint32_t devCnt;
+    int devNum;
+    CUDA_CHECK(cudaGLGetDevices(&devCnt, &devNum, 2, cudaGLDeviceListAll));
+    fprintf(stderr, "GL using %u devices. Current frame is using GPU %d\n", devCnt, devNum);
     CUDA_CHECK(cudaGraphicsGLRegisterBuffer(&pboResource, pbo, cudaGraphicsRegisterFlagsWriteDiscard));
 
     glActiveTexture(GL_TEXTURE0);
@@ -854,3 +888,4 @@ void OptixRenderer::updateFrame()
 
     glfwSwapBuffers(window);
 }
+#endif
