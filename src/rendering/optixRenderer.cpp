@@ -381,6 +381,12 @@ static constexpr float fovZoomed = glm::radians(20.f);
 
 void OptixRenderer::setZoomed(bool zoomed)
 {
+    if (zoomed == this->isZoomed)
+    {
+        return;
+    }
+
+    this->isZoomed = zoomed;
     tanFovy = tanf(zoomed ? fovZoomed : fovNormal);
     cameraChanged = true;
 }

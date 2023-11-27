@@ -62,6 +62,7 @@ protected:
     CUBuffer launchParamsBuffer;
 
     bool cameraChanged{ true };
+    bool isZoomed{ true };
     float tanFovy;
 
     CUcontext          cudaContext = {};
