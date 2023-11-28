@@ -347,6 +347,77 @@ extern "C" __global__ void __miss__radiance()
     }
 }
 
+static __device__ float schlickFresnel(const float3& V, const float3& N, const float ior)
+{
+    float cosTheta = fabsf(dot(V, N));
+    float R0 = (1 - ior) / (1 + ior);
+    R0 = R0 * R0;
+    return R0 + (1 - R0) * pow(1.f - cosTheta, 5.f);
+}
+
+float3 __device__ fract(float3 v)
+{
+    return make_float3(v.x - (int)v.x, v.y - (int)v.y, v.z - (int)v.z);
+}
+
+float3 __device__ sin(float3 v)
+{
+    return make_float3(sinf(v.x), sinf(v.y), sinf(v.z));
+}
+
+float3 __device__ random3(float3 p)
+{
+    return fract(sin(make_float3(
+        dot(p, make_float3(127.1f, 311.7f, 204.7f)),
+        dot(p, make_float3(269.5f, 183.3f, 499.6f)),
+        dot(p, make_float3(420.6f, 631.2f, 231.6f))))
+    * 43758.5453f);
+}
+
+float3 __device__ abs(float3 v)
+{
+    return make_float3(fabsf(v.x), fabsf(v.y), fabsf(v.z));
+}
+
+float3 __device__ pow(float3 v, float p)
+{
+    return make_float3(powf(v.x, p), powf(v.y, p), powf(v.z, p));
+}
+
+float __device__ surflet(float3 p, float3 gridPoint)
+{
+    // Compute the distance between p and the grid point along each axis, and warp it with a
+    // quintic function so we can smooth our cells
+    float3 t2 = abs(p - gridPoint);
+    float3 t = make_float3(1.f) - 6.f * pow(t2, 5.f) + 15.f * pow(t2, 4.f) - 10.f * pow(t2, 3.f);
+    // Get the random vector for the grid point (assume we wrote a function random2
+    // that returns a vec2 in the range [0, 1])
+    float3 gradient = random3(gridPoint) * 2.f - make_float3(1.f);
+    // Get the vector from the grid point to P
+    float3 diff = p - gridPoint;
+    // Get the value of our height field by dotting grid->P with our gradient
+    float height = dot(diff, gradient);
+    // Scale our height field (i.e. reduce it) by our polynomial falloff function
+    return height * t.x * t.y * t.z;
+}
+
+float __device__ perlin(float3 p)
+{
+    float surfletSum = 0.f;
+    // Iterate over the four integer corners surrounding uv
+    for (int dx = 0; dx <= 1; ++dx)
+    {
+        for (int dy = 0; dy <= 1; ++dy)
+        {
+            for (int dz = 0; dz <= 1; ++dz)
+            {
+                surfletSum += surflet(p, floor(p) + make_float3(dx, dy, dz));
+            }
+        }
+    }
+    return surfletSum;
+}
+
 extern "C" __global__ void __closesthit__radiance() {
     PRD& prd = *getPRD<PRD>();
 
@@ -365,54 +436,45 @@ extern "C" __global__ void __closesthit__radiance() {
     const float3 isectPos = rayOrigin + rayDir * optixGetRayTmax();
 
     // REFL REFR
-    if (v1.m.refracting) {
+    if (v1.m.reflecting && v1.m.refracting) {
         prd.specularHit = true;
         prd.needsFirstHitData = false;
-        float f;
-        float cosThetaI = dot(nor, rayDir);
-        float a;
 
-        // entering
-        if (cosThetaI < 0.f)
+        float3 noisePos = isectPos;
+        noisePos.x *= 1.5f;
+        float perlinX = perlin(noisePos);
+        float perlinZ = perlin(noisePos + make_float3(100.f, 200.f, 300.f));
+        nor += make_float3(perlinX, 0.f, perlinZ) * 0.1f;
+        nor = normalize(nor);
+
+        bool entering = dot(rayDir, nor) < 0.f;
+
+        if (rng(prd.seed) < 0.5f)
         {
-            prd.isect.newDir = refract(rayDir, nor, 1.0f / v1.m.ior);
-            f = dielectric(-cosThetaI, 1.0f, v1.m.ior);
-            cosThetaI = clamp(-cosThetaI, 0.2f, 1.f);
-            a = cosThetaI;
-        }
+            // REFL
+            if (!entering)
+            {
+                nor = -nor;
+            }
 
-        // leaving
+            prd.isect.pos = isectPos + nor * 0.001f;
+            prd.isect.newDir = reflect(rayDir, nor);
+            
+            float fresnel = schlickFresnel(rayDir, nor, 1.33f);
+            prd.rayColor *= fresnel;
+        }
         else
         {
-            prd.isect.newDir = refract(rayDir, -nor, v1.m.ior);
-            f = dielectric(cosThetaI, v1.m.ior, 1.0f);
-            if (f < 1.f) {
-                float sinThetaT = v1.m.ior * sqrt(1 - cosThetaI * cosThetaI);
-                a = 1.f - sinThetaT * sinThetaT;
-            }
-            nor = -nor;
-        }
+            // REFR
+            float3 norFaceForward = entering ? nor : -nor;
 
-        if (rng(prd.seed) < a && f < 1.f) {
-            if ((1.0f - f) / cosThetaI > 1.f) {
-                diffuseCol *= (1.0f - f) / cosThetaI;
-            }
-            prd.rayColor *= diffuseCol;
-            prd.isect.pos = isectPos - nor * 0.001f;
-            return;
-        }
+            prd.isect.pos = isectPos - norFaceForward * 0.001f;
+            prd.isect.newDir = refract(rayDir, norFaceForward, entering ? 1.f / 1.33f : 1.33f);
 
-        if (f / cosThetaI > 1.f) {
-            diffuseCol *= f / cosThetaI;
+            float fresnel = schlickFresnel(rayDir, nor, 1.33f);
+            prd.rayColor *= (1.f - fresnel);
         }
-
-    }
-    if (v1.m.reflecting) {
-        prd.specularHit = true;
-        prd.needsFirstHitData = false;
-        prd.rayColor *= diffuseCol;
-        prd.isect.pos = isectPos + nor * 0.001f;
-        prd.isect.newDir = reflect(rayDir, nor);
+        prd.rayColor *= diffuseCol * 2.f;
         return;
     }
 
