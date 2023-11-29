@@ -1028,7 +1028,7 @@ void BiomeUtils::init()
     setCaveFeatureHeightBounds(GLOWSTONE_CLUSTER, 0, 6);
 
     setCaveFeatureHeightBounds(STORMLIGHT_SPHERE, -7, 7);
-    setCaveFeatureHeightBounds(CRYSTAL_PILLAR, -4, 4);
+    setCaveFeatureHeightBounds(CRYSTAL_PILLAR, -8, 8);
 
     setCaveFeatureHeightBounds(WARPED_FUNGUS, -2, 3);
     setCaveFeatureHeightBounds(AMBER_FUNGUS, -2, 5);

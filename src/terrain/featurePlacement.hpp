@@ -1069,7 +1069,7 @@ __device__ bool placeCaveFeature(CaveFeaturePlacement caveFeaturePlacement, ivec
     }
     case CaveFeature::CRYSTAL_PILLAR:
     {
-        if (pos.y < -3.f || topPos.y > 3.f)
+        if (pos.y < -8.f || topPos.y > 8.f)
         {
             return false;
         }
@@ -1081,6 +1081,17 @@ __device__ bool placeCaveFeature(CaveFeaturePlacement caveFeaturePlacement, ivec
         }
 
         float heightRatio = pos.y / layerHeight;
+        if (heightRatio < 0.f)
+        {
+            heightRatio = 0.f;
+            dist = length(pos);
+        }
+        else if (heightRatio > 1.f)
+        {
+            heightRatio = 1.f;
+            dist = length(topPos);
+        }
+
         float radius = heightRatio - 0.5f;
         radius = 4.f * (2.f * radius * radius + 0.5f);
         if (dist > radius)
