@@ -48,6 +48,7 @@ enum class CaveBiome : unsigned char
 {
     NONE,
 
+    CRYSTAL_CAVES,
     LUSH_CAVES,
 
     WARPED_FOREST,
@@ -164,6 +165,8 @@ enum class CaveFeature : unsigned char
     CAVE_VINE,
 
     GLOWSTONE_CLUSTER,
+
+    STORMLIGHT_SPHERE,
 
     WARPED_FUNGUS,
     AMBER_FUNGUS

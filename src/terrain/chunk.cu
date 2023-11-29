@@ -13,6 +13,7 @@
 #define DEBUG_USE_CONTRIBUTION_FILL_METHOD 0
 
 //#define DEBUG_BIOME_OVERRIDE Biome::PLAINS
+#define DEBUG_CAVE_BIOME_OVERRIDE CaveBiome::CRYSTAL_CAVES
 
 Chunk::Chunk(ivec2 worldChunkPos)
     : worldChunkPos(worldChunkPos), worldBlockPos(worldChunkPos.x * 16, 0, worldChunkPos.y * 16)
@@ -909,7 +910,11 @@ __global__ void kernGenerateCaves(
 
         if (caveLayer.start != 384)
         {
+#ifdef DEBUG_CAVE_BIOME_OVERRIDE
+            caveLayer.bottomBiome = DEBUG_CAVE_BIOME_OVERRIDE;
+#else
             caveLayer.bottomBiome = getCaveBiome(ivec3(worldBlockPos2d.x, caveLayer.start, worldBlockPos2d.y), shared_maxHeight, 329271348);
+#endif
         }
 
         if (caveLayer.end == 384)
@@ -918,7 +923,11 @@ __global__ void kernGenerateCaves(
         }
         else
         {
+#ifdef DEBUG_CAVE_BIOME_OVERRIDE
+            caveLayer.topBiome = DEBUG_CAVE_BIOME_OVERRIDE;
+#else
             caveLayer.topBiome = getCaveBiome(ivec3(worldBlockPos2d.x, caveLayer.end + 1, worldBlockPos2d.y), shared_maxHeight, 4982921);
+#endif
         }
     }
 }
@@ -1222,7 +1231,11 @@ __device__ void chunkFillPlaceBlock(
     bool isTopBlock = y >= height - 1.f;
 
 #define doBlockPostProcess() biomeBlockPostProcess(blockPtr, randBiome, worldBlockPos, height, isTopBlock)
+#ifdef DEBUG_CAVE_BIOME_OVERRIDE
+#define doCaveBlockPostProcess() caveBiomeBlockPostProcess(blockPtr, DEBUG_CAVE_BIOME_OVERRIDE, worldBlockPos, nullptr, isCaveTopBlock)
+#else
 #define doCaveBlockPostProcess() caveBiomeBlockPostProcess(blockPtr, getCaveBiome(worldBlockPos, height, 190249401), worldBlockPos, nullptr, isCaveTopBlock)
+#endif
 
     if (y > height && y <= SEA_LEVEL)
     {

@@ -70,7 +70,9 @@ struct CaveBiomeNoise
 {
     float none;
     float shallow;
+
     float warped;
+    float rocky;
 };
 
 enum class BiomeWeightType : unsigned char
@@ -94,7 +96,9 @@ struct CaveBiomeWeights
 {
     BiomeWeightType none;
     BiomeWeightType shallow;
+
     BiomeWeightType warped;
+    BiomeWeightType rocky;
 };
 
 static constexpr float overallBiomeScale = 0.32f;
@@ -147,6 +151,7 @@ __device__ CaveBiomeNoise getCaveBiomeNoise(const vec3 worldBlockPos, float maxH
     noise.none = smoothstep(noneToShallowEnd, noneToShallowStart, caveBiomeNoisePos.y);
     noise.shallow = smoothstep(shallowToDeepEnd, shallowToDeepStart, caveBiomeNoisePos.y);
     noise.warped = getSingleCaveBiomeNoise(caveBiomeNoisePos, 0.0030f, vec3(5821.32f, 4920.12f, 7931.59f), 0.05f);
+    noise.rocky = getSingleCaveBiomeNoise(caveBiomeNoisePos, 0.0022f, vec3(-9193.23f, -6813.39f, -2171.23), 0.05f);
     return noise;
 }
 
@@ -168,12 +173,14 @@ __device__ float getBiomeWeight(Biome biome, const BiomeNoise& noise)
     const auto& biomeWeights = dev_biomeNoiseWeights[(int)biome];
 
     float totalWeight = 1.f;
-    applySingleBiomeNoise(totalWeight, biomeWeights.ocean, noise.ocean);
-    applySingleBiomeNoise(totalWeight, biomeWeights.beach, noise.beach);
-    applySingleBiomeNoise(totalWeight, biomeWeights.rocky, noise.rocky);
-    applySingleBiomeNoise(totalWeight, biomeWeights.magic, noise.magic);
-    applySingleBiomeNoise(totalWeight, biomeWeights.temperature, noise.temperature);
-    applySingleBiomeNoise(totalWeight, biomeWeights.moisture, noise.moisture);
+#define applyNoise(type) applySingleBiomeNoise(totalWeight, biomeWeights.type, noise.type)
+    applyNoise(ocean);
+    applyNoise(beach);
+    applyNoise(rocky);
+    applyNoise(magic);
+    applyNoise(temperature);
+    applyNoise(moisture);
+#undef applyNoise
     return totalWeight;
 }
 
@@ -182,9 +189,12 @@ __device__ float getCaveBiomeWeight(CaveBiome biome, const CaveBiomeNoise& noise
     const auto& caveBiomeWeights = dev_caveBiomeNoiseWeights[(int)biome];
 
     float totalWeight = 1.f;
-    applySingleBiomeNoise(totalWeight, caveBiomeWeights.none, noise.none);
-    applySingleBiomeNoise(totalWeight, caveBiomeWeights.shallow, noise.shallow);
-    applySingleBiomeNoise(totalWeight, caveBiomeWeights.warped, noise.warped);
+#define applyNoise(type) applySingleBiomeNoise(totalWeight, caveBiomeWeights.type, noise.type)
+    applyNoise(none);
+    applyNoise(shallow);
+    applyNoise(warped);
+    applyNoise(rocky);
+#undef applyNoise
     return totalWeight;
 }
 
@@ -683,13 +693,14 @@ void BiomeUtils::init()
 
     CaveBiomeWeights* host_caveBiomeNoiseWeights = new CaveBiomeWeights[numCaveBiomes];
 
-                                        // none, warped
-    caveBiomeWeights(NONE) =            { wP, wI, wI };
+                                        // none, warped, rocky
+    caveBiomeWeights(NONE) =            { wP, wI, wI, wI };
+    
+    caveBiomeWeights(CRYSTAL_CAVES) =   { wN, wP, wI, wP };
+    caveBiomeWeights(LUSH_CAVES) =      { wN, wP, wI, wN };
 
-    caveBiomeWeights(LUSH_CAVES) =      { wN, wP, wI };
-
-    caveBiomeWeights(WARPED_FOREST) =   { wI, wN, wP };
-    caveBiomeWeights(AMBER_FOREST) =    { wI, wN, wN };
+    caveBiomeWeights(WARPED_FOREST) =   { wI, wN, wP, wI };
+    caveBiomeWeights(AMBER_FOREST) =    { wI, wN, wN, wI };
 
     cudaMemcpyToSymbol(dev_caveBiomeNoiseWeights, host_caveBiomeNoiseWeights, numCaveBiomes * sizeof(CaveBiomeWeights));
     delete[] host_caveBiomeNoiseWeights;
@@ -985,9 +996,13 @@ void BiomeUtils::init()
 #pragma region cave feature gens
 
     // caveFeature, gridCellSize, gridCellPadding, chancePerGridCell
+    host_caveBiomeFeatureGens[(int)CaveBiome::CRYSTAL_CAVES] = {
+        CaveFeatureGen(CaveFeature::STORMLIGHT_SPHERE, 20, 3, 0.80f).setMinLayerHeight(4)
+    };
+
     host_caveBiomeFeatureGens[(int)CaveBiome::LUSH_CAVES] = {
         CaveFeatureGen(CaveFeature::GLOWSTONE_CLUSTER, 24, 3, 0.60f).setMinLayerHeight(16).setNotReplaceBlocks().setGeneratesFromCeiling(),
-        CaveFeatureGen(CaveFeature::CAVE_VINE, 4, 0, 0.40f).setMinLayerHeight(4).setNotReplaceBlocks().setGeneratesFromCeiling(),
+        CaveFeatureGen(CaveFeature::CAVE_VINE, 4, 0, 0.40f).setMinLayerHeight(4).setNotReplaceBlocks().setGeneratesFromCeiling()
     };
 
     host_caveBiomeFeatureGens[(int)CaveBiome::WARPED_FOREST] = {
@@ -1010,6 +1025,8 @@ void BiomeUtils::init()
     setCaveFeatureHeightBounds(CAVE_VINE, 0, 0);
 
     setCaveFeatureHeightBounds(GLOWSTONE_CLUSTER, 0, 6);
+
+    setCaveFeatureHeightBounds(STORMLIGHT_SPHERE, -7, 7);
 
     setCaveFeatureHeightBounds(WARPED_FUNGUS, -2, 3);
     setCaveFeatureHeightBounds(AMBER_FUNGUS, -2, 5);
