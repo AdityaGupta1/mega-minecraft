@@ -190,6 +190,23 @@ extern "C" __global__ void __raygen__render() {
                     0,  // missSBTIndex
                     u0, u1);
 
+                // if specular material is hit and entered - see if we exit it 
+
+                if (prd.specularHit) {
+                    optixTrace(params.rootHandle,
+                        prd.isect.pos,
+                        prd.isect.newDir,
+                        0.f,    // tmin
+                        1e20f,  // tmax
+                        0.0f,   // rayTime
+                        OptixVisibilityMask(255),
+                        OPTIX_RAY_FLAG_DISABLE_CLOSESTHIT,  // OPTIX_RAY_FLAG_NONE,
+                        1,  // SBT offset
+                        1,  // SBT stride
+                        0,  // missSBTIndex
+                        u0, u1);
+                }
+
                 // TODO: later, find pdf for each material, using default for now
                 // heuristics uses next direction & sun direction pdfs
 
@@ -215,24 +232,6 @@ extern "C" __global__ void __raygen__render() {
                 prd.pixelColor /= (1.f - q);
             }
 #endif
-        }
-
-        if (!prd.isDone) // reached max depth and didn't hit a light
-        {
-            // Direct Lighting
-            prd.isect.newDir = sampleSun(rng2(prd.seed));
-            optixTrace(params.rootHandle,
-                prd.isect.pos,
-                prd.isect.newDir,
-                0.f,    // tmin
-                1e20f,  // tmax
-                0.0f,   // rayTime
-                OptixVisibilityMask(255),
-                OPTIX_RAY_FLAG_NONE,  // OPTIX_RAY_FLAG_NONE,
-                0,  // SBT offset
-                1,  // SBT stride
-                0,  // missSBTIndex
-                u0, u1);
         }
 
         finalColor += prd.pixelColor;
@@ -436,45 +435,67 @@ extern "C" __global__ void __closesthit__radiance() {
     const float3 isectPos = rayOrigin + rayDir * optixGetRayTmax();
 
     // REFL REFR
+
+    // ENTERING: mix of REFR at dot = 1 to REFL at dot = 0
+    // EXITING: all REFL at dot = 0 to sinThetaT = 1, and mix of REFL to REFR at dot = 1
+
     if (v1.m.reflecting && v1.m.refracting) {
         prd.specularHit = true;
         prd.needsFirstHitData = false;
+        float ior = v1.m.ior;
 
-        float3 noisePos = isectPos;
-        noisePos.x *= 1.5f;
-        float perlinX = perlin(noisePos);
-        float perlinZ = perlin(noisePos + make_float3(100.f, 200.f, 300.f));
-        nor += make_float3(perlinX, 0.f, perlinZ) * 0.1f;
-        nor = normalize(nor);
+        if (v1.m.wavy) {
+            float3 noisePos = isectPos;
+            noisePos.x *= 1.5f;
 
-        bool entering = dot(rayDir, nor) < 0.f;
+            float perlinX = perlin(noisePos);
+            float perlinZ = perlin(noisePos + make_float3(100.f, 200.f, 300.f));
+            nor += make_float3(perlinX, 0.f, perlinZ) * 0.4f;
+            nor = normalize(nor);
+        }
+        
+        float entering = dot(rayDir, nor);
 
-        if (rng(prd.seed) < 0.5f)
-        {
-            // REFL
-            if (!entering)
-            {
-                nor = -nor;
+        if (entering < 0.f) {
+            if (rng(prd.seed) < -entering) {
+                // ENTERING REFR
+                prd.isect.pos = isectPos - nor * 0.001f;
+                prd.isect.newDir = refract(rayDir, nor, 1.f / ior);
+
+                float fresnel = schlickFresnel(rayDir, nor, ior);
+                prd.rayColor *= (1.f - fresnel);
             }
+            else {
+                // ENTERING REFL
+                prd.isect.pos = isectPos + nor * 0.001f;
+                prd.isect.newDir = reflect(rayDir, nor);
 
-            prd.isect.pos = isectPos + nor * 0.001f;
-            prd.isect.newDir = reflect(rayDir, nor);
+                float fresnel = schlickFresnel(rayDir, nor, ior);
+                prd.rayColor *= fresnel;
+            }
+        }
+        else {
+            float sinThetaT = ior * sqrt(1 - entering * entering);
+
+            if (rng(prd.seed) < entering / fmax(1.f, sinThetaT)) {
+                // EXITING REFR
+                prd.isect.pos = isectPos + nor * 0.001f;
+                prd.isect.newDir = refract(rayDir, -nor, ior);
+
+                float fresnel = schlickFresnel(rayDir, nor, ior);
+                prd.rayColor *= (1.f - fresnel);
+            }
+            else {
+                // EXITING REFL
+                prd.isect.pos = isectPos - nor * 0.001f;
+                prd.isect.newDir = reflect(rayDir, -nor);
+
+                float fresnel = schlickFresnel(rayDir, -nor, ior);
+                prd.rayColor *= fresnel;
+            }
             
-            float fresnel = schlickFresnel(rayDir, nor, 1.33f);
-            prd.rayColor *= fresnel;
         }
-        else
-        {
-            // REFR
-            float3 norFaceForward = entering ? nor : -nor;
-
-            prd.isect.pos = isectPos - norFaceForward * 0.001f;
-            prd.isect.newDir = refract(rayDir, norFaceForward, entering ? 1.f / 1.33f : 1.33f);
-
-            float fresnel = schlickFresnel(rayDir, nor, 1.33f);
-            prd.rayColor *= (1.f - fresnel);
-        }
-        prd.rayColor *= diffuseCol * 2.f;
+        prd.rayColor *= sqrt(ior) * ior * diffuseCol;
         return;
     }
 
@@ -565,13 +586,85 @@ extern "C" __global__ void __anyhit__radiance()
 
 extern "C" __global__ void __anyhit__shadow()
 {
-    if (anyhitAlphaTest())
+    PRD& prd = *getPRD<PRD>();
+
+    const ChunkData& chunkData = getChunkData();
+    Vertex v1, v2, v3;
+    getVerts(chunkData, &v1, &v2, &v3);
+
+    const float3 bary = getBarycentricCoords();
+    float2 uv = bary.x * v1.uv + bary.y * v2.uv + bary.z * v3.uv;
+    float3 nor = normalize(bary.x * v1.nor + bary.y * v2.nor + bary.z * v3.nor);
+
+    const float3 rayDir = optixGetWorldRayDirection();
+    float3 diffuseCol = make_float3(tex2D<float4>(chunkData.tex_diffuse, uv.x, uv.y));
+
+    const float3 rayOrigin = optixGetWorldRayOrigin();
+    const float3 isectPos = rayOrigin + rayDir * optixGetRayTmax();
+
+    // REFL REFR
+
+    // ENTERING: mix of REFR at dot = 1 to REFL at dot = 0
+    // EXITING: all REFL at dot = 0 to sinThetaT = 1, and mix of REFL to REFR at dot = 1
+
+    if (v1.m.reflecting && v1.m.refracting) {
+        prd.specularHit = true;
+        prd.needsFirstHitData = false;
+        float ior = v1.m.ior;
+
+        if (v1.m.wavy) {
+            float3 noisePos = isectPos;
+            noisePos.x *= 1.5f;
+            float perlinX = perlin(noisePos);
+            float perlinZ = perlin(noisePos + make_float3(100.f, 200.f, 300.f));
+            nor += make_float3(perlinX, 0.f, perlinZ) * 0.1f;
+            nor = normalize(nor);
+        }
+
+        float entering = dot(rayDir, nor);
+
+        if (entering < 0.f) {
+            if (rng(prd.seed) < -entering) {
+                // ENTERING REFR
+                prd.isect.pos = isectPos - nor * 0.001f;
+                prd.isect.newDir = refract(rayDir, nor, 1.f / ior);
+
+                float fresnel = schlickFresnel(rayDir, nor, ior);
+                prd.rayColor *= (1.f - fresnel);
+                return;
+            }
+            else {
+                prd.foundLightSource = false;
+                optixTerminateRay();
+            }
+        }
+        else {
+            float sinThetaT = v1.m.ior * sqrt(1 - entering * entering) + 0.0001f;
+
+            if (rng(prd.seed) < entering / fmax(1.f, sinThetaT)) {
+                // EXITING REFR
+                if (dot(params.sunDir, refract(rayDir, -nor, ior)) > 0.99f) {
+                    float fresnel = schlickFresnel(rayDir, nor, ior);
+                    prd.rayColor *= (1.f - fresnel);
+                    prd.rayColor *= 0.5f / ior * diffuseCol;
+                    optixIgnoreIntersection();
+                    return;
+                }
+            }
+            else {
+                // EXITING REFL
+                prd.foundLightSource = false;
+                optixTerminateRay();
+            }
+
+        }
+        
+    } else if (anyhitAlphaTest())
     {
         optixIgnoreIntersection();
         return;
     }
 
-    PRD& prd = *getPRD<PRD>();
     prd.foundLightSource = false;
     optixTerminateRay();
 }

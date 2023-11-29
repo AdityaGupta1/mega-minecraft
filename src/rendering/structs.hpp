@@ -9,6 +9,7 @@ struct Mat
     float ior;
     bool reflecting;
     bool refracting;
+    bool wavy;
 };
 
 struct Vertex

@@ -10,7 +10,7 @@
 #include <optix_function_table_definition.h>
 #include <cuda_gl_interop.h>
 
-#define USE_DENOISING 1
+#define USE_DENOISING 0
 #define RESET_CAMERA_ON_BUILD_IAS 1
 
 constexpr int numRayTypes = 2;
@@ -738,7 +738,7 @@ void OptixRenderer::onResize()
 void OptixRenderer::updateSunDirection()
 {
     const float sunTime = time * 0.2f + 0.4f;
-    launchParams.sunDir = vec3ToFloat3(glm::normalize(sunRotateMat * glm::vec3(cosf(sunTime), 0.55f, sinf(sunTime))));
+    launchParams.sunDir = vec3ToFloat3(glm::normalize(sunRotateMat * glm::vec3(cosf(sunTime), 0.15f, sinf(sunTime))));
     cameraChanged = true;
 }
 
