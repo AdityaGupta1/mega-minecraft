@@ -157,7 +157,7 @@ extern "C" __global__ void __raygen__render() {
                 1e20f,  // tmax
                 0.0f,   // rayTime
                 OptixVisibilityMask(255),
-                OPTIX_RAY_FLAG_NONE,  // OPTIX_RAY_FLAG_NONE,
+                OPTIX_RAY_FLAG_NONE,
                 0,  // SBT offset
                 1,  // SBT stride
                 0,  // missSBTIndex
@@ -169,7 +169,7 @@ extern "C" __global__ void __raygen__render() {
             }
 
             if (prd.specularHit && depth % 2 == 0 && depth < MAX_RAY_DEPTH) {
-                depth--;
+                --depth;
             }
 
             // MIS: sample light source
@@ -189,7 +189,7 @@ extern "C" __global__ void __raygen__render() {
                     1e20f,  // tmax
                     0.0f,   // rayTime
                     OptixVisibilityMask(255),
-                    OPTIX_RAY_FLAG_DISABLE_CLOSESTHIT,  // OPTIX_RAY_FLAG_NONE,
+                    OPTIX_RAY_FLAG_DISABLE_CLOSESTHIT,
                     1,  // SBT offset
                     1,  // SBT stride
                     0,  // missSBTIndex
@@ -205,7 +205,7 @@ extern "C" __global__ void __raygen__render() {
                         1e20f,  // tmax
                         0.0f,   // rayTime
                         OptixVisibilityMask(255),
-                        OPTIX_RAY_FLAG_DISABLE_CLOSESTHIT,  // OPTIX_RAY_FLAG_NONE,
+                        OPTIX_RAY_FLAG_DISABLE_CLOSESTHIT,
                         1,  // SBT offset
                         1,  // SBT stride
                         0,  // missSBTIndex
@@ -568,7 +568,7 @@ extern "C" __global__ void __closesthit__radiance() {
 }
 
 // returns true if ray should continue
-// also multiplies ray color for semi-transparent objects
+// also DOES NOT multiply ray color for semi-transparent objects, since I'm pretty sure anyhit can activate for intersections past the closest one
 static __device__ bool anyhitAlphaTest()
 {
     const ChunkData& chunkData = getChunkData();
@@ -585,7 +585,10 @@ static __device__ bool anyhitAlphaTest()
     {
         return true;
     }
-    return false;
+    else
+    {
+        return false;
+    }
 }
 
 extern "C" __global__ void __anyhit__radiance()
@@ -619,55 +622,59 @@ extern "C" __global__ void __anyhit__shadow()
     // ENTERING: mix of REFR at dot = 1 to REFL at dot = 0
     // EXITING: all REFL at dot = 0 to sinThetaT = 1, and mix of REFL to REFR at dot = 1
 
-    if (v1.m.reflecting && v1.m.refracting) {
-        prd.specularHit = true;
-        prd.needsFirstHitData = false;
-        float ior = v1.m.ior;
+    //if (v1.m.reflecting && v1.m.refracting) {
+    //    prd.specularHit = true;
+    //    prd.needsFirstHitData = false;
+    //    float ior = v1.m.ior;
 
-        if (v1.m.wavy)
-        {
-            applyWaveNoise(isectPos, nor);
-        }
+    //    if (v1.m.wavy)
+    //    {
+    //        applyWaveNoise(isectPos, nor);
+    //    }
 
-        float entering = dot(rayDir, nor);
+    //    float entering = dot(rayDir, nor);
 
-        if (entering < 0.f) {
-            if (rng(prd.seed) < -entering) {
-                // ENTERING REFR
-                prd.isect.pos = isectPos - nor * 0.001f;
-                prd.isect.newDir = refract(rayDir, nor, 1.f / ior);
+    //    if (entering < 0.f) {
+    //        if (rng(prd.seed) < -entering) {
+    //            // ENTERING REFR
+    //            prd.isect.pos = isectPos - nor * 0.001f;
+    //            prd.isect.newDir = refract(rayDir, nor, 1.f / ior);
 
-                float fresnel = schlickFresnel(rayDir, nor, ior);
-                prd.rayColor *= (1.f - fresnel);
-                return;
-            }
-            else {
-                prd.foundLightSource = false;
-                optixTerminateRay();
-            }
-        }
-        else {
-            float sinThetaT = v1.m.ior * sqrt(1 - entering * entering) + 0.0001f;
+    //            float fresnel = schlickFresnel(rayDir, nor, ior);
+    //            prd.rayColor *= (1.f - fresnel);
+    //            return;
+    //        }
+    //        else {
+    //            prd.foundLightSource = false;
+    //            optixTerminateRay();
+    //        }
+    //    }
+    //    else {
+    //        float sinThetaT = v1.m.ior * sqrt(1 - entering * entering) + 0.0001f;
 
-            if (rng(prd.seed) < entering / fmax(1.f, sinThetaT)) {
-                // EXITING REFR
-                if (dot(params.sunDir, refract(rayDir, -nor, ior)) > 0.99f) {
-                    float fresnel = schlickFresnel(rayDir, nor, ior);
-                    prd.rayColor *= (1.f - fresnel);
-                    prd.rayColor *= 0.5f / ior * diffuseCol;
-                    optixIgnoreIntersection();
-                    return;
-                }
-            }
-            else {
-                // EXITING REFL
-                prd.foundLightSource = false;
-                optixTerminateRay();
-            }
-
-        }
-        
-    } else if (anyhitAlphaTest())
+    //        if (rng(prd.seed) < entering / fmax(1.f, sinThetaT)) {
+    //            // EXITING REFR
+    //            if (dot(params.sunDir, refract(rayDir, -nor, ior)) > 0.99f) {
+    //                float fresnel = schlickFresnel(rayDir, nor, ior);
+    //                prd.rayColor *= (1.f - fresnel);
+    //                prd.rayColor *= 0.5f / ior * diffuseCol;
+    //                optixIgnoreIntersection();
+    //                return;
+    //            }
+    //        }
+    //        else {
+    //            // EXITING REFL
+    //            prd.foundLightSource = false;
+    //            optixTerminateRay();
+    //        }
+    //    }
+    //}
+    //else if (anyhitAlphaTest())
+    //{
+    //    optixIgnoreIntersection();
+    //    return;
+    //}
+    if (anyhitAlphaTest())
     {
         optixIgnoreIntersection();
         return;

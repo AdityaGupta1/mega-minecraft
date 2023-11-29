@@ -910,6 +910,8 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
             return false;
         }
 
+        Block crystalBlock = getRandomCrystalBlock(u01(featureRng));
+
         if (!isInCrystal(pos, vec3(0), crystalEndPos, 4.f + 1.2f * u01(featureRng)))
         {
             pos *= 0.8f;
@@ -941,7 +943,7 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
             }
         }
 
-        *blockPtr = getRandomCrystalBlock(u01(featureRng));
+        *blockPtr = crystalBlock;
         return true;
 
         return false;
