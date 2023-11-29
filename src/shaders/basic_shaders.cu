@@ -148,6 +148,7 @@ extern "C" __global__ void __raygen__render() {
         for (int depth = 0; depth < MAX_RAY_DEPTH; ++depth)
         {
             // 1. BSDF
+            prd.foundLightSource = false;
 
             optixTrace(params.rootHandle,
                 prd.isect.pos,
@@ -165,6 +166,10 @@ extern "C" __global__ void __raygen__render() {
             if (prd.isDone)
             {
                 break;
+            }
+
+            if (prd.specularHit && depth % 2 == 0 && depth < MAX_RAY_DEPTH) {
+                depth--;
             }
 
             // MIS: sample light source
@@ -336,6 +341,9 @@ extern "C" __global__ void __miss__radiance()
     }
 
     prd.pixelColor += skyColor * prd.rayColor;
+    if (prd.specularHit && prd.foundLightSource) {
+        prd.pixelColor += skyColor * prd.rayColor * 2;
+    }
     prd.isDone = true;
 
     if (prd.needsFirstHitData)
@@ -450,7 +458,7 @@ extern "C" __global__ void __closesthit__radiance() {
 
             float perlinX = perlin(noisePos);
             float perlinZ = perlin(noisePos + make_float3(100.f, 200.f, 300.f));
-            nor += make_float3(perlinX, 0.f, perlinZ) * 0.4f;
+            nor += make_float3(perlinX, 0.f, perlinZ) * 0.2f;
             nor = normalize(nor);
         }
         
@@ -495,7 +503,7 @@ extern "C" __global__ void __closesthit__radiance() {
             }
             
         }
-        prd.rayColor *= sqrt(ior) * ior * diffuseCol;
+        prd.rayColor *= ior * diffuseCol;
         return;
     }
 
@@ -561,19 +569,7 @@ static __device__ bool anyhitAlphaTest()
     {
         return true;
     }
-    else
-    {
-        PRD& prd = *getPRD<PRD>();
-        if (rng(prd.seed) < alpha || prd.needsFirstHitData)
-        {
-            return false;
-        }
-        else
-        {
-            prd.rayColor *= make_float3(diffuseCol);
-            return true;
-        }
-    }
+    return false;
 }
 
 extern "C" __global__ void __anyhit__radiance()
