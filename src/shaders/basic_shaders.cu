@@ -299,23 +299,42 @@ float3 refract(float3 wo, float3 n, float eta) {
     }
 }
 
+static __forceinline__ __device__ 
+float smoothstep(float edge0, float edge1, float x)
+{
+    x = clamp((x - edge0) / (edge1 - edge0), 0.0, 1.0);
+    return x * x * (3 - 2 * x);
+}
+
+__device__ float3 getSkyColor(float3 rayDir, bool& foundLightSource)
+{
+    float d = dot(rayDir, params.sunDir);
+    float3 skyColor = make_float3(0.f);
+    if (d > 0.99f)
+    {
+        float hue = dot(params.sunDir, make_float3(0.f, 1.f, 0.f));
+        skyColor += make_float3(1.0f, 0.6f + 0.2f * hue, 0.4f + 0.2f * hue) * (1.f - 5000.f * (1.f - d) * (1.f - d));
+        foundLightSource = true;
+    }
+    else
+    {
+        skyColor += make_float3(0.5f, 0.8f, 1.0f) * 0.2f;
+    }
+
+    if (d > 0.96f)
+    {
+        skyColor += powf(smoothstep(0.96f, 0.995f, d), 3.f) * make_float3(1.0f, 0.7f, 0.5f) * 0.3f;
+    }
+
+    return skyColor;
+}
+
 extern "C" __global__ void __miss__radiance()
 {
     const float3 rayDir = optixGetWorldRayDirection();
     PRD& prd = *getPRD<PRD>();
 
-    float3 skyColor;
-    float d = dot(rayDir, params.sunDir);
-    if (d > 0.99f)
-    {
-        float hue = dot(params.sunDir, make_float3(0.f, 1.f, 0.f));
-        skyColor = make_float3(1.0f, 0.6f + 0.2f * hue, 0.4f + 0.2f * hue) * (1.f - 5000.f * (1.f - d) * (1.f - d));
-        prd.foundLightSource = true;
-    }
-    else
-    {
-        skyColor = make_float3(0.5f, 0.8f, 1.0f) * 0.2f;
-    }
+    float3 skyColor = getSkyColor(rayDir, prd.foundLightSource);
 
     prd.pixelColor += skyColor * prd.rayColor;
     if (prd.specularHit && prd.foundLightSource) {
