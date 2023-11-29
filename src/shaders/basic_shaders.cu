@@ -313,7 +313,7 @@ __device__ float3 getSkyColor(float3 rayDir, bool& foundLightSource)
     if (d > 0.99f)
     {
         float hue = dot(params.sunDir, make_float3(0.f, 1.f, 0.f));
-        skyColor += make_float3(1.0f, 0.6f + 0.2f * hue, 0.4f + 0.2f * hue) * (1.f - 5000.f * (1.f - d) * (1.f - d));
+        skyColor += make_float3(1.0f, 0.5f + 0.15f * hue, 0.3f + 0.15f * hue) * (1.f - 5000.f * (1.f - d) * (1.f - d));
         foundLightSource = true;
     }
     else
