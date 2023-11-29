@@ -299,29 +299,6 @@ float3 refract(float3 wo, float3 n, float eta) {
     }
 }
 
-static __forceinline__ __device__
-float dielectric(float cosThetaI, float etaI, float etaT) {
-    cosThetaI = clamp(cosThetaI, -1.f, 1.f);
-    float sinThetaI = sqrt(1 - cosThetaI * cosThetaI);
-    if (sinThetaI < 0.f) {
-        sinThetaI = 0.f;
-    }
-    float sinThetaT = etaI / etaT * sinThetaI;
-
-    if (sinThetaT >= 1.f) {
-        return 1.f;
-    }
-
-    float cosThetaT = sqrt(1 - sinThetaT * sinThetaT);  
-    if (cosThetaT < 0.f) {
-        cosThetaT = 0.f;
-    }
-
-    float Rparl = ((etaT * cosThetaI) - (etaI * cosThetaT)) / ((etaT * cosThetaI) + (etaI * cosThetaT));
-    float Rperp = ((etaI * cosThetaI) - (etaT * cosThetaT)) / ((etaI * cosThetaI) + (etaT * cosThetaT));
-    return (Rparl * Rparl + Rperp * Rperp) / 2.f;
-}
-
 extern "C" __global__ void __miss__radiance()
 {
     const float3 rayDir = optixGetWorldRayDirection();
@@ -362,67 +339,111 @@ static __device__ float schlickFresnel(const float3& V, const float3& N, const f
     return R0 + (1 - R0) * pow(1.f - cosTheta, 5.f);
 }
 
-float3 __device__ fract(float3 v)
+// noise code from here: https://forum.pjrc.com/index.php?threads/im-looking-for-a-performant-perlin-or-open-simplex-noise-implementation.72409/post-322480
+__constant__ unsigned char permutation[] = {
+     151, 160, 137, 91, 90, 15, 131, 13, 201, 95, 96, 53, 194, 233, 7, 225, 140, 36, 103,
+     30, 69, 142, 8, 99, 37, 240, 21, 10, 23, 190, 6, 148, 247, 120, 234, 75, 0, 26, 197,
+     62, 94, 252, 219, 203, 117, 35, 11, 32, 57, 177, 33, 88, 237, 149, 56, 87, 174, 20,
+     125, 136, 171, 168, 68, 175, 74, 165, 71, 134, 139, 48, 27, 166, 77, 146, 158, 231,
+     83, 111, 229, 122, 60, 211, 133, 230, 220, 105, 92, 41, 55, 46, 245, 40, 244, 102,
+     143, 54, 65, 25, 63, 161, 1, 216, 80, 73, 209, 76, 132, 187, 208, 89, 18, 169, 200,
+     196, 135, 130, 116, 188, 159, 86, 164, 100, 109, 198, 173, 186, 3, 64, 52, 217, 226,
+     250, 124, 123, 5, 202, 38, 147, 118, 126, 255, 82, 85, 212, 207, 206, 59, 227, 47, 16,
+     58, 17, 182, 189, 28, 42, 223, 183, 170, 213, 119, 248, 152, 2, 44, 154, 163, 70, 221,
+     153, 101, 155, 167, 43, 172, 9, 129, 22, 39, 253, 19, 98, 108, 110, 79, 113, 224, 232,
+     178, 185, 112, 104, 218, 246, 97, 228, 251, 34, 242, 193, 238, 210, 144, 12, 191, 179,
+     162, 241, 81, 51, 145, 235, 249, 14, 239, 107, 49, 192, 214, 31, 181, 199, 106, 157,
+     184, 84, 204, 176, 115, 121, 50, 45, 127, 4, 150, 254, 138, 236, 205, 93, 222, 114,
+     67, 29, 24, 72, 243, 141, 128, 195, 78, 66, 215, 61, 156, 180
+};
+
+__device__ float fade(float t) { return t * t * t * (t * (t * 6 - 15) + 10); }
+__device__ float lerp2(float t, float a, float b) { return a + t * (b - a); }
+__device__ float grad(int hash, float x, float y, float z)
 {
-    return make_float3(v.x - (int)v.x, v.y - (int)v.y, v.z - (int)v.z);
+    // convert lower 4 bits of hash code into 12 gradient directions
+    int    h = hash & 15;
+    float  u = h < 8 ? x : y,
+           v = h < 4 ? y : h == 12 || h == 14 ? x : z;
+    return ((h & 1) == 0 ? u : -u) + ((h & 2) == 0 ? v : -v);
 }
 
-float3 __device__ sin(float3 v)
+#define P(x) permutation[(x) & 255]
+
+__device__ float pnoise(float3 p)
 {
-    return make_float3(sinf(v.x), sinf(v.y), sinf(v.z));
+    // find unit cube containing point
+    int X = (int)floorf(p.x) & 255,
+        Y = (int)floorf(p.y) & 255,
+        Z = (int)floorf(p.z) & 255;
+
+    // find relative x, y, z, of each point in cube
+    p.x -= floorf(p.x);
+    p.y -= floorf(p.y);
+    p.z -= floorf(p.z);
+
+    // compute fade curves for each of x, y, z
+    float u = fade(p.x),
+          v = fade(p.y),
+          w = fade(p.z);
+
+    // hash coordinates of 8 cube corners
+    int A  = P(X) + Y,
+        AA = P(A) + Z,
+        AB = P(A + 1) + Z,
+        B  = P(X + 1) + Y,
+        BA = P(B) + Z,
+        BB = P(B + 1) + Z;
+
+    // add blended results from 8 corners of cube
+    return
+        lerp2(w,
+            lerp2(v,
+                lerp2(u,
+                    grad(P(AA), p.x, p.y, p.z),
+                    grad(P(BA), p.x - 1, p.y, p.z)),
+                lerp2(u,
+                    grad(P(AB), p.x, p.y - 1, p.z),
+                    grad(P(BB), p.x - 1, p.y - 1, p.z))),
+            lerp2(v,
+                lerp2(u,
+                    grad(P(AA + 1), p.x, p.y, p.z - 1),
+                    grad(P(BA + 1), p.x - 1, p.y, p.z - 1)),
+                lerp2(u,
+                    grad(P(AB + 1), p.x, p.y - 1, p.z - 1),
+                    grad(P(BB + 1), p.x - 1, p.y - 1, p.z - 1)
+                )
+            )
+        );
 }
 
-float3 __device__ random3(float3 p)
-{
-    return fract(sin(make_float3(
-        dot(p, make_float3(127.1f, 311.7f, 204.7f)),
-        dot(p, make_float3(269.5f, 183.3f, 499.6f)),
-        dot(p, make_float3(420.6f, 631.2f, 231.6f))))
-    * 43758.5453f);
-}
+#undef P
 
-float3 __device__ abs(float3 v)
+float __device__ fbm(float3 p)
 {
-    return make_float3(fabsf(v.x), fabsf(v.y), fabsf(v.z));
-}
-
-float3 __device__ pow(float3 v, float p)
-{
-    return make_float3(powf(v.x, p), powf(v.y, p), powf(v.z, p));
-}
-
-float __device__ surflet(float3 p, float3 gridPoint)
-{
-    // Compute the distance between p and the grid point along each axis, and warp it with a
-    // quintic function so we can smooth our cells
-    float3 t2 = abs(p - gridPoint);
-    float3 t = make_float3(1.f) - 6.f * pow(t2, 5.f) + 15.f * pow(t2, 4.f) - 10.f * pow(t2, 3.f);
-    // Get the random vector for the grid point (assume we wrote a function random2
-    // that returns a vec2 in the range [0, 1])
-    float3 gradient = random3(gridPoint) * 2.f - make_float3(1.f);
-    // Get the vector from the grid point to P
-    float3 diff = p - gridPoint;
-    // Get the value of our height field by dotting grid->P with our gradient
-    float height = dot(diff, gradient);
-    // Scale our height field (i.e. reduce it) by our polynomial falloff function
-    return height * t.x * t.y * t.z;
-}
-
-float __device__ perlin(float3 p)
-{
-    float surfletSum = 0.f;
-    // Iterate over the four integer corners surrounding uv
-    for (int dx = 0; dx <= 1; ++dx)
+    float fbm = 0.f;
+    float amplitude = 1.f;
+    #pragma unroll
+    for (int i = 0; i < 4; ++i)
     {
-        for (int dy = 0; dy <= 1; ++dy)
-        {
-            for (int dz = 0; dz <= 1; ++dz)
-            {
-                surfletSum += surflet(p, floor(p) + make_float3(dx, dy, dz));
-            }
-        }
+        amplitude *= 0.5f;
+        fbm += amplitude * pnoise(p);
+        p *= 2.f;
     }
-    return surfletSum;
+    return fbm;
+}
+
+__device__ void applyWaveNoise(const float3& pos, float3& nor)
+{
+    float3 noisePos = pos * 0.45f;
+    noisePos.x *= 2.2f;
+
+    float perlinX = fbm(noisePos);
+    float perlinZ = fbm(noisePos + make_float3(74159.21f, 21982.43f, 18923.34f));
+
+    nor.x += perlinX * 0.3f;
+    nor.z += perlinZ * 0.3f;
+    nor = normalize(nor);
 }
 
 extern "C" __global__ void __closesthit__radiance() {
@@ -453,13 +474,7 @@ extern "C" __global__ void __closesthit__radiance() {
         float ior = v1.m.ior;
 
         if (v1.m.wavy) {
-            float3 noisePos = isectPos;
-            noisePos.x *= 1.5f;
-
-            float perlinX = perlin(noisePos);
-            float perlinZ = perlin(noisePos + make_float3(100.f, 200.f, 300.f));
-            nor += make_float3(perlinX, 0.f, perlinZ) * 0.2f;
-            nor = normalize(nor);
+            applyWaveNoise(isectPos, nor);
         }
         
         float entering = dot(rayDir, nor);
@@ -608,13 +623,9 @@ extern "C" __global__ void __anyhit__shadow()
         prd.needsFirstHitData = false;
         float ior = v1.m.ior;
 
-        if (v1.m.wavy) {
-            float3 noisePos = isectPos;
-            noisePos.x *= 1.5f;
-            float perlinX = perlin(noisePos);
-            float perlinZ = perlin(noisePos + make_float3(100.f, 200.f, 300.f));
-            nor += make_float3(perlinX, 0.f, perlinZ) * 0.1f;
-            nor = normalize(nor);
+        if (v1.m.wavy)
+        {
+            applyWaveNoise(isectPos, nor);
         }
 
         float entering = dot(rayDir, nor);

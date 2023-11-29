@@ -1660,19 +1660,22 @@ void Chunk::createVBOs()
                 {
                     continue;
                 }
-                else if (thisBlock == Block::WATER) {
+                else if (thisBlock == Block::WATER)
+                {
                     mat.ior = 1.33f;
                     mat.reflecting = true;
                     mat.refracting = true;
                     mat.wavy = true;
                 }
-                else if (thisBlock == Block::CYAN_CRYSTAL || thisBlock == Block::GREEN_CRYSTAL || thisBlock == Block::MAGENTA_CRYSTAL) {
+                else if (thisBlock == Block::CYAN_CRYSTAL || thisBlock == Block::GREEN_CRYSTAL || thisBlock == Block::MAGENTA_CRYSTAL)
+                {
                     mat.ior = 2.3f;
                     mat.reflecting = true;
                     mat.refracting = true;
                     mat.wavy = false;
                 }
-                else {
+                else
+                {
                     mat.ior = 0.f;
                     mat.reflecting = false;
                     mat.refracting = false;
