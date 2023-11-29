@@ -1043,6 +1043,11 @@ __device__ bool placeCaveFeature(CaveFeaturePlacement caveFeaturePlacement, ivec
     }
     case CaveFeature::WARPED_FUNGUS:
     {
+        if (manhattanLength(ivec2(floorPos.x, floorPos.z)) > 6)
+        {
+            return false;
+        }
+
         int height = (int)(2.5f + 3.0f * u01(featureRng));
 
         if (floorPos.y < -2 || floorPos.y > height + 3)
@@ -1089,11 +1094,59 @@ __device__ bool placeCaveFeature(CaveFeaturePlacement caveFeaturePlacement, ivec
     }
     case CaveFeature::AMBER_FUNGUS:
     {
-        //if (length(pos) < 2.f)
-        //{
-        //    *blockPtr = Block::GLOWSTONE;
-        //    return true;
-        //}
+        int manhattanLength2d = manhattanLength(ivec2(floorPos.x, floorPos.z));
+        if (manhattanLength2d > 4)
+        {
+            return false;
+        }
+
+        int height = (int)(4.5f + 4.5f * u01(featureRng));
+
+        if (floorPos.y < -2 || floorPos.y > height + 3)
+        {
+            return false;
+        }
+
+        if (floorPos.x == 0 && floorPos.z == 0)
+        {
+            if (isInRange(floorPos.y, 0, height))
+            {
+                *blockPtr = Block::AMBER_STEM;
+                return true;
+            }
+            else if (floorPos.y == height + 1)
+            {
+                *blockPtr = Block::AMBER_WART;
+                return true;
+            }
+        }
+
+        int capStart = height / 2;
+        if (simplex(vec2(worldBlockPos.x, worldBlockPos.z)) < 0.f)
+        {
+            capStart -= 1;
+        }
+
+        if (isInRange(floorPos.y, capStart, height))
+        {
+            int capManhattanDist = (floorPos.y - capStart) < (height / 4 + 1) ? 2 : 1;
+            if (manhattanLength2d == capManhattanDist)
+            {
+                ivec3 shroomlightGridCorner = (worldBlockPos / 2) * 2;
+                ivec3 shroomlightGridRandPos = shroomlightGridCorner
+                    + ivec3(rand3From3(shroomlightGridCorner) * 2.f);
+                if (worldBlockPos == shroomlightGridRandPos && u01(blockRng) < 0.65f)
+                {
+                    *blockPtr = Block::SHROOMLIGHT;
+                }
+                else
+                {
+                    *blockPtr = Block::AMBER_WART;
+                }
+
+                return true;
+            }
+        }
 
         return false;
     }

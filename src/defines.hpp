@@ -1,11 +1,22 @@
 #pragma once
 
 // ============================================================
-// DEBUG FLAGS
+// CONFIG FLAGS
 // ============================================================
 
 #define USE_D3D11_RENDERER 1
+#define GPU_DEVICE 0
+
+// OptiX
+#define USE_DENOISING 1
+#define RESET_CAMERA_ON_BUILD_IAS 1
+
+// ============================================================
+// DEBUG FLAGS
+// ============================================================
+
 #define DEBUG_USE_GL_RENDERER 0
+#define DEBUG_START_IN_FREE_CAM_MODE 1
 
 // ============================================================
 // MATH CONSTANTS

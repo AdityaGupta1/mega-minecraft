@@ -10,9 +10,6 @@
 #include <optix_function_table_definition.h>
 #include <cuda_gl_interop.h>
 
-#define USE_DENOISING 0
-#define RESET_CAMERA_ON_BUILD_IAS 1
-
 constexpr int numRayTypes = 2;
 
 #if USE_D3D11_RENDERER

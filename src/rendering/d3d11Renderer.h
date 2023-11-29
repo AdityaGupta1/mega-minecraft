@@ -12,6 +12,7 @@
 #include <cuda_d3d11_interop.h>
 #include <vector>
 #include "util/common.h"
+#include "defines.hpp"
 
 class D3D11Renderer 
 {
