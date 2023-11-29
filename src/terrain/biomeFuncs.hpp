@@ -997,6 +997,7 @@ void BiomeUtils::init()
 
     // caveFeature, gridCellSize, gridCellPadding, chancePerGridCell
     host_caveBiomeFeatureGens[(int)CaveBiome::CRYSTAL_CAVES] = {
+        CaveFeatureGen(CaveFeature::GLOWSTONE_CLUSTER, 28, 3, 0.60f).setMinLayerHeight(16).setNotReplaceBlocks().setGeneratesFromCeiling(),
         CaveFeatureGen(CaveFeature::STORMLIGHT_SPHERE, 20, 3, 0.80f).setMinLayerHeight(4)
     };
 

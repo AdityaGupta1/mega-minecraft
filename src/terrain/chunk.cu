@@ -13,7 +13,7 @@
 #define DEBUG_USE_CONTRIBUTION_FILL_METHOD 0
 
 //#define DEBUG_BIOME_OVERRIDE Biome::PLAINS
-#define DEBUG_CAVE_BIOME_OVERRIDE CaveBiome::CRYSTAL_CAVES
+//#define DEBUG_CAVE_BIOME_OVERRIDE CaveBiome::CRYSTAL_CAVES
 
 Chunk::Chunk(ivec2 worldChunkPos)
     : worldChunkPos(worldChunkPos), worldBlockPos(worldChunkPos.x * 16, 0, worldChunkPos.y * 16)
