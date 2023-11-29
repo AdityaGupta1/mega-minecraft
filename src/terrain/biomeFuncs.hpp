@@ -997,8 +997,8 @@ void BiomeUtils::init()
 
     // caveFeature, gridCellSize, gridCellPadding, chancePerGridCell
     host_caveBiomeFeatureGens[(int)CaveBiome::CRYSTAL_CAVES] = {
-        CaveFeatureGen(CaveFeature::GLOWSTONE_CLUSTER, 28, 3, 0.60f).setMinLayerHeight(16).setNotReplaceBlocks().setGeneratesFromCeiling(),
-        CaveFeatureGen(CaveFeature::STORMLIGHT_SPHERE, 20, 3, 0.80f).setMinLayerHeight(4)
+        CaveFeatureGen(CaveFeature::STORMLIGHT_SPHERE, 20, 3, 0.80f).setMinLayerHeight(4),
+        CaveFeatureGen(CaveFeature::CRYSTAL_PILLAR, 28, 5, 0.60f).setMinLayerHeight(10).setNotReplaceBlocks().setGeneratesFromCeiling()
     };
 
     host_caveBiomeFeatureGens[(int)CaveBiome::LUSH_CAVES] = {
@@ -1028,6 +1028,7 @@ void BiomeUtils::init()
     setCaveFeatureHeightBounds(GLOWSTONE_CLUSTER, 0, 6);
 
     setCaveFeatureHeightBounds(STORMLIGHT_SPHERE, -7, 7);
+    setCaveFeatureHeightBounds(CRYSTAL_PILLAR, -4, 4);
 
     setCaveFeatureHeightBounds(WARPED_FUNGUS, -2, 3);
     setCaveFeatureHeightBounds(AMBER_FUNGUS, -2, 5);

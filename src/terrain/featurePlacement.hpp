@@ -1067,6 +1067,39 @@ __device__ bool placeCaveFeature(CaveFeaturePlacement caveFeaturePlacement, ivec
 
         return true;
     }
+    case CaveFeature::CRYSTAL_PILLAR:
+    {
+        if (pos.y < -3.f || topPos.y > 3.f)
+        {
+            return false;
+        }
+
+        float dist = length(vec2(pos.x, pos.z));
+        if (dist > 7.f)
+        {
+            return false;
+        }
+
+        float heightRatio = pos.y / layerHeight;
+        float radius = heightRatio - 0.5f;
+        radius = 4.f * (2.f * radius * radius + 0.5f);
+        if (dist > radius)
+        {
+            return false;
+        }
+
+        float radiusRatio = dist / radius;
+        if (radiusRatio < 0.4f)
+        {
+            *blockPtr = Block::GLOWSTONE;
+        }
+        else
+        {
+            *blockPtr = getRandomCrystalBlock(u01(featureRng));
+        }
+
+        return true;
+    }
     case CaveFeature::WARPED_FUNGUS:
     {
         if (manhattanLength(ivec2(floorPos.x, floorPos.z)) > 6)

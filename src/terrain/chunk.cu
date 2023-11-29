@@ -13,7 +13,7 @@
 #define DEBUG_USE_CONTRIBUTION_FILL_METHOD 0
 
 //#define DEBUG_BIOME_OVERRIDE Biome::PLAINS
-//#define DEBUG_CAVE_BIOME_OVERRIDE CaveBiome::CRYSTAL_CAVES
+#define DEBUG_CAVE_BIOME_OVERRIDE CaveBiome::CRYSTAL_CAVES
 
 Chunk::Chunk(ivec2 worldChunkPos)
     : worldChunkPos(worldChunkPos), worldBlockPos(worldChunkPos.x * 16, 0, worldChunkPos.y * 16)
@@ -755,9 +755,14 @@ void Chunk::fixBackwardStratifiedLayers()
 
 __device__ bool shouldGenerateCaveAtBlock(ivec3 worldPos, float maxHeight, float oceanAndBeachWeight)
 {
-    if (worldPos.y == 0 || worldPos.y > (max(maxHeight, (float)SEA_LEVEL) + 4.f))
+    if (worldPos.y == 0)
     {
         return false;
+    }
+
+    if (worldPos.y > (max((int)maxHeight, SEA_LEVEL)))
+    {
+        return true;
     }
 
     vec3 noisePos = vec3(worldPos) * 0.0050f;

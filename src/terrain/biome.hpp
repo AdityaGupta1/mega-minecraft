@@ -167,6 +167,7 @@ enum class CaveFeature : unsigned char
     GLOWSTONE_CLUSTER,
 
     STORMLIGHT_SPHERE,
+    CRYSTAL_PILLAR,
 
     WARPED_FUNGUS,
     AMBER_FUNGUS
