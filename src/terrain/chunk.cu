@@ -13,7 +13,7 @@
 #define DEBUG_USE_CONTRIBUTION_FILL_METHOD 0
 
 //#define DEBUG_BIOME_OVERRIDE Biome::PLAINS
-#define DEBUG_CAVE_BIOME_OVERRIDE CaveBiome::CRYSTAL_CAVES
+#define DEBUG_CAVE_BIOME_OVERRIDE CaveBiome::LUSH_CAVES
 
 Chunk::Chunk(ivec2 worldChunkPos)
     : worldChunkPos(worldChunkPos), worldBlockPos(worldChunkPos.x * 16, 0, worldChunkPos.y * 16)
@@ -1237,10 +1237,11 @@ __device__ void chunkFillPlaceBlock(
 
 #define doBlockPostProcess() biomeBlockPostProcess(blockPtr, randBiome, worldBlockPos, height, isTopBlock)
 #ifdef DEBUG_CAVE_BIOME_OVERRIDE
-#define doCaveBlockPostProcess() caveBiomeBlockPostProcess(blockPtr, DEBUG_CAVE_BIOME_OVERRIDE, worldBlockPos, nullptr, isCaveTopBlock)
+#define postProcessCaveBiome DEBUG_CAVE_BIOME_OVERRIDE
 #else
-#define doCaveBlockPostProcess() caveBiomeBlockPostProcess(blockPtr, getCaveBiome(worldBlockPos, height, 190249401), worldBlockPos, nullptr, isCaveTopBlock)
+#define postProcessCaveBiome getCaveBiome(worldBlockPos, height, 190249401)
 #endif
+#define doCaveBlockPostProcess() caveBiomeBlockPostProcess(blockPtr, postProcessCaveBiome, worldBlockPos, caveBottomDepth, caveTopDepth)
 
     if (y > height && y <= SEA_LEVEL)
     {
@@ -1253,26 +1254,37 @@ __device__ void chunkFillPlaceBlock(
         }
     }
 
-    bool isCaveTopBlock = false;
-    for (int caveLayerIdx = 0; caveLayerIdx < MAX_CAVE_LAYERS_PER_COLUMN; ++caveLayerIdx)
+    int caveBottomDepth = -384;
+    int caveTopDepth = -384;
+    int caveLayerIdx = 0;
+    for ( ; caveLayerIdx < MAX_CAVE_LAYERS_PER_COLUMN; ++caveLayerIdx)
     {
         const auto& caveLayer = shared_caveLayers[caveLayerIdx];
-        if (caveLayer.start == 384 || y < caveLayer.start)
+        if (caveLayer.start == 384)
+        {
+            caveBottomDepth = -384; // all caves for this layer are under this block
+            break;
+        }
+
+        caveBottomDepth = caveLayer.start - y;
+
+        if (y <= caveLayer.start)
         {
             break;
         }
 
-        if (y == caveLayer.start)
+        // {{ y > caveLayer.start }}
+        if (y <= caveLayer.end)
         {
-            isCaveTopBlock = true;
-        }
-
-        if (y > caveLayer.start && y <= caveLayer.end)
-        {
+            caveBottomDepth = caveLayer.start - y;
+            caveTopDepth = y - (caveLayer.end + 1);
             *blockPtr = (y <= LAVA_LEVEL) ? Block::LAVA : Block::AIR;
             doCaveBlockPostProcess();
             return;
         }
+
+        // {{ y > caveLayer.start /\ y > caveLayer.end }}
+        caveTopDepth = y - (caveLayer.end + 1);
     }
 
     if (y > height)
@@ -1363,6 +1375,7 @@ __device__ void chunkFillPlaceBlock(
 
 #undef doBlockPostProcess
 #undef doCaveBlockPostProcess
+#undef postProcessCaveBiome
 }
 
 __global__ void kernFill(

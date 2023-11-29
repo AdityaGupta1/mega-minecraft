@@ -574,18 +574,26 @@ __device__ bool biomeBlockPostProcess(Block* blockPtr, Biome biome, ivec3 worldB
     return false;
 }
 
-__device__ bool caveBiomeBlockPostProcess(Block* blockPtr, CaveBiome caveBiome, ivec3 worldBlockPos, const CaveLayer* caveLayer, bool isTopBlock)
+__device__ bool caveBiomeBlockPostProcess(Block* blockPtr, CaveBiome caveBiome, ivec3 worldBlockPos, int caveBottomDepth, int caveTopDepth)
 {
     if (caveBiome == CaveBiome::NONE)
     {
         return false;
     }
 
+    bool isTopBlock = caveBottomDepth == 0;
+    bool isBottomBlock = caveTopDepth == 0;
+
     switch (caveBiome)
     {
     case CaveBiome::LUSH_CAVES:
     {
-        if (isTopBlock)
+        if (!(*blockPtr == Block::STONE || *blockPtr == Block::DEEPSLATE || *blockPtr == Block::BLACKSTONE))
+        {
+            return false;
+        }
+
+        if (isInRange(caveBottomDepth, 0, 2) || isInRange(caveTopDepth, 0, 2))
         {
             *blockPtr = Block::MOSS;
             return true;
