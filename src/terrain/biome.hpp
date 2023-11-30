@@ -4,7 +4,7 @@
 #include <unordered_set>
 
 #define MAX_CAVE_LAYERS_PER_COLUMN 32
-#define MAX_GATHERED_FEATURES_PER_CHUNK 1024 // ~40 per chunk
+#define MAX_GATHERED_FEATURES_PER_CHUNK 2048 // ~80 per chunk
 #define MAX_GATHERED_CAVE_FEATURES_PER_CHUNK 4096 // ~160 per chunk
 
 #define SEA_LEVEL 128
@@ -141,10 +141,10 @@ enum class Feature : unsigned char
     SMALL_JUNGLE_TREE,
     TINY_JUNGLE_TREE,
 
-    // TINY_PURPLE_MUSHROOM
-    // SMALL_PURPLE_MUSHROOM
+    MEDIUM_PURPLE_MUSHROOM,
     PURPLE_MUSHROOM,
 
+    MEDIUM_CRYSTAL,
     CRYSTAL,
 
     PALM_TREE,
@@ -185,12 +185,22 @@ struct FeatureGenTopLayer
 
 struct FeatureGen
 {
+    FeatureGen(Feature feature, int gridCellSize, int gridCellPadding, float chancePerGridCell, std::vector<FeatureGenTopLayer> possibleTopLayers)
+        : feature(feature), gridCellSize(gridCellSize), gridCellPadding(gridCellPadding), chancePerGridCell(chancePerGridCell), possibleTopLayers(possibleTopLayers)
+    {}
+
     Feature feature;
     int gridCellSize;
     int gridCellPadding;
     float chancePerGridCell;
     std::vector<FeatureGenTopLayer> possibleTopLayers;
     bool canReplaceBlocks{ true };
+
+    inline FeatureGen& setNotReplaceBlocks()
+    {
+        this->canReplaceBlocks = false;
+        return *this;
+    }
 };
 
 struct FeaturePlacement

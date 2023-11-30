@@ -7,6 +7,9 @@
 #include "biomeFuncs.hpp"
 #include <glm/gtx/vector_angle.hpp>
 
+#undef min
+#undef max
+
 #pragma region SDFs
 
 __device__ float sdSphere(vec3 p, float s)
@@ -17,12 +20,12 @@ __device__ float sdSphere(vec3 p, float s)
 __device__ float sdCappedCylinder(vec3 p, float r, float h)
 {
     vec2 d = abs(vec2(length(vec2(p.x, p.z)), p.y)) - vec2(r, h);
-    return min(max(d.x, d.y), 0.0f) + length(max(d, 0.0f));
+    return fmin(fmax(d.x, d.y), 0.0f) + length(glm::max(d, vec2(0.f)));
 }
 
 __device__ float opSubtraction(float d1, float d2) 
 { 
-    return max(d1, -d2); 
+    return fmax(d1, -d2); 
 }
 
 __device__ float opOnion(float sdf, float thickness)
@@ -528,6 +531,29 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
 
         return false;
     }
+    case Feature::MEDIUM_PURPLE_MUSHROOM:
+    {
+        if (manhattanLength(ivec2(floorPos.x, floorPos.z)) > 8)
+        {
+            return false;
+        }
+
+        int height = (int)(1.5f + 2.3f * u01(featureRng));
+        if (floorPos.x == 0 && isInRange(floorPos.y, 0, height) && floorPos.z == 0)
+        {
+            *blockPtr = Block::MUSHROOM_STEM;
+            return true;
+        }
+
+        float radius = u01(featureRng) < 0.5f ? 1.8f : 2.5f;
+        if (floorPos.y == height + 1 && length(vec2(pos.x, pos.z)) < radius)
+        {
+            *blockPtr = Block::PURPLE_MUSHROOM_CAP;
+            return true;
+        }
+
+        return false;
+    }
     case Feature::PURPLE_MUSHROOM:
     {
         float universalScale = 1.f + u01(featureRng) * 1.2f;
@@ -894,12 +920,18 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
 
         return false;
     }
+    case Feature::MEDIUM_CRYSTAL:
     case Feature::CRYSTAL:
     {
         pos += vec3(0, 2, 0);
-        pos *= 0.6f + 0.4f * u01(featureRng);
+        pos *= 0.55f + 0.4f * u01(featureRng);
 
-        if (max(abs(floorPos.x), abs(floorPos.z)) > 15)
+        if (featurePlacement.feature == Feature::MEDIUM_CRYSTAL)
+        {
+            pos *= 2.f;
+        }
+
+        if (max(abs(floorPos.x), abs(floorPos.z)) > 25)
         {
             return false;
         }
@@ -912,39 +944,32 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
 
         Block crystalBlock = getRandomCrystalBlock(u01(featureRng));
 
-        if (!isInCrystal(pos, vec3(0), crystalEndPos, 4.f + 1.2f * u01(featureRng)))
+        if (isInCrystal(pos, vec3(0), crystalEndPos, 4.f + 1.2f * u01(featureRng)))
         {
-            pos *= 0.8f;
-
-            bool isInSmallCrystal = false;
-
-            int numSmallCrystals = (int)(4.f + 2.f * u01(featureRng));
-            float smallCrystalAngle = u01(featureRng) * TWO_PI;
-            for (int i = 0; i < numSmallCrystals; ++i)
-            {
-                smallCrystalAngle += PI_OVER_TWO + PI * u01(featureRng);
-                vec3 smallCrystalStartPos = vec3(0);
-                sincosf(smallCrystalAngle, &smallCrystalStartPos.z, &smallCrystalStartPos.x);
-                vec3 smallCrystalEndPos = smallCrystalStartPos;
-                smallCrystalStartPos *= 3.f;
-                smallCrystalEndPos *= 6.f + 3.f * u01(featureRng);
-                smallCrystalEndPos.y = 7.f + 5.f * u01(featureRng);
-
-                if (isInCrystal(pos, vec3(0), smallCrystalEndPos, 1.5f + 1.5f * u01(featureRng)))
-                {
-                    isInSmallCrystal = true;
-                    break;
-                }
-            }
-
-            if (!isInSmallCrystal)
-            {
-                return false;
-            }
+            *blockPtr = crystalBlock;
+            return true;
         }
 
-        *blockPtr = crystalBlock;
-        return true;
+        pos *= 0.8f;
+
+        int numSmallCrystals = (int)(4.f + 2.f * u01(featureRng));
+        float smallCrystalAngle = u01(featureRng) * TWO_PI;
+        for (int i = 0; i < numSmallCrystals; ++i)
+        {
+            smallCrystalAngle += PI_OVER_TWO + PI * u01(featureRng);
+            vec3 smallCrystalStartPos = vec3(0);
+            sincosf(smallCrystalAngle, &smallCrystalStartPos.z, &smallCrystalStartPos.x);
+            vec3 smallCrystalEndPos = smallCrystalStartPos;
+            smallCrystalStartPos *= 3.f;
+            smallCrystalEndPos *= 6.f + 3.f * u01(featureRng);
+            smallCrystalEndPos.y = 7.f + 5.f * u01(featureRng);
+
+            if (isInCrystal(pos, vec3(0), smallCrystalEndPos, 1.5f + 1.5f * u01(featureRng)))
+            {
+                *blockPtr = crystalBlock;
+                return true;
+            }
+        }
 
         return false;
     }

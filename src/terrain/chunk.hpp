@@ -94,7 +94,7 @@ private:
 
     void fixBackwardStratifiedLayers();
 
-    static void otherChunkGatherFeaturePlacements(Chunk* chunkPtr, Chunk* const (&neighborChunks)[9][9], int centerX, int centerZ);
+    static void otherChunkGatherFeaturePlacements(Chunk* chunkPtr, Chunk* const (&neighborChunks)[13][13], int centerX, int centerZ);
 
 public:
     static void generateHeightfields(

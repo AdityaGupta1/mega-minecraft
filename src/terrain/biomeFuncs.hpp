@@ -141,7 +141,7 @@ __device__ CaveBiomeNoise getCaveBiomeNoise(const vec3 worldBlockPos, float maxH
 
     float caveNoiseTopHeight = SEA_LEVEL + 0.15f * (maxHeight - SEA_LEVEL);
 
-    float noneToShallowStart = caveNoiseTopHeight - 16.f + 26.f * fbm<3>(noisePos2d);
+    float noneToShallowStart = caveNoiseTopHeight - 19.f + 23.f * fbm<3>(noisePos2d);
     float noneToShallowEnd = noneToShallowStart - 5.f + 3.f * fbm<3>(noisePos2d + vec2(3821.34f, 4920.32f));
 
     float shallowToDeepStart = caveNoiseTopHeight - 72.f + 18.f * fbm<3>(noisePos2d + vec2(-4921.34f, 8402.13f));
@@ -555,7 +555,7 @@ __device__ bool biomeBlockPostProcess(Block* blockPtr, Biome biome, ivec3 worldB
     }
     case Biome::CRYSTALS:
     {
-        if (!isTopBlock)
+        if (!isTopBlock || *blockPtr == Block::QUARTZ)
         {
             return false;
         }
@@ -970,65 +970,67 @@ void BiomeUtils::init()
     // for surface features, actual bounds = (pos.y + bounds[0], pos.y + bounds[1])
 #define setFeatureHeightBounds(feature, yMin, yMax) host_featureHeightBounds[(int)Feature::feature] = ivec2(yMin, yMax)
 
-    // feature, gridCellSize, gridCellPadding, chancePerGridCell, possibleTopLayers, canReplaceBlocks
+    // feature, gridCellSize, gridCellPadding, chancePerGridCell, possibleTopLayers
     host_biomeFeatureGens[(int)Biome::ICEBERGS] = {
-        { Feature::ICEBERG, 112, 6, 0.70f, {} }
+        FeatureGen(Feature::ICEBERG, 112, 6, 0.70f, {})
     };
 
     host_biomeFeatureGens[(int)Biome::TROPICAL_BEACH] = {
-        { Feature::PALM_TREE, 48, 3, 0.35f, { {Material::SMOOTH_SAND, 0.3f} } }
+        FeatureGen(Feature::PALM_TREE, 48, 3, 0.35f, { {Material::SMOOTH_SAND, 0.3f} })
     };
 
     host_biomeFeatureGens[(int)Biome::SAVANNA] = {
-        { Feature::ACACIA_TREE, 36, 4, 0.3f, { {Material::DIRT, 0.5f} } }
+       FeatureGen(Feature::ACACIA_TREE, 36, 4, 0.3f, { {Material::DIRT, 0.5f} })
     };
 
     host_biomeFeatureGens[(int)Biome::REDWOOD_FOREST] = {
-        { Feature::REDWOOD_TREE, 16, 2, 0.70f, { {Material::DIRT, 0.5f} } }
+        FeatureGen(Feature::REDWOOD_TREE, 16, 2, 0.70f, { {Material::DIRT, 0.5f} })
     };
 
     host_biomeFeatureGens[(int)Biome::SHREKS_SWAMP] = {
-        { Feature::CYPRESS_TREE, 18, 3, 0.6f, { {Material::DIRT, 0.5f}, {Material::MUD, 0.5f} } },
-        { Feature::BIRCH_TREE, 16, 2, 0.15f, { {Material::DIRT, 0.4f} } }
+        FeatureGen(Feature::CYPRESS_TREE, 18, 3, 0.6f, { {Material::DIRT, 0.5f}, {Material::MUD, 0.5f} }),
+        FeatureGen(Feature::BIRCH_TREE, 16, 2, 0.15f, { {Material::DIRT, 0.4f} })
     };
 
     host_biomeFeatureGens[(int)Biome::LUSH_BIRCH_FOREST] = {
-        { Feature::BIRCH_TREE, 9, 2, 0.7f, { {Material::DIRT, 0.5f} } }
+        FeatureGen(Feature::BIRCH_TREE, 9, 2, 0.7f, { {Material::DIRT, 0.5f} })
     };
 
     host_biomeFeatureGens[(int)Biome::TIANZI_MOUNTAINS] = {
-        { Feature::PINE_TREE, 7, 1, 0.80f, {}, false },
-        { Feature::PINE_SHRUB, 6, 1, 0.80f, {}, false }
+        FeatureGen(Feature::PINE_TREE, 7, 1, 0.80f, {}).setNotReplaceBlocks(),
+        FeatureGen(Feature::PINE_SHRUB, 6, 1, 0.80f, {}).setNotReplaceBlocks()
     };
 
     host_biomeFeatureGens[(int)Biome::JUNGLE] = {
-        { Feature::RAFFLESIA, 54, 6, 0.50f, { {Material::DIRT, 0.5f} } },
-        { Feature::LARGE_JUNGLE_TREE, 28, 3, 0.70f, { {Material::DIRT, 0.5f} } },
-        { Feature::SMALL_JUNGLE_TREE, 10, 2, 0.82f, { {Material::DIRT, 0.5f} } },
-        { Feature::TINY_JUNGLE_TREE, 6, 1, 0.28f, { {Material::DIRT, 0.5f} } }
+        FeatureGen(Feature::RAFFLESIA, 54, 6, 0.50f, { {Material::DIRT, 0.5f} }),
+        FeatureGen(Feature::LARGE_JUNGLE_TREE, 28, 3, 0.70f, { {Material::DIRT, 0.5f} }),
+        FeatureGen(Feature::SMALL_JUNGLE_TREE, 10, 2, 0.82f, { {Material::DIRT, 0.5f} }),
+        FeatureGen(Feature::TINY_JUNGLE_TREE, 6, 1, 0.28f, { {Material::DIRT, 0.5f} })
     };
 
     host_biomeFeatureGens[(int)Biome::RED_DESERT] = {
-        { Feature::PALM_TREE, 40, 3, 0.20f, { {Material::RED_SAND, 0.3f} } },
-        { Feature::CACTUS, 16, 2, 0.20f, { {Material::RED_SAND, 0.5f} } }
+        FeatureGen(Feature::PALM_TREE, 40, 3, 0.20f, { {Material::RED_SAND, 0.3f} }),
+        FeatureGen(Feature::CACTUS, 16, 2, 0.20f, { {Material::RED_SAND, 0.5f} })
     };
 
     host_biomeFeatureGens[(int)Biome::PURPLE_MUSHROOMS] = {
-        { Feature::PURPLE_MUSHROOM, 11, 3, 0.45f, { {Material::DIRT, 0.5f} } }
+        FeatureGen(Feature::MEDIUM_PURPLE_MUSHROOM, 10, 2, 0.50f, { {Material::DIRT, 0.3f} }),
+        FeatureGen(Feature::PURPLE_MUSHROOM, 11, 3, 0.45f, { {Material::DIRT, 0.5f} })
     };
 
     host_biomeFeatureGens[(int)Biome::CRYSTALS] = {
-        { Feature::CRYSTAL, 52, 10, 0.8f, { {Material::STONE, 0.5f} } }
+        FeatureGen(Feature::MEDIUM_CRYSTAL, 28, 6, 0.9f, {}),
+        FeatureGen(Feature::CRYSTAL, 52, 10, 0.8f, {})
     };
 
     host_biomeFeatureGens[(int)Biome::OASIS] = {
-        { Feature::PALM_TREE, 24, 3, 0.35f, { {Material::SAND, 0.3f} } },
-        { Feature::CACTUS, 16, 2, 0.40f, { {Material::SAND, 0.5f} } }
+        FeatureGen(Feature::PALM_TREE, 24, 3, 0.35f, { {Material::SAND, 0.3f} }),
+        FeatureGen(Feature::CACTUS, 16, 2, 0.40f, { {Material::SAND, 0.5f} })
     };
 
     host_biomeFeatureGens[(int)Biome::DESERT] = {
-        { Feature::PALM_TREE, 64, 3, 0.30f, { {Material::SAND, 0.3f} } },
-        { Feature::CACTUS, 16, 2, 0.70f, { {Material::SAND, 0.5f} } }
+        FeatureGen(Feature::PALM_TREE, 64, 3, 0.30f, { {Material::SAND, 0.3f} }),
+        FeatureGen(Feature::CACTUS, 16, 2, 0.70f, { {Material::SAND, 0.5f} })
     };
 
     setFeatureHeightBounds(NONE, 0, 0);
@@ -1052,9 +1054,11 @@ void BiomeUtils::init()
     setFeatureHeightBounds(SMALL_JUNGLE_TREE, 0, 17);
     setFeatureHeightBounds(LARGE_JUNGLE_TREE, 0, 38);
 
+    setFeatureHeightBounds(MEDIUM_PURPLE_MUSHROOM, 0, 6);
     setFeatureHeightBounds(PURPLE_MUSHROOM, 0, 80);
 
-    setFeatureHeightBounds(CRYSTAL, -4, 65);
+    setFeatureHeightBounds(MEDIUM_CRYSTAL, -3, 32);
+    setFeatureHeightBounds(CRYSTAL, -6, 64);
 
     setFeatureHeightBounds(PALM_TREE, 0, 28);
 
@@ -1062,6 +1066,7 @@ void BiomeUtils::init()
 
     cudaMemcpyToSymbol(dev_featureHeightBounds, host_featureHeightBounds.data(), numFeatures * sizeof(ivec2));
 
+    // decoratorBlock, chance, possibleUnderBlocks
     host_biomeDecoratorGens[(int)Biome::TROPICAL_BEACH] = {
         DecoratorGen(Block::JUNGLE_GRASS, 0.1f, { Block::JUNGLE_GRASS_BLOCK })
     };
@@ -1105,18 +1110,20 @@ void BiomeUtils::init()
         DecoratorGen(Block::DEAD_BUSH, 0.020f, { Block::RED_SAND })
     };
 
+    auto smallCrystalBottomBlocks = { Block::STONE, Block::TUFF, Block::CALCITE };
+
     host_biomeDecoratorGens[(int)Biome::PURPLE_MUSHROOMS] = {
         DecoratorGen(Block::SMALL_PURPLE_MUSHROOM, 0.100f, { Block::MYCELIUM }),
-        DecoratorGen(Block::SMALL_MAGENTA_CRYSTAL, 0.005f, { Block::STONE, Block::TUFF, Block::CALCITE }),
-        DecoratorGen(Block::SMALL_CYAN_CRYSTAL, 0.005f, { Block::STONE, Block::TUFF, Block::CALCITE }),
-        DecoratorGen(Block::SMALL_GREEN_CRYSTAL, 0.005f, { Block::STONE, Block::TUFF, Block::CALCITE })
+        DecoratorGen(Block::SMALL_MAGENTA_CRYSTAL, 0.005f, smallCrystalBottomBlocks),
+        DecoratorGen(Block::SMALL_CYAN_CRYSTAL, 0.005f, smallCrystalBottomBlocks),
+        DecoratorGen(Block::SMALL_GREEN_CRYSTAL, 0.005f, smallCrystalBottomBlocks)
     };
 
     host_biomeDecoratorGens[(int)Biome::CRYSTALS] = {
         DecoratorGen(Block::SMALL_PURPLE_MUSHROOM, 0.020f, { Block::MYCELIUM }),
-        DecoratorGen(Block::SMALL_MAGENTA_CRYSTAL, 0.025f, {}),
-        DecoratorGen(Block::SMALL_CYAN_CRYSTAL, 0.025f, {}),
-        DecoratorGen(Block::SMALL_GREEN_CRYSTAL, 0.025f, {})
+        DecoratorGen(Block::SMALL_MAGENTA_CRYSTAL, 0.025f, smallCrystalBottomBlocks),
+        DecoratorGen(Block::SMALL_CYAN_CRYSTAL, 0.025f, smallCrystalBottomBlocks),
+        DecoratorGen(Block::SMALL_GREEN_CRYSTAL, 0.025f, smallCrystalBottomBlocks)
     };
 
     host_biomeDecoratorGens[(int)Biome::OASIS] = {
@@ -1189,6 +1196,7 @@ void BiomeUtils::init()
 
     cudaMemcpyToSymbol(dev_caveFeatureHeightBounds, host_caveFeatureHeightBounds.data(), numCaveFeatures * sizeof(ivec2));
 
+    // decoratorBlock, chance, possibleUnderBlocks
     host_caveBiomeDecoratorGens[(int)CaveBiome::CRYSTAL_CAVES] = {
         DecoratorGen(Block::SMALL_MAGENTA_CRYSTAL, 0.015f, {}),
         DecoratorGen(Block::SMALL_CYAN_CRYSTAL, 0.015f, {}),

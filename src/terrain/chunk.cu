@@ -12,7 +12,7 @@
 #define DEBUG_SKIP_EROSION 0
 #define DEBUG_USE_CONTRIBUTION_FILL_METHOD 0
 
-//#define DEBUG_BIOME_OVERRIDE Biome::JUNGLE
+//#define DEBUG_BIOME_OVERRIDE Biome::CRYSTALS
 //#define DEBUG_CAVE_BIOME_OVERRIDE CaveBiome::LUSH_CAVES
 
 Chunk::Chunk(ivec2 worldChunkPos)
@@ -1155,14 +1155,18 @@ void Chunk::generateFeaturePlacements()
     }
 }
 
-static const std::array<ivec2, 25> gatherFeaturePlacementsChunkOffsets = {
+static const std::array<ivec2, 49> gatherFeaturePlacementsChunkOffsets = {
     ivec2(0, 0), ivec2(0, 1), ivec2(1, 1), ivec2(1, 0), ivec2(1, -1), ivec2(0, -1), ivec2(-1, -1),
     ivec2(-1, 0), ivec2(-1, 1), ivec2(2, 0), ivec2(2, 1), ivec2(2, 2), ivec2(1, 2), ivec2(0, 2),
     ivec2(-1, 2), ivec2(-2, 2), ivec2(-2, 1), ivec2(-2, 0), ivec2(-2, -1), ivec2(-2, -2),
-    ivec2(-1, -2), ivec2(0, -2), ivec2(1, -2), ivec2(2, -2), ivec2(2, -1)
+    ivec2(-1, -2), ivec2(0, -2), ivec2(1, -2), ivec2(2, -2), ivec2(2, -1),
+    ivec2(-3, -3), ivec2(-2, -3), ivec2(-1, -3), ivec2(0, -3), ivec2(1, -3), ivec2(2, -3), ivec2(3, -3),
+    ivec2(3, -2), ivec2(3, -1), ivec2(3, 0), ivec2(3, 1), ivec2(3, 2), ivec2(3, 3),
+    ivec2(2, 3), ivec2(1, 3), ivec2(0, 3), ivec2(-1, 3), ivec2(-2, 3), ivec2(-3, 3),
+    ivec2(-3, 2), ivec2(-3, 1), ivec2(-3, 0), ivec2(-3, -1), ivec2(-3, -2)
 };
 
-void Chunk::otherChunkGatherFeaturePlacements(Chunk* chunkPtr, Chunk* const (&neighborChunks)[9][9], int centerX, int centerZ)
+void Chunk::otherChunkGatherFeaturePlacements(Chunk* chunkPtr, Chunk* const (&neighborChunks)[13][13], int centerX, int centerZ)
 {
     chunkPtr->gatheredFeaturePlacements.clear();
 
@@ -1184,7 +1188,7 @@ void Chunk::otherChunkGatherFeaturePlacements(Chunk* chunkPtr, Chunk* const (&ne
 
 void Chunk::gatherFeaturePlacements()
 {
-    floodFillAndIterateNeighbors<9>(
+    floodFillAndIterateNeighbors<13>(
         ChunkState::NEEDS_GATHER_FEATURE_PLACEMENTS,
         ChunkState::READY_TO_FILL,
         &Chunk::otherChunkGatherFeaturePlacements
