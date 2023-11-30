@@ -166,6 +166,10 @@ public:
         Block* host_blocks,
         Block* dev_blocks,
         cudaStream_t stream);
+    void tryPlaceSingleDecorator(
+        ivec3 pos,
+        const DecoratorGen& gen);
+    void placeDecorators();
 
     void createVBOs();
     void bufferVBOs() override;

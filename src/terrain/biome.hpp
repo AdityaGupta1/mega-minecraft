@@ -1,6 +1,7 @@
 #pragma once
 
 #include "block.hpp"
+#include <unordered_set>
 
 #define MAX_CAVE_LAYERS_PER_COLUMN 32
 #define MAX_GATHERED_FEATURES_PER_CHUNK 1024 // ~40 per chunk
@@ -244,6 +245,14 @@ struct CaveFeaturePlacement
     glm::ivec3 pos; // lowest air block of cave layer
     int layerHeight; // block at (pos.y + layerHeight) is highest air block of cave layer
     bool canReplaceBlocks;
+};
+
+struct DecoratorGen
+{
+    Block decoratorBlock;
+    float chance;
+    std::unordered_set<Block> possibleUnderBlocks;
+    std::unordered_set<Block> possibleReplaceBlocks{ Block::AIR };
 };
 
 namespace BiomeUtils

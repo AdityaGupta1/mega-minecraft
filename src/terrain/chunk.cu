@@ -90,7 +90,6 @@ void Chunk::floodFill(Chunk* (&neighborChunks)[diameter][diameter], ChunkState m
     }
 }
 
-
 template<std::size_t diameter>
 void Chunk::iterateNeighborChunks(Chunk* const (&neighborChunks)[diameter][diameter], ChunkState currentState, ChunkState nextState,
     ChunkProcessorFunc<diameter> chunkProcessorFunc)
@@ -1506,53 +1505,6 @@ __global__ void kernFill(
     }
 
     blocks[idx] = block;
-
-    __syncthreads();
-
-    if (y >= MAX_CAVE_LAYERS_PER_COLUMN + 1)
-    {
-        return;
-    }
-
-    int decoratorHeight;
-    if (y == MAX_CAVE_LAYERS_PER_COLUMN)
-    {
-        decoratorHeight = ((int)height) + 1;
-
-        for (int caveLayerIdx = 0; caveLayerIdx < MAX_CAVE_LAYERS_PER_COLUMN; ++caveLayerIdx)
-        {
-            const auto& caveLayer = shared_caveLayers[caveLayerIdx];
-
-            if (caveLayer.start == 384)
-            {
-                break;
-            }
-
-            if (decoratorHeight > caveLayer.start && decoratorHeight <= caveLayer.end)
-            {
-                return;
-            }
-        }
-    }
-    else
-    {
-        decoratorHeight = shared_caveLayers[y].start + 1;
-    }
-
-    const int decoratorIdx = posTo3dIndex(x, decoratorHeight, z);
-    Block currentBlock = blocks[decoratorIdx];
-    if (currentBlock != Block::AIR)
-    {
-        return;
-    }
-
-    Block underBlock = blocks[decoratorIdx - 1];
-    if ((int)underBlock < numNonSolidBlocks)
-    {
-        return;
-    }
-
-    blocks[decoratorIdx] = Block::CAVE_VINES_MAIN;
 }
 
 void heightBoundsMinMax(ivec2& in, const ivec2& v)
@@ -1671,9 +1623,64 @@ void Chunk::fill(
         Chunk* chunkPtr = chunks[i];
 
         std::memcpy(chunkPtr->blocks.data(), host_blocks + (i * devBlocksSize), devBlocksSize * sizeof(Block));
+        chunkPtr->placeDecorators();
     }
 
     CudaUtils::checkCUDAError("Chunk::fill() failed");
+}
+
+void Chunk::tryPlaceSingleDecorator(
+    ivec3 pos, 
+    const DecoratorGen& gen)
+{
+    const int decoratorIdx = posTo3dIndex(pos);
+    Block& currentBlock = this->blocks[decoratorIdx];
+    if (!gen.possibleReplaceBlocks.empty() 
+        && gen.possibleReplaceBlocks.find(currentBlock) == gen.possibleReplaceBlocks.end())
+    {
+        return;
+    }
+
+    const Block underBlock = blocks[decoratorIdx - 1];
+    if (!gen.possibleUnderBlocks.empty()
+        && gen.possibleUnderBlocks.find(underBlock) == gen.possibleUnderBlocks.end())
+    {
+        return;
+    }
+
+    currentBlock = gen.decoratorBlock;
+}
+
+void Chunk::placeDecorators()
+{
+    for (int z = 0; z < 16; ++z)
+    {
+        for (int x = 0; x < 16; ++x)
+        {
+            const int idx2d = posTo2dIndex(x, z);
+
+            // TODO: get random decorator (or no decorator)
+            DecoratorGen testGen = {
+                Block::CAVE_VINES_END,
+                1.f
+            };
+            tryPlaceSingleDecorator(ivec3(x, ((int)this->heightfield[idx2d]) + 1, z), testGen);
+
+            const CaveLayer* columnCaveLayers = this->caveLayers.data() + (MAX_CAVE_LAYERS_PER_COLUMN * idx2d);
+            for (int caveLayerIdx = 0; caveLayerIdx < MAX_CAVE_LAYERS_PER_COLUMN; ++caveLayerIdx)
+            {
+                const auto& caveLayer = columnCaveLayers[caveLayerIdx];
+
+                if (caveLayer.start == 384)
+                {
+                    break;
+                }
+
+                // TODO: get random decorator (or no decorator)
+                tryPlaceSingleDecorator(ivec3(x, caveLayer.start + 1, z), testGen);
+            }
+        }
+    }
 }
 
 #pragma endregion
