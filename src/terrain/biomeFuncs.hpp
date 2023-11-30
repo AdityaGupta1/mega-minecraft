@@ -419,7 +419,7 @@ __device__ bool biomeBlockPostProcess(Block* blockPtr, Biome biome, ivec3 worldB
         float dirtHeight = SEA_LEVEL + 1.5f + 1.7f * fbm<3>(vec2(worldBlockPos.x, worldBlockPos.z) * 0.0065f);
         if (worldBlockPos.y > dirtHeight)
         {
-            *blockPtr = isTopBlock ? Block::GRASS : Block::DIRT;
+            *blockPtr = isTopBlock ? Block::GRASS_BLOCK : Block::DIRT;
             return true;
         }
 
@@ -524,7 +524,7 @@ __device__ bool biomeBlockPostProcess(Block* blockPtr, Biome biome, ivec3 worldB
             return false;
         }
 
-        if (*blockPtr == Block::DIRT || *blockPtr == Block::JUNGLE_GRASS)
+        if (*blockPtr == Block::DIRT || *blockPtr == Block::JUNGLE_GRASS_BLOCK)
         {
             float mudEnd = SEA_LEVEL + 0.8f + 1.1f * simplex(vec2(worldBlockPos.x, worldBlockPos.z) * 0.0300f);
             if (worldBlockPos.y < mudEnd)
@@ -538,7 +538,7 @@ __device__ bool biomeBlockPostProcess(Block* blockPtr, Biome biome, ivec3 worldB
     }
     case Biome::TIANZI_MOUNTAINS:
     {
-        if (worldBlockPos.y < 90.f || *blockPtr == Block::WATER || *blockPtr == Block::DIRT || *blockPtr == Block::GRASS)
+        if (worldBlockPos.y < 90.f || *blockPtr == Block::WATER || *blockPtr == Block::DIRT || *blockPtr == Block::GRASS_BLOCK)
         {
             return false;
         }
@@ -704,6 +704,9 @@ static std::array<ivec2, numCaveFeatures> host_caveFeatureHeightBounds;
 __constant__ ivec2 dev_featureHeightBounds[numFeatures];
 __constant__ ivec2 dev_caveFeatureHeightBounds[numCaveFeatures];
 
+static std::array<std::vector<DecoratorGen>, numBiomes> host_biomeDecoratorGens;
+static std::array<std::vector<DecoratorGen>, numCaveBiomes> host_caveBiomeDecoratorGens;
+
 void BiomeUtils::init()
 {
 #define biomeWeights(biome) host_biomeNoiseWeights[(int)Biome::biome]
@@ -767,20 +770,20 @@ void BiomeUtils::init()
 
     BiomeBlocks* host_biomeBlocks = new BiomeBlocks[numBiomes];
 
-    host_biomeBlocks[(int)Biome::TROPICAL_BEACH].grassBlock = Block::JUNGLE_GRASS;
+    host_biomeBlocks[(int)Biome::TROPICAL_BEACH].grassBlock = Block::JUNGLE_GRASS_BLOCK;
 
-    host_biomeBlocks[(int)Biome::SAVANNA].grassBlock = Block::SAVANNA_GRASS;
-    host_biomeBlocks[(int)Biome::FROZEN_WASTELAND].grassBlock = Block::SNOWY_GRASS;
-    host_biomeBlocks[(int)Biome::REDWOOD_FOREST].grassBlock = Block::GRASS;
-    host_biomeBlocks[(int)Biome::SHREKS_SWAMP].grassBlock = Block::JUNGLE_GRASS;
-    host_biomeBlocks[(int)Biome::LUSH_BIRCH_FOREST].grassBlock = Block::GRASS;
-    host_biomeBlocks[(int)Biome::TIANZI_MOUNTAINS].grassBlock = Block::GRASS;
+    host_biomeBlocks[(int)Biome::SAVANNA].grassBlock = Block::SAVANNA_GRASS_BLOCK;
+    host_biomeBlocks[(int)Biome::FROZEN_WASTELAND].grassBlock = Block::SNOWY_GRASS_BLOCK;
+    host_biomeBlocks[(int)Biome::REDWOOD_FOREST].grassBlock = Block::GRASS_BLOCK;
+    host_biomeBlocks[(int)Biome::SHREKS_SWAMP].grassBlock = Block::JUNGLE_GRASS_BLOCK;
+    host_biomeBlocks[(int)Biome::LUSH_BIRCH_FOREST].grassBlock = Block::GRASS_BLOCK;
+    host_biomeBlocks[(int)Biome::TIANZI_MOUNTAINS].grassBlock = Block::GRASS_BLOCK;
 
-    host_biomeBlocks[(int)Biome::JUNGLE].grassBlock = Block::JUNGLE_GRASS;
+    host_biomeBlocks[(int)Biome::JUNGLE].grassBlock = Block::JUNGLE_GRASS_BLOCK;
     host_biomeBlocks[(int)Biome::PURPLE_MUSHROOMS].grassBlock = Block::MYCELIUM;
-    host_biomeBlocks[(int)Biome::OASIS].grassBlock = Block::JUNGLE_GRASS;
-    host_biomeBlocks[(int)Biome::PLAINS].grassBlock = Block::GRASS;
-    host_biomeBlocks[(int)Biome::MOUNTAINS].grassBlock = Block::GRASS;
+    host_biomeBlocks[(int)Biome::OASIS].grassBlock = Block::JUNGLE_GRASS_BLOCK;
+    host_biomeBlocks[(int)Biome::PLAINS].grassBlock = Block::GRASS_BLOCK;
+    host_biomeBlocks[(int)Biome::MOUNTAINS].grassBlock = Block::GRASS_BLOCK;
 
     cudaMemcpyToSymbol(dev_biomeBlocks, host_biomeBlocks, numBiomes * sizeof(BiomeBlocks));
     delete[] host_biomeBlocks;
@@ -947,7 +950,7 @@ void BiomeUtils::init()
 
     cudaMemcpyToSymbol(dev_dirVecs2d, DirectionEnums::dirVecs2d.data(), 8 * sizeof(ivec2));
 
-#pragma region feature gens
+#pragma region feature/decorator gens
 
     // feature, gridCellSize, gridCellPadding, chancePerGridCell, possibleTopLayers, canReplaceBlocks
     host_biomeFeatureGens[(int)Biome::ICEBERGS] = {
@@ -1046,9 +1049,45 @@ void BiomeUtils::init()
 
     cudaMemcpyToSymbol(dev_featureHeightBounds, host_featureHeightBounds.data(), numFeatures * sizeof(ivec2));
 
+    host_biomeDecoratorGens[(int)Biome::TROPICAL_BEACH] = {
+        { Block::JUNGLE_GRASS, 0.1f, { Block::JUNGLE_GRASS_BLOCK } }
+    };
+
+    host_biomeDecoratorGens[(int)Biome::SAVANNA] = {
+        { Block::SAVANNA_GRASS, 0.1f, { Block::SAVANNA_GRASS_BLOCK } }
+    };
+
+    host_biomeDecoratorGens[(int)Biome::REDWOOD_FOREST] = {
+        { Block::GRASS, 0.2f, { Block::GRASS_BLOCK } }
+    };
+
+    host_biomeDecoratorGens[(int)Biome::SHREKS_SWAMP] = {
+        { Block::JUNGLE_GRASS, 0.3f, { Block::JUNGLE_GRASS_BLOCK } }
+    };
+
+    host_biomeDecoratorGens[(int)Biome::LUSH_BIRCH_FOREST] = {
+        { Block::GRASS, 0.3f, { Block::GRASS_BLOCK } }
+    };
+
+    host_biomeDecoratorGens[(int)Biome::JUNGLE] = {
+        { Block::JUNGLE_GRASS, 0.4f, { Block::JUNGLE_GRASS_BLOCK } }
+    };
+
+    host_biomeDecoratorGens[(int)Biome::OASIS] = {
+        { Block::JUNGLE_GRASS, 0.2f, { Block::JUNGLE_GRASS_BLOCK } }
+    };
+
+    host_biomeDecoratorGens[(int)Biome::PLAINS] = {
+        { Block::GRASS, 0.2f, { Block::GRASS_BLOCK } }
+    };
+
+    host_biomeDecoratorGens[(int)Biome::MOUNTAINS] = {
+        { Block::GRASS, 0.04f, { Block::GRASS_BLOCK } }
+    };
+
 #pragma endregion
 
-#pragma region cave feature gens
+#pragma region cave feature/decorator gens
 
     // caveFeature, gridCellSize, gridCellPadding, chancePerGridCell
     host_caveBiomeFeatureGens[(int)CaveBiome::CRYSTAL_CAVES] = {

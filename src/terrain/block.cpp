@@ -18,17 +18,20 @@ void BlockUtils::init()
     blockDatas[(int)Block::CAVE_VINES_GLOW_MAIN] = { BlockUvs(ivec2(3, 7)), TransparencyType::T_X_SHAPED };
     blockDatas[(int)Block::CAVE_VINES_END] = { BlockUvs(ivec2(4, 7)), TransparencyType::T_X_SHAPED };
     blockDatas[(int)Block::CAVE_VINES_GLOW_END] = { BlockUvs(ivec2(5, 7)), TransparencyType::T_X_SHAPED };
+    blockDatas[(int)Block::GRASS] = { BlockUvs(ivec2(8, 7)), TransparencyType::T_X_SHAPED };
+    blockDatas[(int)Block::JUNGLE_GRASS] = { BlockUvs(ivec2(9, 7)), TransparencyType::T_X_SHAPED };
+    blockDatas[(int)Block::SAVANNA_GRASS] = { BlockUvs(ivec2(10, 7)), TransparencyType::T_X_SHAPED };
 
     blockDatas[(int)Block::BEDROCK] = { BlockUvs(ivec2(0, 5)) };
 
     blockDatas[(int)Block::STONE] = { BlockUvs(ivec2(3, 0)).setRandomFlip() };
     blockDatas[(int)Block::DIRT] = { BlockUvs(ivec2(0, 0)).setRandomRotation() };
-    blockDatas[(int)Block::GRASS] = { BlockUvs(ivec2(1, 0), ivec2(2, 0), ivec2(0, 0)).setRandomRotation(false, true, true) };
+    blockDatas[(int)Block::GRASS_BLOCK] = { BlockUvs(ivec2(1, 0), ivec2(2, 0), ivec2(0, 0)).setRandomRotation(false, true, true) };
     blockDatas[(int)Block::SAND] = { BlockUvs(ivec2(4, 0)).setRandomRotation() };
     blockDatas[(int)Block::GRAVEL] = { BlockUvs(ivec2(5, 0)).setRandomRotation() };
     blockDatas[(int)Block::MYCELIUM] = { BlockUvs(ivec2(6, 0), ivec2(7, 0), ivec2(0, 0)).setRandomRotation(false, true, true) };
     blockDatas[(int)Block::SNOW] = { BlockUvs(ivec2(8, 0)) };
-    blockDatas[(int)Block::SNOWY_GRASS] = { BlockUvs(ivec2(9, 0), ivec2(8, 0), ivec2(0, 0)).setRandomRotation(false, true, true) };
+    blockDatas[(int)Block::SNOWY_GRASS_BLOCK] = { BlockUvs(ivec2(9, 0), ivec2(8, 0), ivec2(0, 0)).setRandomRotation(false, true, true) };
     blockDatas[(int)Block::MUSHROOM_STEM] = { BlockUvs(ivec2(10, 0)) };
     blockDatas[(int)Block::MUSHROOM_UNDERSIDE] = { BlockUvs(ivec2(11, 0)).setRandomFlip() };
     blockDatas[(int)Block::MUSHROOM_CAP_PURPLE] = { BlockUvs(ivec2(12, 0)) };
@@ -45,7 +48,7 @@ void BlockUtils::init()
     blockDatas[(int)Block::RED_SAND] = { BlockUvs(ivec2(11, 1)).setRandomRotation() };
     blockDatas[(int)Block::RED_SANDSTONE] = { BlockUvs(ivec2(12, 1), ivec2(13, 1), ivec2(14, 1)) };
     blockDatas[(int)Block::MUD] = { BlockUvs(ivec2(15, 1)) };
-    blockDatas[(int)Block::JUNGLE_GRASS] = { BlockUvs(ivec2(0, 2), ivec2(1, 2), ivec2(0, 0)).setRandomRotation(false, true, true) };
+    blockDatas[(int)Block::JUNGLE_GRASS_BLOCK] = { BlockUvs(ivec2(0, 2), ivec2(1, 2), ivec2(0, 0)).setRandomRotation(false, true, true) };
     blockDatas[(int)Block::RAFFLESIA_PETAL] = { BlockUvs(ivec2(2, 2)) };
     blockDatas[(int)Block::RAFFLESIA_CENTER] = { BlockUvs(ivec2(3, 2)) };
     blockDatas[(int)Block::RAFFLESIA_SPIKES] = { BlockUvs(ivec2(4, 2)) };
@@ -70,7 +73,7 @@ void BlockUtils::init()
     blockDatas[(int)Block::ICE] = { BlockUvs(ivec2(11, 3)), TransparencyType::T_TRANSPARENT };
     blockDatas[(int)Block::PACKED_ICE] = { BlockUvs(ivec2(12, 3)) };
     blockDatas[(int)Block::BLUE_ICE] = { BlockUvs(ivec2(13, 3)) };
-    blockDatas[(int)Block::SAVANNA_GRASS] = { BlockUvs(ivec2(14, 2), ivec2(15, 2), ivec2(0, 0)).setRandomRotation(false, true, true) };
+    blockDatas[(int)Block::SAVANNA_GRASS_BLOCK] = { BlockUvs(ivec2(14, 2), ivec2(15, 2), ivec2(0, 0)).setRandomRotation(false, true, true) };
     blockDatas[(int)Block::BIRCH_WOOD] = { BlockUvs(ivec2(14, 3)) };
     blockDatas[(int)Block::BIRCH_LEAVES] = { BlockUvs(ivec2(0, 4)), TransparencyType::T_SEMI_TRANSPARENT };
     blockDatas[(int)Block::YELLOW_BIRCH_LEAVES] = { BlockUvs(ivec2(1, 4)), TransparencyType::T_SEMI_TRANSPARENT };

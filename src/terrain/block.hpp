@@ -13,17 +13,20 @@ enum class Block : unsigned char
     CAVE_VINES_GLOW_MAIN,
     CAVE_VINES_END,
     CAVE_VINES_GLOW_END,
+    GRASS,
+    JUNGLE_GRASS,
+    SAVANNA_GRASS,
 
     BEDROCK,
 
     STONE,
     DIRT,
-    GRASS,
+    GRASS_BLOCK,
     SAND,
     GRAVEL,
     MYCELIUM,
     SNOW,
-    SNOWY_GRASS,
+    SNOWY_GRASS_BLOCK,
     MUSHROOM_STEM,
     MUSHROOM_UNDERSIDE,
     MUSHROOM_CAP_PURPLE,
@@ -40,7 +43,7 @@ enum class Block : unsigned char
     RED_SAND,
     RED_SANDSTONE,
     MUD,
-    JUNGLE_GRASS,
+    JUNGLE_GRASS_BLOCK,
     RAFFLESIA_PETAL,
     RAFFLESIA_CENTER,
     RAFFLESIA_SPIKES,
@@ -65,7 +68,7 @@ enum class Block : unsigned char
     ICE,
     PACKED_ICE,
     BLUE_ICE,
-    SAVANNA_GRASS,
+    SAVANNA_GRASS_BLOCK,
     BIRCH_WOOD,
     BIRCH_LEAVES,
     YELLOW_BIRCH_LEAVES,
@@ -96,7 +99,7 @@ enum class Block : unsigned char
 };
 
 static constexpr int numBlocks = (int)Block::COBBLED_DEEPSLATE + 1;
-static constexpr int numNonSolidBlocks = (int)Block::CAVE_VINES_GLOW_END + 1;
+static constexpr int numNonSolidBlocks = (int)Block::SAVANNA_GRASS + 1;
 
 struct SideUv
 {

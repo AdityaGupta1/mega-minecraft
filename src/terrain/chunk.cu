@@ -12,7 +12,7 @@
 #define DEBUG_SKIP_EROSION 0
 #define DEBUG_USE_CONTRIBUTION_FILL_METHOD 0
 
-//#define DEBUG_BIOME_OVERRIDE Biome::PLAINS
+//#define DEBUG_BIOME_OVERRIDE Biome::SHREKS_SWAMP
 //#define DEBUG_CAVE_BIOME_OVERRIDE CaveBiome::LUSH_CAVES
 
 Chunk::Chunk(ivec2 worldChunkPos)
@@ -1042,7 +1042,7 @@ void Chunk::generateColumnFeaturePlacements(int localX, int localZ)
 {
     const int idx2d = posTo2dIndex(localX, localZ);
 
-    const auto& columnBiomeWeights = biomeWeights.data() + idx2d;
+    const float* columnBiomeWeights = biomeWeights.data() + idx2d;
 
     const float height = heightfield[idx2d];
     const int groundHeight = (int)height;
@@ -1153,8 +1153,6 @@ void Chunk::generateFeaturePlacements()
             generateColumnFeaturePlacements(localX, localZ);
         }
     }
-
-    // this probably won't include decorators (single block things) since those can be done on the CPU at the end of Chunk::fill()
 }
 
 static const std::array<ivec2, 25> gatherFeaturePlacementsChunkOffsets = {
@@ -1598,8 +1596,8 @@ void Chunk::fill(
         );
         chunkPtr->gatheredCaveFeaturePlacements.clear();
 
-        const dim3 blockSize3d(1, 384, 1);
-        const dim3 blocksPerGrid3d(16, 1, 16);
+        const dim3 blockSize3d(1, 128, 1);
+        const dim3 blocksPerGrid3d(16, 3, 16);
         kernFill<<<blocksPerGrid3d, blockSize3d, 0, stream>>>(
             dev_blocks + (i * devBlocksSize),
             dev_heightfields + (i * 256),
@@ -1653,18 +1651,30 @@ void Chunk::tryPlaceSingleDecorator(
 
 void Chunk::placeDecorators()
 {
+    auto rng = makeSeededRandomEngine(this->worldBlockPos.x, this->worldBlockPos.y, this->worldBlockPos.z, 7589341);
+    thrust::uniform_real_distribution<float> u01(0, 1);
+
     for (int z = 0; z < 16; ++z)
     {
         for (int x = 0; x < 16; ++x)
         {
             const int idx2d = posTo2dIndex(x, z);
 
-            // TODO: get random decorator (or no decorator)
-            DecoratorGen testGen = {
-                Block::CAVE_VINES_END,
-                1.f
-            };
-            tryPlaceSingleDecorator(ivec3(x, ((int)this->heightfield[idx2d]) + 1, z), testGen);
+            const float* columnBiomeWeights = biomeWeights.data() + idx2d;
+            Biome biome = getRandomBiome<256>(columnBiomeWeights, u01(rng));
+
+            float rand = u01(rng);
+            const auto& biomeDecoratorGens = host_biomeDecoratorGens[(int)biome];
+            for (int genIdx = 0; genIdx < biomeDecoratorGens.size(); ++genIdx)
+            {
+                const auto& gen = biomeDecoratorGens[genIdx];
+
+                if ((rand -= gen.chance) < 0.f)
+                {
+                    tryPlaceSingleDecorator(ivec3(x, ((int)this->heightfield[idx2d]) + 1, z), gen);
+                    break;
+                }
+            }
 
             const CaveLayer* columnCaveLayers = this->caveLayers.data() + (MAX_CAVE_LAYERS_PER_COLUMN * idx2d);
             for (int caveLayerIdx = 0; caveLayerIdx < MAX_CAVE_LAYERS_PER_COLUMN; ++caveLayerIdx)
@@ -1676,8 +1686,18 @@ void Chunk::placeDecorators()
                     break;
                 }
 
-                // TODO: get random decorator (or no decorator)
-                tryPlaceSingleDecorator(ivec3(x, caveLayer.start + 1, z), testGen);
+                rand = u01(rng);
+                const auto& caveBiomeDecoratorGens = host_caveBiomeDecoratorGens[(int)caveLayer.bottomBiome];
+                for (int genIdx = 0; genIdx < caveBiomeDecoratorGens.size(); ++genIdx)
+                {
+                    const auto& gen = caveBiomeDecoratorGens[genIdx];
+
+                    if ((rand -= gen.chance) < 0.f)
+                    {
+                        tryPlaceSingleDecorator(ivec3(x, caveLayer.start + 1, z), gen);
+                        break;
+                    }
+                }
             }
         }
     }
