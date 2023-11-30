@@ -52,7 +52,7 @@ void Chunk::setNotReadyForQueue()
 template<std::size_t diameter>
 void Chunk::floodFill(Chunk* (&neighborChunks)[diameter][diameter], ChunkState minState)
 {
-    const int radius = diameter / 2;
+    constexpr int radius = diameter / 2;
 
     std::queue<Chunk*> chunks;
     std::unordered_set<Chunk*> visitedChunks;
@@ -95,8 +95,8 @@ template<std::size_t diameter>
 void Chunk::iterateNeighborChunks(Chunk* const (&neighborChunks)[diameter][diameter], ChunkState currentState, ChunkState nextState,
     ChunkProcessorFunc<diameter> chunkProcessorFunc)
 {
-    int start = diameter / 4; // assuming diameter = (4k + 1) for some k, so start <- k
-    int end = diameter - start;
+    constexpr int start = diameter / 4; // assuming diameter = (4k + 1) for some k, so start <- k
+    constexpr int end = diameter - start;
 
     for (int centerZ = start; centerZ < end; ++centerZ)
     {
@@ -1402,28 +1402,26 @@ __global__ void kernFill(
     const int idx2d = posTo2dIndex(x, z);
 
     int loadIdx = threadIdx.y;
-    float* loadLocation = nullptr;
-    float* storeLocation = nullptr;
+    float* floatLoadLocation = nullptr;
+    float* floatStoreLocation = nullptr;
     if (loadIdx < numBiomes)
     {
-        loadLocation = biomeWeights + (idx2d) + (256 * loadIdx);
-        storeLocation = shared_biomeWeights + loadIdx;
+        floatLoadLocation = biomeWeights + (idx2d) + (256 * loadIdx);
+        floatStoreLocation = shared_biomeWeights + loadIdx;
     }
     else if ((loadIdx -= numBiomes) <= numMaterials)
     {
-        loadLocation = loadIdx == numMaterials ? (heightfield + idx2d) : (layers + (idx2d) + (256 * loadIdx));
-        storeLocation = shared_layersAndHeight + loadIdx;
+        floatLoadLocation = loadIdx == numMaterials ? (heightfield + idx2d) : (layers + (idx2d) + (256 * loadIdx));
+        floatStoreLocation = shared_layersAndHeight + loadIdx;
     }
-
-    if (storeLocation != nullptr)
-    {
-        *storeLocation = *loadLocation;
-    }
-
-    loadIdx -= numMaterials + 1;
-    if (loadIdx >= 0 && loadIdx < MAX_CAVE_LAYERS_PER_COLUMN)
+    else if ((loadIdx -= numMaterials + 1) < MAX_CAVE_LAYERS_PER_COLUMN)
     {
         shared_caveLayers[loadIdx] = caveLayers[(MAX_CAVE_LAYERS_PER_COLUMN * idx2d) + loadIdx];
+    }
+
+    if (floatStoreLocation != nullptr)
+    {
+        *floatStoreLocation = *floatLoadLocation;
     }
 
     __syncthreads();
@@ -1438,12 +1436,6 @@ __global__ void kernFill(
 
     bool isInFeatureBounds = y >= allFeaturesHeightBounds[0] && y <= allFeaturesHeightBounds[1];
     bool isInCaveFeatureBounds = y >= allCaveFeaturesHeightBounds[0] && y <= allCaveFeaturesHeightBounds[1];
-
-    if (!isInFeatureBounds && !isInCaveFeatureBounds)
-    {
-        blocks[idx] = block;
-        return;
-    }
 
     Block featureBlock;
     bool placedFeature = false;
@@ -1514,6 +1506,53 @@ __global__ void kernFill(
     }
 
     blocks[idx] = block;
+
+    __syncthreads();
+
+    if (y >= MAX_CAVE_LAYERS_PER_COLUMN + 1)
+    {
+        return;
+    }
+
+    int decoratorHeight;
+    if (y == MAX_CAVE_LAYERS_PER_COLUMN)
+    {
+        decoratorHeight = ((int)height) + 1;
+
+        for (int caveLayerIdx = 0; caveLayerIdx < MAX_CAVE_LAYERS_PER_COLUMN; ++caveLayerIdx)
+        {
+            const auto& caveLayer = shared_caveLayers[caveLayerIdx];
+
+            if (caveLayer.start == 384)
+            {
+                break;
+            }
+
+            if (decoratorHeight > caveLayer.start && decoratorHeight <= caveLayer.end)
+            {
+                return;
+            }
+        }
+    }
+    else
+    {
+        decoratorHeight = shared_caveLayers[y].start + 1;
+    }
+
+    const int decoratorIdx = posTo3dIndex(x, decoratorHeight, z);
+    Block currentBlock = blocks[decoratorIdx];
+    if (currentBlock != Block::AIR)
+    {
+        return;
+    }
+
+    Block underBlock = blocks[decoratorIdx - 1];
+    if ((int)underBlock < numNonSolidBlocks)
+    {
+        return;
+    }
+
+    blocks[decoratorIdx] = Block::CAVE_VINES_MAIN;
 }
 
 void heightBoundsMinMax(ivec2& in, const ivec2& v)
@@ -1607,8 +1646,8 @@ void Chunk::fill(
         );
         chunkPtr->gatheredCaveFeaturePlacements.clear();
 
-        const dim3 blockSize3d(1, 128, 1);
-        const dim3 blocksPerGrid3d(16, 3, 16);
+        const dim3 blockSize3d(1, 384, 1);
+        const dim3 blocksPerGrid3d(16, 1, 16);
         kernFill<<<blocksPerGrid3d, blockSize3d, 0, stream>>>(
             dev_blocks + (i * devBlocksSize),
             dev_heightfields + (i * 256),

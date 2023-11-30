@@ -14,6 +14,11 @@ void BlockUtils::init()
     blockDatas[(int)Block::WATER] = { BlockUvs(ivec2(15, 15)), TransparencyType::T_TRANSPARENT };
     blockDatas[(int)Block::LAVA] = { BlockUvs(ivec2(14, 15)), TransparencyType::T_OPAQUE }; // not sure if this should be transparent
 
+    blockDatas[(int)Block::CAVE_VINES_MAIN] = { BlockUvs(ivec2(2, 7)), TransparencyType::T_X_SHAPED };
+    blockDatas[(int)Block::CAVE_VINES_GLOW_MAIN] = { BlockUvs(ivec2(3, 7)), TransparencyType::T_X_SHAPED };
+    blockDatas[(int)Block::CAVE_VINES_END] = { BlockUvs(ivec2(4, 7)), TransparencyType::T_X_SHAPED };
+    blockDatas[(int)Block::CAVE_VINES_GLOW_END] = { BlockUvs(ivec2(5, 7)), TransparencyType::T_X_SHAPED };
+
     blockDatas[(int)Block::BEDROCK] = { BlockUvs(ivec2(0, 5)) };
 
     blockDatas[(int)Block::STONE] = { BlockUvs(ivec2(3, 0)).setRandomFlip() };
@@ -91,10 +96,6 @@ void BlockUtils::init()
     blockDatas[(int)Block::WARPED_WART] = { BlockUvs(ivec2(0, 6)) };
     blockDatas[(int)Block::AMBER_STEM] = { BlockUvs(ivec2(2, 6), ivec2(3, 6)) };
     blockDatas[(int)Block::AMBER_WART] = { BlockUvs(ivec2(7, 6)) };
-    blockDatas[(int)Block::CAVE_VINES_MAIN] = { BlockUvs(ivec2(2, 7)), TransparencyType::T_X_SHAPED };
-    blockDatas[(int)Block::CAVE_VINES_GLOW_MAIN] = { BlockUvs(ivec2(3, 7)), TransparencyType::T_X_SHAPED };
-    blockDatas[(int)Block::CAVE_VINES_END] = { BlockUvs(ivec2(4, 7)), TransparencyType::T_X_SHAPED };
-    blockDatas[(int)Block::CAVE_VINES_GLOW_END] = { BlockUvs(ivec2(5, 7)), TransparencyType::T_X_SHAPED };
     blockDatas[(int)Block::COBBLESTONE] = { BlockUvs(ivec2(6, 7)) };
     blockDatas[(int)Block::COBBLED_DEEPSLATE] = { BlockUvs(ivec2(7, 7)) };
 }

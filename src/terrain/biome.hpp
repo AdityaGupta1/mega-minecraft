@@ -108,8 +108,8 @@ struct CaveLayer
 {
     CaveLayer() = default;
 
-    int start; // exclusive
-    int end; // inclusive
+    int start; // exclusive (is not air)
+    int end; // inclusive (is air)
     CaveBiome bottomBiome; // random biome of block at y = start, for feature placement
     CaveBiome topBiome; // y = end + 1
     char padding[2];
