@@ -629,13 +629,19 @@ __device__ bool caveBiomeBlockPostProcess(Block* blockPtr, CaveBiome caveBiome, 
     }
     case CaveBiome::LUSH_CAVES:
     {
-        if (*blockPtr != Block::STONE && *blockPtr != Block::DEEPSLATE && *blockPtr != Block::BLACKSTONE
-            || !isInRange(caveBottomDepth, 0, 2) && !isInRange(caveTopDepth, 0, 2))
+        if (*blockPtr != Block::STONE && *blockPtr != Block::DEEPSLATE && *blockPtr != Block::BLACKSTONE)
         {
             return false;
         }
 
         vec3 noisePos = vec3(worldBlockPos) * 0.025f;
+        float threshold = 1.5f + 4.5f * simplex(noisePos);
+        if (!isInRange((float)caveBottomDepth, 0.f, threshold) && !isInRange((float)caveTopDepth, 0.f, threshold))
+        {
+            return false;
+        }
+
+        noisePos.y += 192031.9821f;
         vec3 noiseOffset = fbm3From3<3>(noisePos * 0.4f) * 2.f;
         float clayNoise = worley(noisePos + noiseOffset);
 
