@@ -952,6 +952,9 @@ void BiomeUtils::init()
 
 #pragma region feature/decorator gens
 
+    // for surface features, actual bounds = (pos.y + bounds[0], pos.y + bounds[1])
+#define setFeatureHeightBounds(feature, yMin, yMax) host_featureHeightBounds[(int)Feature::feature] = ivec2(yMin, yMax)
+
     // feature, gridCellSize, gridCellPadding, chancePerGridCell, possibleTopLayers, canReplaceBlocks
     host_biomeFeatureGens[(int)Biome::ICEBERGS] = {
         { Feature::ICEBERG, 112, 6, 0.70f, {} }
@@ -1013,9 +1016,6 @@ void BiomeUtils::init()
         { Feature::CACTUS, 16, 2, 0.70f, { {Material::SAND, 0.5f} } }
     };
 
-    // for surface features, actual bounds = (pos.y + bounds[0], pos.y + bounds[1])
-#define setFeatureHeightBounds(feature, yMin, yMax) host_featureHeightBounds[(int)Feature::feature] = ivec2(yMin, yMax)
-
     setFeatureHeightBounds(NONE, 0, 0);
     setFeatureHeightBounds(SPHERE, -6, 6);
 
@@ -1044,8 +1044,6 @@ void BiomeUtils::init()
     setFeatureHeightBounds(PALM_TREE, 0, 28);
 
     setFeatureHeightBounds(CACTUS, 0, 15);
-
-#undef setFeatureHeightBounds
 
     cudaMemcpyToSymbol(dev_featureHeightBounds, host_featureHeightBounds.data(), numFeatures * sizeof(ivec2));
 
@@ -1085,9 +1083,13 @@ void BiomeUtils::init()
         { Block::GRASS, 0.04f, { Block::GRASS_BLOCK } }
     };
 
+#undef setFeatureHeightBounds
 #pragma endregion
 
 #pragma region cave feature/decorator gens
+
+    // for cave features, actual bounds = (pos.y - bounds[0], pos.y + height + bounds[1])
+#define setCaveFeatureHeightBounds(caveFeature, paddingBottom, paddingTop) host_caveFeatureHeightBounds[(int)CaveFeature::caveFeature] = ivec2(paddingBottom, paddingTop)
 
     // caveFeature, gridCellSize, gridCellPadding, chancePerGridCell
     host_caveBiomeFeatureGens[(int)CaveBiome::CRYSTAL_CAVES] = {
@@ -1110,9 +1112,6 @@ void BiomeUtils::init()
         CaveFeatureGen(CaveFeature::AMBER_FUNGUS, 5, 1, 0.60f).setMinLayerHeight(9).setNotReplaceBlocks()
     };
 
-    // for cave features, actual bounds = (pos.y - bounds[0], pos.y + height + bounds[1])
-#define setCaveFeatureHeightBounds(caveFeature, paddingBottom, paddingTop) host_caveFeatureHeightBounds[(int)CaveFeature::caveFeature] = ivec2(paddingBottom, paddingTop)
-
     setCaveFeatureHeightBounds(NONE, 0, 0);
     setCaveFeatureHeightBounds(TEST_GLOWSTONE_PILLAR, -3, 3);
     setCaveFeatureHeightBounds(TEST_SHROOMLIGHT_PILLAR, -3, 3);
@@ -1127,9 +1126,19 @@ void BiomeUtils::init()
     setCaveFeatureHeightBounds(WARPED_FUNGUS, -2, 3);
     setCaveFeatureHeightBounds(AMBER_FUNGUS, -2, 5);
 
-#undef setCaveFeatureHeightBounds
-
     cudaMemcpyToSymbol(dev_caveFeatureHeightBounds, host_caveFeatureHeightBounds.data(), numCaveFeatures * sizeof(ivec2));
 
+    host_caveBiomeDecoratorGens[(int)CaveBiome::WARPED_FOREST] = {
+        { Block::WARPED_MUSHROOM, 0.02f, { Block::WARPED_DEEPSLATE, Block::WARPED_BLACKSTONE } },
+        { Block::WARPED_ROOTS, 0.06f, { Block::WARPED_DEEPSLATE, Block::WARPED_BLACKSTONE } },
+        { Block::NETHER_SPROUTS, 0.04f, { Block::WARPED_DEEPSLATE, Block::WARPED_BLACKSTONE } }
+    };
+
+    host_caveBiomeDecoratorGens[(int)CaveBiome::AMBER_FOREST] = {
+        { Block::INFECTED_MUSHROOM, 0.02f, { Block::AMBER_DEEPSLATE, Block::AMBER_BLACKSTONE } },
+        { Block::AMBER_ROOTS, 0.06f, { Block::AMBER_DEEPSLATE, Block::AMBER_BLACKSTONE } }
+    };
+
+#undef setCaveFeatureHeightBounds
 #pragma endregion
 }

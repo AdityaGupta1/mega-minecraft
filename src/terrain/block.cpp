@@ -21,6 +21,11 @@ void BlockUtils::init()
     blockDatas[(int)Block::GRASS] = { BlockUvs(ivec2(8, 7)), TransparencyType::T_X_SHAPED };
     blockDatas[(int)Block::JUNGLE_GRASS] = { BlockUvs(ivec2(9, 7)), TransparencyType::T_X_SHAPED };
     blockDatas[(int)Block::SAVANNA_GRASS] = { BlockUvs(ivec2(10, 7)), TransparencyType::T_X_SHAPED };
+    blockDatas[(int)Block::WARPED_MUSHROOM] = { BlockUvs(ivec2(9, 5)), TransparencyType::T_X_SHAPED };
+    blockDatas[(int)Block::WARPED_ROOTS] = { BlockUvs(ivec2(13, 5)), TransparencyType::T_X_SHAPED };
+    blockDatas[(int)Block::NETHER_SPROUTS] = { BlockUvs(ivec2(1, 6)), TransparencyType::T_X_SHAPED };
+    blockDatas[(int)Block::INFECTED_MUSHROOM] = { BlockUvs(ivec2(10, 5)), TransparencyType::T_X_SHAPED };
+    blockDatas[(int)Block::AMBER_ROOTS] = { BlockUvs(ivec2(4, 6)), TransparencyType::T_X_SHAPED };
 
     blockDatas[(int)Block::BEDROCK] = { BlockUvs(ivec2(0, 5)) };
 

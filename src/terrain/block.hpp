@@ -16,6 +16,11 @@ enum class Block : unsigned char
     GRASS,
     JUNGLE_GRASS,
     SAVANNA_GRASS,
+    WARPED_MUSHROOM,
+    WARPED_ROOTS,
+    NETHER_SPROUTS,
+    INFECTED_MUSHROOM,
+    AMBER_ROOTS,
 
     BEDROCK,
 
