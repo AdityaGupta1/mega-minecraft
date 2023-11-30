@@ -319,7 +319,7 @@ __device__ float getHeight(Biome biome, vec2 pos)
     case Biome::TIANZI_MOUNTAINS:
     {
         vec2 noiseOffset = simplex2From2(pos * 0.0800f) * 3.0f;
-        vec2 noisePos = (pos + noiseOffset) * 0.0300f;
+        vec2 noisePos = (pos + noiseOffset) * 0.0150f;
 
         float worley1 = smoothstep(0.45f, 0.35f, worley(noisePos)) * 1.2f;
         float worley2 = smoothstep(0.45f, 0.35f, worley(noisePos * 1.4f + vec2(4292.12f, 9183.27f))) * 0.6f;
@@ -969,7 +969,7 @@ void BiomeUtils::init()
     };
 
     host_biomeFeatureGens[(int)Biome::REDWOOD_FOREST] = {
-        { Feature::REDWOOD_TREE, 10, 2, 0.75f, { {Material::DIRT, 0.5f} } }
+        { Feature::REDWOOD_TREE, 16, 2, 0.70f, { {Material::DIRT, 0.5f} } }
     };
 
     host_biomeFeatureGens[(int)Biome::SHREKS_SWAMP] = {
@@ -1056,29 +1056,47 @@ void BiomeUtils::init()
     };
 
     host_biomeDecoratorGens[(int)Biome::REDWOOD_FOREST] = {
-        DecoratorGen(Block::GRASS, 0.2f, { Block::GRASS_BLOCK })
+        DecoratorGen(Block::GRASS, 0.2f, { Block::GRASS_BLOCK }),
+        DecoratorGen(Block::OXEYE_DAISY, 0.04f, { Block::GRASS_BLOCK }),
+        DecoratorGen(Block::LILY_OF_THE_VALLEY, 0.04f, { Block::GRASS_BLOCK }),
+        DecoratorGen(Block::PEONY_BOTTOM, 0.02f, { Block::GRASS_BLOCK }).setSecondDecoratorBlock(Block::PEONY_TOP)
     };
 
     host_biomeDecoratorGens[(int)Biome::SHREKS_SWAMP] = {
-        DecoratorGen(Block::JUNGLE_GRASS, 0.3f, { Block::JUNGLE_GRASS_BLOCK })
+        DecoratorGen(Block::JUNGLE_GRASS, 0.3f, { Block::JUNGLE_GRASS_BLOCK }),
+        DecoratorGen(Block::JUNGLE_FERN, 0.05f, { Block::JUNGLE_GRASS_BLOCK }),
+        DecoratorGen(Block::CORNFLOWER, 0.03f, { Block::JUNGLE_GRASS_BLOCK }),
+        DecoratorGen(Block::BLUE_ORCHID, 0.03f, { Block::JUNGLE_GRASS_BLOCK }),
+        DecoratorGen(Block::ALLIUM, 0.03f, { Block::JUNGLE_GRASS_BLOCK })
     };
 
     host_biomeDecoratorGens[(int)Biome::LUSH_BIRCH_FOREST] = {
-        DecoratorGen(Block::GRASS, 0.3f, { Block::GRASS_BLOCK })
+        DecoratorGen(Block::GRASS, 0.3f, { Block::GRASS_BLOCK }),
+        DecoratorGen(Block::PEONY_BOTTOM, 0.02f, { Block::GRASS_BLOCK }).setSecondDecoratorBlock(Block::PEONY_TOP),
+        DecoratorGen(Block::LILAC_BOTTOM, 0.02f, { Block::GRASS_BLOCK }).setSecondDecoratorBlock(Block::LILAC_TOP),
+        DecoratorGen(Block::DANDELION, 0.04f, { Block::GRASS_BLOCK })
     };
 
     host_biomeDecoratorGens[(int)Biome::JUNGLE] = {
         DecoratorGen(Block::JUNGLE_GRASS, 0.4f, { Block::JUNGLE_GRASS_BLOCK }),
         DecoratorGen(Block::PITCHER_BOTTOM, 0.03f, { Block::JUNGLE_GRASS_BLOCK }).setSecondDecoratorBlock(Block::PITCHER_TOP),
-        DecoratorGen(Block::JUNGLE_FERN, 0.12f, { Block::JUNGLE_GRASS_BLOCK })
+        DecoratorGen(Block::JUNGLE_FERN, 0.12f, { Block::JUNGLE_GRASS_BLOCK }),
+        DecoratorGen(Block::BLUE_ORCHID, 0.04f, { Block::JUNGLE_GRASS_BLOCK })
     };
 
     host_biomeDecoratorGens[(int)Biome::OASIS] = {
-        DecoratorGen(Block::JUNGLE_GRASS, 0.2f, { Block::JUNGLE_GRASS_BLOCK })
+        DecoratorGen(Block::JUNGLE_GRASS, 0.2f, { Block::JUNGLE_GRASS_BLOCK }),
+        DecoratorGen(Block::CORNFLOWER, 0.02f, { Block::JUNGLE_GRASS_BLOCK })
     };
 
     host_biomeDecoratorGens[(int)Biome::PLAINS] = {
-        DecoratorGen(Block::GRASS, 0.2f, { Block::GRASS_BLOCK })
+        DecoratorGen(Block::GRASS, 0.2f, { Block::GRASS_BLOCK }),
+        DecoratorGen(Block::RED_TULIP, 0.01f, { Block::GRASS_BLOCK }),
+        DecoratorGen(Block::ORANGE_TULIP, 0.01f, { Block::GRASS_BLOCK }),
+        DecoratorGen(Block::WHITE_TULIP, 0.01f, { Block::GRASS_BLOCK }),
+        DecoratorGen(Block::PINK_TULIP, 0.01f, { Block::GRASS_BLOCK }),
+        DecoratorGen(Block::DANDELION, 0.03f, { Block::GRASS_BLOCK }),
+        DecoratorGen(Block::POPPY, 0.03f, { Block::GRASS_BLOCK })
     };
 
     host_biomeDecoratorGens[(int)Biome::MOUNTAINS] = {
