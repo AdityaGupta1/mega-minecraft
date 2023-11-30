@@ -4,8 +4,8 @@
 #include <unordered_set>
 
 #define MAX_CAVE_LAYERS_PER_COLUMN 32
-#define MAX_GATHERED_FEATURES_PER_CHUNK 2048 // ~80 per chunk
-#define MAX_GATHERED_CAVE_FEATURES_PER_CHUNK 4096 // ~160 per chunk
+#define MAX_GATHERED_FEATURES_PER_CHUNK 2048 // ~40 per gathered chunk
+#define MAX_GATHERED_CAVE_FEATURES_PER_CHUNK 4096 // ~80 per gathered chunk
 
 #define SEA_LEVEL 128
 #define LAVA_LEVEL 8
