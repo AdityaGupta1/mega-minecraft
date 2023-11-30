@@ -44,6 +44,19 @@ void BlockUtils::init()
     blockDatas[(int)Block::OXEYE_DAISY] = { BlockUvs(ivec2(7, 8)), TransparencyType::T_X_SHAPED };
     blockDatas[(int)Block::LILY_OF_THE_VALLEY] = { BlockUvs(ivec2(8, 8)), TransparencyType::T_X_SHAPED };
     blockDatas[(int)Block::JUNGLE_FERN] = { BlockUvs(ivec2(9, 8)), TransparencyType::T_X_SHAPED };
+    blockDatas[(int)Block::SMALL_MAGENTA_CRYSTAL] = { BlockUvs(ivec2(10, 8)), TransparencyType::T_X_SHAPED };
+    blockDatas[(int)Block::SMALL_CYAN_CRYSTAL] = { BlockUvs(ivec2(11, 8)), TransparencyType::T_X_SHAPED };
+    blockDatas[(int)Block::SMALL_GREEN_CRYSTAL] = { BlockUvs(ivec2(12, 8)), TransparencyType::T_X_SHAPED };
+    blockDatas[(int)Block::SMALL_PURPLE_MUSHROOM] = { BlockUvs(ivec2(14, 8)), TransparencyType::T_X_SHAPED };
+    blockDatas[(int)Block::DEAD_BUSH] = { BlockUvs(ivec2(15, 8)), TransparencyType::T_X_SHAPED };
+    blockDatas[(int)Block::HANGING_SMALL_MAGENTA_CRYSTAL] = { BlockUvs(ivec2(0, 9)), TransparencyType::T_X_SHAPED };
+    blockDatas[(int)Block::HANGING_SMALL_CYAN_CRYSTAL] = { BlockUvs(ivec2(1, 9)), TransparencyType::T_X_SHAPED };
+    blockDatas[(int)Block::HANGING_SMALL_GREEN_CRYSTAL] = { BlockUvs(ivec2(2, 9)), TransparencyType::T_X_SHAPED };
+    blockDatas[(int)Block::TALL_GRASS_BOTTOM] = { BlockUvs(ivec2(3, 9)), TransparencyType::T_X_SHAPED };
+    blockDatas[(int)Block::TALL_GRASS_TOP] = { BlockUvs(ivec2(3, 10)), TransparencyType::T_X_SHAPED };
+    blockDatas[(int)Block::TALL_JUNGLE_GRASS_BOTTOM] = { BlockUvs(ivec2(4, 9)), TransparencyType::T_X_SHAPED };
+    blockDatas[(int)Block::TALL_JUNGLE_GRASS_TOP] = { BlockUvs(ivec2(4, 10)), TransparencyType::T_X_SHAPED };
+    blockDatas[(int)Block::TORCHFLOWER] = { BlockUvs(ivec2(7, 9)), TransparencyType::T_X_SHAPED };
 
     blockDatas[(int)Block::BEDROCK] = { BlockUvs(ivec2(0, 5)) };
 
@@ -57,7 +70,7 @@ void BlockUtils::init()
     blockDatas[(int)Block::SNOWY_GRASS_BLOCK] = { BlockUvs(ivec2(9, 0), ivec2(8, 0), ivec2(0, 0)).setRandomRotation(false, true, true) };
     blockDatas[(int)Block::MUSHROOM_STEM] = { BlockUvs(ivec2(10, 0)) };
     blockDatas[(int)Block::MUSHROOM_UNDERSIDE] = { BlockUvs(ivec2(11, 0)).setRandomFlip() };
-    blockDatas[(int)Block::MUSHROOM_CAP_PURPLE] = { BlockUvs(ivec2(12, 0)) };
+    blockDatas[(int)Block::PURPLE_MUSHROOM_CAP] = { BlockUvs(ivec2(12, 0)) };
     blockDatas[(int)Block::MARBLE] = { BlockUvs(ivec2(13, 0)).setRandomRotation() };
     blockDatas[(int)Block::ANDESITE] = { BlockUvs(ivec2(14, 0)) };
     blockDatas[(int)Block::CALCITE] = { BlockUvs(ivec2(15, 0)) };

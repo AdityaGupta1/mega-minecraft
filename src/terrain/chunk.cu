@@ -12,8 +12,8 @@
 #define DEBUG_SKIP_EROSION 0
 #define DEBUG_USE_CONTRIBUTION_FILL_METHOD 0
 
-//#define DEBUG_BIOME_OVERRIDE Biome::SHREKS_SWAMP
-//#define DEBUG_CAVE_BIOME_OVERRIDE CaveBiome::AMBER_FOREST
+//#define DEBUG_BIOME_OVERRIDE Biome::JUNGLE
+//#define DEBUG_CAVE_BIOME_OVERRIDE CaveBiome::LUSH_CAVES
 
 Chunk::Chunk(ivec2 worldChunkPos)
     : worldChunkPos(worldChunkPos), worldBlockPos(worldChunkPos.x * 16, 0, worldChunkPos.y * 16)
@@ -773,7 +773,7 @@ __device__ bool shouldGenerateCaveAtBlock(ivec3 worldPos, float maxHeight, float
     float caveNoise = specialCaveNoise(noisePos * vec3(1.f, 1.6f, 1.f) + noiseOffset);
 
     float worleyEdgeThreshold = 0.24f + 0.12f * fbm<4>(noisePos * 4.f);
-    float hugeCaveNoise = smoothstep(0.3f, 0.45f, fbm<4>(noisePos * 0.0700f));
+    float hugeCaveNoise = smoothstep(0.2f, 0.4f, fbm<4>(noisePos * 0.0700f));
     worleyEdgeThreshold *= (1.f + 1.4f * hugeCaveNoise);
     worleyEdgeThreshold *= (topHeightRatio) * (0.3f + 0.7f * bottomHeightRatio);
 
@@ -1639,23 +1639,29 @@ void Chunk::tryPlaceSingleDecorator(
         return;
     }
 
-    const Block underBlock = blocks[decoratorIdx - 1]; // no check for out of bounds since y > 0 (since y = 0 is bedrock)
-    if (!gen.possibleUnderBlocks.empty()
-        && gen.possibleUnderBlocks.find(underBlock) == gen.possibleUnderBlocks.end())
+    int underBlockOffset = gen.generatesFromCeiling ? 1 : -1;
+    if (!isInRange(pos.y + underBlockOffset, 0, 383))
+    {
+        return;
+    }
+
+    const Block underBlock = blocks[decoratorIdx + underBlockOffset];
+    if ((int)underBlock < numNonSolidBlocks
+        || (!gen.possibleUnderBlocks.empty() && gen.possibleUnderBlocks.find(underBlock) == gen.possibleUnderBlocks.end()))
     {
         return;
     }
 
     if (gen.secondDecoratorBlock != Block::AIR)
     {
-        if (pos.y + 1 >= 384)
+        int overBlockOffset = -underBlockOffset;
+        if (!isInRange(pos.y + overBlockOffset, 0, 383))
         {
             return;
         }
 
-        Block& overBlock = this->blocks[decoratorIdx + 1];
-        if (!gen.possibleReplaceBlocks.empty()
-            && gen.possibleReplaceBlocks.find(overBlock) == gen.possibleReplaceBlocks.end())
+        Block& overBlock = this->blocks[decoratorIdx + overBlockOffset];
+        if (!gen.possibleReplaceBlocks.empty() && gen.possibleReplaceBlocks.find(overBlock) == gen.possibleReplaceBlocks.end())
         {
             return;
         }
@@ -1703,15 +1709,31 @@ void Chunk::placeDecorators()
                     break;
                 }
 
-                rand = u01(rng);
+                float bottomRand = u01(rng);
+                float topRand = u01(rng);
+                bool placedBottom = false;
+                bool placedTop = false;
                 const auto& caveBiomeDecoratorGens = host_caveBiomeDecoratorGens[(int)caveLayer.bottomBiome];
                 for (int genIdx = 0; genIdx < caveBiomeDecoratorGens.size(); ++genIdx)
                 {
                     const auto& gen = caveBiomeDecoratorGens[genIdx];
-
-                    if ((rand -= gen.chance) < 0.f)
+                    if (gen.generatesFromCeiling)
                     {
-                        tryPlaceSingleDecorator(ivec3(x, caveLayer.start + 1, z), gen);
+                        if (!placedTop && (topRand -= gen.chance) < 0.f)
+                        {
+                            tryPlaceSingleDecorator(ivec3(x, caveLayer.end, z), gen);
+                        }
+                    }
+                    else
+                    {
+                        if (!placedBottom && (bottomRand -= gen.chance) < 0.f)
+                        {
+                            tryPlaceSingleDecorator(ivec3(x, caveLayer.start + 1, z), gen);
+                        }
+                    }
+
+                    if (placedTop && placedBottom)
+                    {
                         break;
                     }
                 }

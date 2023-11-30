@@ -553,6 +553,21 @@ __device__ bool biomeBlockPostProcess(Block* blockPtr, Biome biome, ivec3 worldB
         *blockPtr = Block::SMOOTH_SANDSTONE;
         return true;
     }
+    case Biome::CRYSTALS:
+    {
+        if (!isTopBlock)
+        {
+            return false;
+        }
+
+        if (rand1From2(vec2(worldBlockPos.x + 913213, worldBlockPos.z + 85941)) < 0.1f)
+        {
+            *blockPtr = Block::MYCELIUM;
+            return true;
+        }
+
+        return false;
+    }
     case Biome::MOUNTAINS:
     {
         if (worldBlockPos.y < 190.f)
@@ -1003,7 +1018,7 @@ void BiomeUtils::init()
     };
 
     host_biomeFeatureGens[(int)Biome::CRYSTALS] = {
-        { Feature::CRYSTAL, 56, 12, 0.8f, { {Material::STONE, 0.5f} } }
+        { Feature::CRYSTAL, 52, 10, 0.8f, { {Material::STONE, 0.5f} } }
     };
 
     host_biomeFeatureGens[(int)Biome::OASIS] = {
@@ -1056,51 +1071,76 @@ void BiomeUtils::init()
     };
 
     host_biomeDecoratorGens[(int)Biome::REDWOOD_FOREST] = {
-        DecoratorGen(Block::GRASS, 0.2f, { Block::GRASS_BLOCK }),
-        DecoratorGen(Block::OXEYE_DAISY, 0.04f, { Block::GRASS_BLOCK }),
-        DecoratorGen(Block::LILY_OF_THE_VALLEY, 0.04f, { Block::GRASS_BLOCK }),
-        DecoratorGen(Block::PEONY_BOTTOM, 0.02f, { Block::GRASS_BLOCK }).setSecondDecoratorBlock(Block::PEONY_TOP)
+        DecoratorGen(Block::GRASS, 0.200f, { Block::GRASS_BLOCK }),
+        DecoratorGen(Block::TALL_GRASS_BOTTOM, 0.080f, { Block::GRASS_BLOCK }).setSecondDecoratorBlock(Block::TALL_GRASS_TOP),
+        DecoratorGen(Block::OXEYE_DAISY, 0.040f, { Block::GRASS_BLOCK }),
+        DecoratorGen(Block::LILY_OF_THE_VALLEY, 0.040f, { Block::GRASS_BLOCK }),
+        DecoratorGen(Block::PEONY_BOTTOM, 0.020f, { Block::GRASS_BLOCK }).setSecondDecoratorBlock(Block::PEONY_TOP)
     };
 
     host_biomeDecoratorGens[(int)Biome::SHREKS_SWAMP] = {
-        DecoratorGen(Block::JUNGLE_GRASS, 0.3f, { Block::JUNGLE_GRASS_BLOCK }),
-        DecoratorGen(Block::JUNGLE_FERN, 0.05f, { Block::JUNGLE_GRASS_BLOCK }),
-        DecoratorGen(Block::CORNFLOWER, 0.03f, { Block::JUNGLE_GRASS_BLOCK }),
-        DecoratorGen(Block::BLUE_ORCHID, 0.03f, { Block::JUNGLE_GRASS_BLOCK }),
-        DecoratorGen(Block::ALLIUM, 0.03f, { Block::JUNGLE_GRASS_BLOCK })
+        DecoratorGen(Block::JUNGLE_GRASS, 0.300f, { Block::JUNGLE_GRASS_BLOCK }),
+        DecoratorGen(Block::JUNGLE_FERN, 0.050f, { Block::JUNGLE_GRASS_BLOCK }),
+        DecoratorGen(Block::CORNFLOWER, 0.030f, { Block::JUNGLE_GRASS_BLOCK }),
+        DecoratorGen(Block::BLUE_ORCHID, 0.030f, { Block::JUNGLE_GRASS_BLOCK }),
+        DecoratorGen(Block::ALLIUM, 0.030f, { Block::JUNGLE_GRASS_BLOCK })
     };
 
     host_biomeDecoratorGens[(int)Biome::LUSH_BIRCH_FOREST] = {
-        DecoratorGen(Block::GRASS, 0.3f, { Block::GRASS_BLOCK }),
-        DecoratorGen(Block::PEONY_BOTTOM, 0.02f, { Block::GRASS_BLOCK }).setSecondDecoratorBlock(Block::PEONY_TOP),
-        DecoratorGen(Block::LILAC_BOTTOM, 0.02f, { Block::GRASS_BLOCK }).setSecondDecoratorBlock(Block::LILAC_TOP),
-        DecoratorGen(Block::DANDELION, 0.04f, { Block::GRASS_BLOCK })
+        DecoratorGen(Block::GRASS, 0.300f, { Block::GRASS_BLOCK }),
+        DecoratorGen(Block::PEONY_BOTTOM, 0.020f, { Block::GRASS_BLOCK }).setSecondDecoratorBlock(Block::PEONY_TOP),
+        DecoratorGen(Block::LILAC_BOTTOM, 0.020f, { Block::GRASS_BLOCK }).setSecondDecoratorBlock(Block::LILAC_TOP),
+        DecoratorGen(Block::DANDELION, 0.040f, { Block::GRASS_BLOCK })
     };
 
     host_biomeDecoratorGens[(int)Biome::JUNGLE] = {
-        DecoratorGen(Block::JUNGLE_GRASS, 0.4f, { Block::JUNGLE_GRASS_BLOCK }),
-        DecoratorGen(Block::PITCHER_BOTTOM, 0.03f, { Block::JUNGLE_GRASS_BLOCK }).setSecondDecoratorBlock(Block::PITCHER_TOP),
-        DecoratorGen(Block::JUNGLE_FERN, 0.12f, { Block::JUNGLE_GRASS_BLOCK }),
-        DecoratorGen(Block::BLUE_ORCHID, 0.04f, { Block::JUNGLE_GRASS_BLOCK })
+        DecoratorGen(Block::JUNGLE_GRASS, 0.400f, { Block::JUNGLE_GRASS_BLOCK }),
+        DecoratorGen(Block::TALL_JUNGLE_GRASS_BOTTOM, 0.200f, { Block::JUNGLE_GRASS_BLOCK }).setSecondDecoratorBlock(Block::TALL_JUNGLE_GRASS_TOP),
+        DecoratorGen(Block::PITCHER_BOTTOM, 0.030f, { Block::JUNGLE_GRASS_BLOCK }).setSecondDecoratorBlock(Block::PITCHER_TOP),
+        DecoratorGen(Block::JUNGLE_FERN, 0.120f, { Block::JUNGLE_GRASS_BLOCK }),
+        DecoratorGen(Block::BLUE_ORCHID, 0.040f, { Block::JUNGLE_GRASS_BLOCK })
+    };
+
+    host_biomeDecoratorGens[(int)Biome::RED_DESERT] = {
+        DecoratorGen(Block::DEAD_BUSH, 0.020f, { Block::RED_SAND })
+    };
+
+    host_biomeDecoratorGens[(int)Biome::PURPLE_MUSHROOMS] = {
+        DecoratorGen(Block::SMALL_PURPLE_MUSHROOM, 0.100f, { Block::MYCELIUM }),
+        DecoratorGen(Block::SMALL_MAGENTA_CRYSTAL, 0.005f, { Block::STONE, Block::TUFF, Block::CALCITE }),
+        DecoratorGen(Block::SMALL_CYAN_CRYSTAL, 0.005f, { Block::STONE, Block::TUFF, Block::CALCITE }),
+        DecoratorGen(Block::SMALL_GREEN_CRYSTAL, 0.005f, { Block::STONE, Block::TUFF, Block::CALCITE })
+    };
+
+    host_biomeDecoratorGens[(int)Biome::CRYSTALS] = {
+        DecoratorGen(Block::SMALL_PURPLE_MUSHROOM, 0.020f, { Block::MYCELIUM }),
+        DecoratorGen(Block::SMALL_MAGENTA_CRYSTAL, 0.025f, {}),
+        DecoratorGen(Block::SMALL_CYAN_CRYSTAL, 0.025f, {}),
+        DecoratorGen(Block::SMALL_GREEN_CRYSTAL, 0.025f, {})
     };
 
     host_biomeDecoratorGens[(int)Biome::OASIS] = {
-        DecoratorGen(Block::JUNGLE_GRASS, 0.2f, { Block::JUNGLE_GRASS_BLOCK }),
-        DecoratorGen(Block::CORNFLOWER, 0.02f, { Block::JUNGLE_GRASS_BLOCK })
+        DecoratorGen(Block::JUNGLE_GRASS, 0.200f, { Block::JUNGLE_GRASS_BLOCK }),
+        DecoratorGen(Block::CORNFLOWER, 0.020f, { Block::JUNGLE_GRASS_BLOCK })
+    };
+
+    host_biomeDecoratorGens[(int)Biome::DESERT] = {
+        DecoratorGen(Block::DEAD_BUSH, 0.030f, { Block::RED_SAND })
     };
 
     host_biomeDecoratorGens[(int)Biome::PLAINS] = {
-        DecoratorGen(Block::GRASS, 0.2f, { Block::GRASS_BLOCK }),
-        DecoratorGen(Block::RED_TULIP, 0.01f, { Block::GRASS_BLOCK }),
-        DecoratorGen(Block::ORANGE_TULIP, 0.01f, { Block::GRASS_BLOCK }),
-        DecoratorGen(Block::WHITE_TULIP, 0.01f, { Block::GRASS_BLOCK }),
-        DecoratorGen(Block::PINK_TULIP, 0.01f, { Block::GRASS_BLOCK }),
-        DecoratorGen(Block::DANDELION, 0.03f, { Block::GRASS_BLOCK }),
-        DecoratorGen(Block::POPPY, 0.03f, { Block::GRASS_BLOCK })
+        DecoratorGen(Block::GRASS, 0.200f, { Block::GRASS_BLOCK }),
+        DecoratorGen(Block::RED_TULIP, 0.010f, { Block::GRASS_BLOCK }),
+        DecoratorGen(Block::ORANGE_TULIP, 0.010f, { Block::GRASS_BLOCK }),
+        DecoratorGen(Block::WHITE_TULIP, 0.010f, { Block::GRASS_BLOCK }),
+        DecoratorGen(Block::PINK_TULIP, 0.010f, { Block::GRASS_BLOCK }),
+        DecoratorGen(Block::DANDELION, 0.030f, { Block::GRASS_BLOCK }),
+        DecoratorGen(Block::POPPY, 0.030f, { Block::GRASS_BLOCK })
     };
 
     host_biomeDecoratorGens[(int)Biome::MOUNTAINS] = {
-        DecoratorGen(Block::GRASS, 0.04f, { Block::GRASS_BLOCK })
+        DecoratorGen(Block::GRASS, 0.050f, { Block::GRASS_BLOCK }),
+        DecoratorGen(Block::LILY_OF_THE_VALLEY, 0.015f, { Block::GRASS_BLOCK })
     };
 
 #undef setFeatureHeightBounds
@@ -1113,7 +1153,8 @@ void BiomeUtils::init()
 
     // caveFeature, gridCellSize, gridCellPadding, chancePerGridCell
     host_caveBiomeFeatureGens[(int)CaveBiome::CRYSTAL_CAVES] = {
-        CaveFeatureGen(CaveFeature::STORMLIGHT_SPHERE, 20, 3, 0.80f).setMinLayerHeight(4),
+        CaveFeatureGen(CaveFeature::STORMLIGHT_SPHERE, 32, 4, 0.80f).setMinLayerHeight(4),
+        CaveFeatureGen(CaveFeature::CEILING_STORMLIGHT_SPHERE, 32, 4, 0.80f).setMinLayerHeight(4).setGeneratesFromCeiling(),
         CaveFeatureGen(CaveFeature::CRYSTAL_PILLAR, 28, 5, 0.60f).setMinLayerHeight(10).setNotReplaceBlocks().setGeneratesFromCeiling()
     };
 
@@ -1148,15 +1189,30 @@ void BiomeUtils::init()
 
     cudaMemcpyToSymbol(dev_caveFeatureHeightBounds, host_caveFeatureHeightBounds.data(), numCaveFeatures * sizeof(ivec2));
 
+    host_caveBiomeDecoratorGens[(int)CaveBiome::CRYSTAL_CAVES] = {
+        DecoratorGen(Block::SMALL_MAGENTA_CRYSTAL, 0.015f, {}),
+        DecoratorGen(Block::SMALL_CYAN_CRYSTAL, 0.015f, {}),
+        DecoratorGen(Block::SMALL_GREEN_CRYSTAL, 0.015f, {}),
+        DecoratorGen(Block::HANGING_SMALL_MAGENTA_CRYSTAL, 0.015f, {}).setGeneratesFromCeiling(),
+        DecoratorGen(Block::HANGING_SMALL_CYAN_CRYSTAL, 0.015f, {}).setGeneratesFromCeiling(),
+        DecoratorGen(Block::HANGING_SMALL_GREEN_CRYSTAL, 0.015f, {}).setGeneratesFromCeiling()
+    };
+
+    host_caveBiomeDecoratorGens[(int)CaveBiome::LUSH_CAVES] = {
+        DecoratorGen(Block::GRASS, 0.100f, { Block::MOSS }),
+        DecoratorGen(Block::TALL_GRASS_BOTTOM, 0.030f, { Block::MOSS }).setSecondDecoratorBlock(Block::TALL_GRASS_TOP),
+        DecoratorGen(Block::TORCHFLOWER, 0.020f, { Block::MOSS })
+    };
+
     host_caveBiomeDecoratorGens[(int)CaveBiome::WARPED_FOREST] = {
-        DecoratorGen(Block::WARPED_MUSHROOM, 0.02f, { Block::WARPED_DEEPSLATE, Block::WARPED_BLACKSTONE }),
-        DecoratorGen(Block::WARPED_ROOTS, 0.06f, { Block::WARPED_DEEPSLATE, Block::WARPED_BLACKSTONE }),
-        DecoratorGen(Block::NETHER_SPROUTS, 0.04f, { Block::WARPED_DEEPSLATE, Block::WARPED_BLACKSTONE })
+        DecoratorGen(Block::WARPED_MUSHROOM, 0.020f, { Block::WARPED_DEEPSLATE, Block::WARPED_BLACKSTONE }),
+        DecoratorGen(Block::WARPED_ROOTS, 0.060f, { Block::WARPED_DEEPSLATE, Block::WARPED_BLACKSTONE }),
+        DecoratorGen(Block::NETHER_SPROUTS, 0.040f, { Block::WARPED_DEEPSLATE, Block::WARPED_BLACKSTONE })
     };
 
     host_caveBiomeDecoratorGens[(int)CaveBiome::AMBER_FOREST] = {
-        DecoratorGen(Block::INFECTED_MUSHROOM, 0.02f, { Block::AMBER_DEEPSLATE, Block::AMBER_BLACKSTONE }),
-        DecoratorGen(Block::AMBER_ROOTS, 0.06f, { Block::AMBER_DEEPSLATE, Block::AMBER_BLACKSTONE })
+        DecoratorGen(Block::INFECTED_MUSHROOM, 0.020f, { Block::AMBER_DEEPSLATE, Block::AMBER_BLACKSTONE }),
+        DecoratorGen(Block::AMBER_ROOTS, 0.060f, { Block::AMBER_DEEPSLATE, Block::AMBER_BLACKSTONE })
     };
 
 #undef setCaveFeatureHeightBounds

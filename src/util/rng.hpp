@@ -19,7 +19,7 @@ __device__ int manhattanDistance(T a, T b)
 }
 
 template<class T>
-__device__ bool isInRange(T v, T min, T max)
+__host__ __device__ bool isInRange(T v, T min, T max)
 {
     return v >= min && v <= max;
 }

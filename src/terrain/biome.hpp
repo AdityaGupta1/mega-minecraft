@@ -168,6 +168,7 @@ enum class CaveFeature : unsigned char
     GLOWSTONE_CLUSTER,
 
     STORMLIGHT_SPHERE,
+    CEILING_STORMLIGHT_SPHERE,
     CRYSTAL_PILLAR,
 
     WARPED_FUNGUS,
@@ -258,6 +259,7 @@ struct DecoratorGen
     std::unordered_set<Block> possibleUnderBlocks;
     std::unordered_set<Block> possibleReplaceBlocks{ Block::AIR };
     Block secondDecoratorBlock{ Block::AIR };
+    bool generatesFromCeiling{ false };
 
     inline DecoratorGen& setPossibleReplaceBlocks(std::unordered_set<Block> blocks)
     {
@@ -268,6 +270,12 @@ struct DecoratorGen
     inline DecoratorGen& setSecondDecoratorBlock(Block block)
     {
         this->secondDecoratorBlock = block;
+        return *this;
+    }
+
+    inline DecoratorGen& setGeneratesFromCeiling()
+    {
+        this->generatesFromCeiling = true;
         return *this;
     }
 };

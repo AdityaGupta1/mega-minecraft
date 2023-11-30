@@ -604,7 +604,7 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
                 }
                 else
                 {
-                    potentialBlock = Block::MUSHROOM_CAP_PURPLE;
+                    potentialBlock = Block::PURPLE_MUSHROOM_CAP;
                 }
             }
 
@@ -1045,9 +1045,10 @@ __device__ bool placeCaveFeature(CaveFeaturePlacement caveFeaturePlacement, ivec
         return false;
     }
     case CaveFeature::STORMLIGHT_SPHERE:
+    case CaveFeature::CEILING_STORMLIGHT_SPHERE:
     {
         float radius = 3.5f + 4.f * u01(featureRng);
-        float dist = length(pos);
+        float dist = caveFeaturePlacement.feature == CaveFeature::STORMLIGHT_SPHERE ? length(pos) : length(topPos);
 
         if (dist > radius)
         {

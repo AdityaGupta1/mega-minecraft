@@ -39,6 +39,19 @@ enum class Block : unsigned char
     OXEYE_DAISY,
     LILY_OF_THE_VALLEY,
     JUNGLE_FERN,
+    SMALL_MAGENTA_CRYSTAL,
+    SMALL_CYAN_CRYSTAL,
+    SMALL_GREEN_CRYSTAL,
+    SMALL_PURPLE_MUSHROOM,
+    DEAD_BUSH,
+    HANGING_SMALL_MAGENTA_CRYSTAL,
+    HANGING_SMALL_CYAN_CRYSTAL,
+    HANGING_SMALL_GREEN_CRYSTAL,
+    TALL_GRASS_BOTTOM,
+    TALL_GRASS_TOP,
+    TALL_JUNGLE_GRASS_BOTTOM,
+    TALL_JUNGLE_GRASS_TOP,
+    TORCHFLOWER,
 
     BEDROCK,
 
@@ -52,7 +65,7 @@ enum class Block : unsigned char
     SNOWY_GRASS_BLOCK,
     MUSHROOM_STEM,
     MUSHROOM_UNDERSIDE,
-    MUSHROOM_CAP_PURPLE,
+    PURPLE_MUSHROOM_CAP,
     MARBLE,
     ANDESITE,
     CALCITE,
@@ -122,7 +135,7 @@ enum class Block : unsigned char
 };
 
 static constexpr int numBlocks = (int)Block::COBBLED_DEEPSLATE + 1;
-static constexpr int numNonSolidBlocks = (int)Block::JUNGLE_FERN + 1;
+static constexpr int numNonSolidBlocks = (int)Block::TORCHFLOWER + 1;
 
 struct SideUv
 {
