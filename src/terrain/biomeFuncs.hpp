@@ -1055,7 +1055,7 @@ void BiomeUtils::init()
     setFeatureHeightBounds(LARGE_JUNGLE_TREE, 0, 38);
 
     setFeatureHeightBounds(MEDIUM_PURPLE_MUSHROOM, 0, 6);
-    setFeatureHeightBounds(PURPLE_MUSHROOM, 0, 80);
+    setFeatureHeightBounds(PURPLE_MUSHROOM, 0, 120);
 
     setFeatureHeightBounds(MEDIUM_CRYSTAL, -3, 32);
     setFeatureHeightBounds(CRYSTAL, -6, 64);

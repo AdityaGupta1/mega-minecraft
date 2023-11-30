@@ -559,6 +559,11 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
         float universalScale = 1.f + u01(featureRng) * 1.2f;
         pos *= universalScale;
 
+        if (u01(featureRng) < 0.2f)
+        {
+            pos *= 0.5f;
+        }
+
         float height = 25.f + u01(featureRng) * 30.f;
 
         if (pos.y < -1 || pos.y > height + 12 || (length(vec2(pos.x, pos.z)) > 8 && (pos.y < height - 12 || length(pos - vec3(0, height, 0)) > 35)))
