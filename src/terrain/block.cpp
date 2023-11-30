@@ -26,6 +26,24 @@ void BlockUtils::init()
     blockDatas[(int)Block::NETHER_SPROUTS] = { BlockUvs(ivec2(1, 6)), TransparencyType::T_X_SHAPED };
     blockDatas[(int)Block::INFECTED_MUSHROOM] = { BlockUvs(ivec2(10, 5)), TransparencyType::T_X_SHAPED };
     blockDatas[(int)Block::AMBER_ROOTS] = { BlockUvs(ivec2(4, 6)), TransparencyType::T_X_SHAPED };
+    blockDatas[(int)Block::DANDELION] = { BlockUvs(ivec2(11, 7)), TransparencyType::T_X_SHAPED };
+    blockDatas[(int)Block::POPPY] = { BlockUvs(ivec2(12, 7)), TransparencyType::T_X_SHAPED };
+    blockDatas[(int)Block::PITCHER_BOTTOM] = { BlockUvs(ivec2(13, 7)), TransparencyType::T_X_SHAPED };
+    blockDatas[(int)Block::PITCHER_TOP] = { BlockUvs(ivec2(13, 8)), TransparencyType::T_X_SHAPED };
+    blockDatas[(int)Block::CORNFLOWER] = { BlockUvs(ivec2(14, 7)), TransparencyType::T_X_SHAPED };
+    blockDatas[(int)Block::BLUE_ORCHID] = { BlockUvs(ivec2(15, 7)), TransparencyType::T_X_SHAPED };
+    blockDatas[(int)Block::ALLIUM] = { BlockUvs(ivec2(0, 8)), TransparencyType::T_X_SHAPED };
+    blockDatas[(int)Block::RED_TULIP] = { BlockUvs(ivec2(1, 8)), TransparencyType::T_X_SHAPED };
+    blockDatas[(int)Block::ORANGE_TULIP] = { BlockUvs(ivec2(2, 8)), TransparencyType::T_X_SHAPED };
+    blockDatas[(int)Block::WHITE_TULIP] = { BlockUvs(ivec2(3, 8)), TransparencyType::T_X_SHAPED };
+    blockDatas[(int)Block::PINK_TULIP] = { BlockUvs(ivec2(4, 8)), TransparencyType::T_X_SHAPED };
+    blockDatas[(int)Block::LILAC_BOTTOM] = { BlockUvs(ivec2(5, 8)), TransparencyType::T_X_SHAPED };
+    blockDatas[(int)Block::LILAC_TOP] = { BlockUvs(ivec2(5, 9)), TransparencyType::T_X_SHAPED };
+    blockDatas[(int)Block::PEONY_BOTTOM] = { BlockUvs(ivec2(6, 8)), TransparencyType::T_X_SHAPED };
+    blockDatas[(int)Block::PEONY_TOP] = { BlockUvs(ivec2(6, 9)), TransparencyType::T_X_SHAPED };
+    blockDatas[(int)Block::OXEYE_DAISY] = { BlockUvs(ivec2(7, 8)), TransparencyType::T_X_SHAPED };
+    blockDatas[(int)Block::LILY_OF_THE_VALLEY] = { BlockUvs(ivec2(8, 8)), TransparencyType::T_X_SHAPED };
+    blockDatas[(int)Block::JUNGLE_FERN] = { BlockUvs(ivec2(9, 8)), TransparencyType::T_X_SHAPED };
 
     blockDatas[(int)Block::BEDROCK] = { BlockUvs(ivec2(0, 5)) };
 

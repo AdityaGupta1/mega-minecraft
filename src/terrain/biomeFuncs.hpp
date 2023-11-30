@@ -1048,39 +1048,41 @@ void BiomeUtils::init()
     cudaMemcpyToSymbol(dev_featureHeightBounds, host_featureHeightBounds.data(), numFeatures * sizeof(ivec2));
 
     host_biomeDecoratorGens[(int)Biome::TROPICAL_BEACH] = {
-        { Block::JUNGLE_GRASS, 0.1f, { Block::JUNGLE_GRASS_BLOCK } }
+        DecoratorGen(Block::JUNGLE_GRASS, 0.1f, { Block::JUNGLE_GRASS_BLOCK })
     };
 
     host_biomeDecoratorGens[(int)Biome::SAVANNA] = {
-        { Block::SAVANNA_GRASS, 0.1f, { Block::SAVANNA_GRASS_BLOCK } }
+        DecoratorGen(Block::SAVANNA_GRASS, 0.1f, { Block::SAVANNA_GRASS_BLOCK })
     };
 
     host_biomeDecoratorGens[(int)Biome::REDWOOD_FOREST] = {
-        { Block::GRASS, 0.2f, { Block::GRASS_BLOCK } }
+        DecoratorGen(Block::GRASS, 0.2f, { Block::GRASS_BLOCK })
     };
 
     host_biomeDecoratorGens[(int)Biome::SHREKS_SWAMP] = {
-        { Block::JUNGLE_GRASS, 0.3f, { Block::JUNGLE_GRASS_BLOCK } }
+        DecoratorGen(Block::JUNGLE_GRASS, 0.3f, { Block::JUNGLE_GRASS_BLOCK })
     };
 
     host_biomeDecoratorGens[(int)Biome::LUSH_BIRCH_FOREST] = {
-        { Block::GRASS, 0.3f, { Block::GRASS_BLOCK } }
+        DecoratorGen(Block::GRASS, 0.3f, { Block::GRASS_BLOCK })
     };
 
     host_biomeDecoratorGens[(int)Biome::JUNGLE] = {
-        { Block::JUNGLE_GRASS, 0.4f, { Block::JUNGLE_GRASS_BLOCK } }
+        DecoratorGen(Block::JUNGLE_GRASS, 0.4f, { Block::JUNGLE_GRASS_BLOCK }),
+        DecoratorGen(Block::PITCHER_BOTTOM, 0.03f, { Block::JUNGLE_GRASS_BLOCK }).setSecondDecoratorBlock(Block::PITCHER_TOP),
+        DecoratorGen(Block::JUNGLE_FERN, 0.12f, { Block::JUNGLE_GRASS_BLOCK })
     };
 
     host_biomeDecoratorGens[(int)Biome::OASIS] = {
-        { Block::JUNGLE_GRASS, 0.2f, { Block::JUNGLE_GRASS_BLOCK } }
+        DecoratorGen(Block::JUNGLE_GRASS, 0.2f, { Block::JUNGLE_GRASS_BLOCK })
     };
 
     host_biomeDecoratorGens[(int)Biome::PLAINS] = {
-        { Block::GRASS, 0.2f, { Block::GRASS_BLOCK } }
+        DecoratorGen(Block::GRASS, 0.2f, { Block::GRASS_BLOCK })
     };
 
     host_biomeDecoratorGens[(int)Biome::MOUNTAINS] = {
-        { Block::GRASS, 0.04f, { Block::GRASS_BLOCK } }
+        DecoratorGen(Block::GRASS, 0.04f, { Block::GRASS_BLOCK })
     };
 
 #undef setFeatureHeightBounds
@@ -1129,14 +1131,14 @@ void BiomeUtils::init()
     cudaMemcpyToSymbol(dev_caveFeatureHeightBounds, host_caveFeatureHeightBounds.data(), numCaveFeatures * sizeof(ivec2));
 
     host_caveBiomeDecoratorGens[(int)CaveBiome::WARPED_FOREST] = {
-        { Block::WARPED_MUSHROOM, 0.02f, { Block::WARPED_DEEPSLATE, Block::WARPED_BLACKSTONE } },
-        { Block::WARPED_ROOTS, 0.06f, { Block::WARPED_DEEPSLATE, Block::WARPED_BLACKSTONE } },
-        { Block::NETHER_SPROUTS, 0.04f, { Block::WARPED_DEEPSLATE, Block::WARPED_BLACKSTONE } }
+        DecoratorGen(Block::WARPED_MUSHROOM, 0.02f, { Block::WARPED_DEEPSLATE, Block::WARPED_BLACKSTONE }),
+        DecoratorGen(Block::WARPED_ROOTS, 0.06f, { Block::WARPED_DEEPSLATE, Block::WARPED_BLACKSTONE }),
+        DecoratorGen(Block::NETHER_SPROUTS, 0.04f, { Block::WARPED_DEEPSLATE, Block::WARPED_BLACKSTONE })
     };
 
     host_caveBiomeDecoratorGens[(int)CaveBiome::AMBER_FOREST] = {
-        { Block::INFECTED_MUSHROOM, 0.02f, { Block::AMBER_DEEPSLATE, Block::AMBER_BLACKSTONE } },
-        { Block::AMBER_ROOTS, 0.06f, { Block::AMBER_DEEPSLATE, Block::AMBER_BLACKSTONE } }
+        DecoratorGen(Block::INFECTED_MUSHROOM, 0.02f, { Block::AMBER_DEEPSLATE, Block::AMBER_BLACKSTONE }),
+        DecoratorGen(Block::AMBER_ROOTS, 0.06f, { Block::AMBER_DEEPSLATE, Block::AMBER_BLACKSTONE })
     };
 
 #undef setCaveFeatureHeightBounds

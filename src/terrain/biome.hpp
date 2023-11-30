@@ -249,10 +249,27 @@ struct CaveFeaturePlacement
 
 struct DecoratorGen
 {
+    DecoratorGen(Block decoratorBlock, float chance, std::unordered_set<Block> possibleUnderBlocks)
+        : decoratorBlock(decoratorBlock), chance(chance), possibleUnderBlocks(possibleUnderBlocks)
+    {}
+
     Block decoratorBlock;
     float chance;
     std::unordered_set<Block> possibleUnderBlocks;
     std::unordered_set<Block> possibleReplaceBlocks{ Block::AIR };
+    Block secondDecoratorBlock{ Block::AIR };
+
+    inline DecoratorGen& setPossibleReplaceBlocks(std::unordered_set<Block> blocks)
+    {
+        this->possibleReplaceBlocks = blocks;
+        return *this;
+    }
+
+    inline DecoratorGen& setSecondDecoratorBlock(Block block)
+    {
+        this->secondDecoratorBlock = block;
+        return *this;
+    }
 };
 
 namespace BiomeUtils

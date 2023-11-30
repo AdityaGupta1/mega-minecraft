@@ -21,6 +21,24 @@ enum class Block : unsigned char
     NETHER_SPROUTS,
     INFECTED_MUSHROOM,
     AMBER_ROOTS,
+    DANDELION,
+    POPPY,
+    PITCHER_BOTTOM, 
+    PITCHER_TOP,
+    CORNFLOWER,
+    BLUE_ORCHID,
+    ALLIUM,
+    RED_TULIP,
+    ORANGE_TULIP,
+    WHITE_TULIP,
+    PINK_TULIP,
+    LILAC_BOTTOM,
+    LILAC_TOP,
+    PEONY_BOTTOM,
+    PEONY_TOP,
+    OXEYE_DAISY,
+    LILY_OF_THE_VALLEY,
+    JUNGLE_FERN,
 
     BEDROCK,
 
@@ -104,7 +122,7 @@ enum class Block : unsigned char
 };
 
 static constexpr int numBlocks = (int)Block::COBBLED_DEEPSLATE + 1;
-static constexpr int numNonSolidBlocks = (int)Block::SAVANNA_GRASS + 1;
+static constexpr int numNonSolidBlocks = (int)Block::JUNGLE_FERN + 1;
 
 struct SideUv
 {

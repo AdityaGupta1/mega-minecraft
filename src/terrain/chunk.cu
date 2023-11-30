@@ -12,7 +12,7 @@
 #define DEBUG_SKIP_EROSION 0
 #define DEBUG_USE_CONTRIBUTION_FILL_METHOD 0
 
-//#define DEBUG_BIOME_OVERRIDE Biome::SHREKS_SWAMP
+#define DEBUG_BIOME_OVERRIDE Biome::JUNGLE
 //#define DEBUG_CAVE_BIOME_OVERRIDE CaveBiome::AMBER_FOREST
 
 Chunk::Chunk(ivec2 worldChunkPos)
@@ -1639,11 +1639,28 @@ void Chunk::tryPlaceSingleDecorator(
         return;
     }
 
-    const Block underBlock = blocks[decoratorIdx - 1];
+    const Block underBlock = blocks[decoratorIdx - 1]; // no check for out of bounds since y > 0 (since y = 0 is bedrock)
     if (!gen.possibleUnderBlocks.empty()
         && gen.possibleUnderBlocks.find(underBlock) == gen.possibleUnderBlocks.end())
     {
         return;
+    }
+
+    if (gen.secondDecoratorBlock != Block::AIR)
+    {
+        if (pos.y + 1 >= 384)
+        {
+            return;
+        }
+
+        Block& overBlock = this->blocks[decoratorIdx + 1];
+        if (!gen.possibleReplaceBlocks.empty()
+            && gen.possibleReplaceBlocks.find(overBlock) == gen.possibleReplaceBlocks.end())
+        {
+            return;
+        }
+
+        overBlock = gen.secondDecoratorBlock;
     }
 
     currentBlock = gen.decoratorBlock;
@@ -1785,7 +1802,11 @@ void Chunk::createVBOs()
                 if (thisTrans == TransparencyType::T_X_SHAPED)
                 {
                     vec3 basePos = vec3(x + 0.5f, y, z + 0.5f);
-                    // TODO random offset
+
+                    vec2 worldBlockXZ = vec2(this->worldBlockPos.x + x, this->worldBlockPos.z + z);
+                    vec2 randomOffset = 0.4f * (rand2From2(worldBlockXZ) - 0.5f);
+                    basePos.x += randomOffset.x;
+                    basePos.z += randomOffset.y;
 
                     int idx1 = verts.size();
 
