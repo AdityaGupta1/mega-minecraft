@@ -586,6 +586,47 @@ __device__ bool caveBiomeBlockPostProcess(Block* blockPtr, CaveBiome caveBiome, 
 
     switch (caveBiome)
     {
+    case CaveBiome::CRYSTAL_CAVES:
+    {
+        if (*blockPtr != Block::STONE && *blockPtr != Block::DEEPSLATE && *blockPtr != Block::BLACKSTONE)
+        {
+            return false;
+        }
+
+        vec3 noisePos = vec3(worldBlockPos.x + worldBlockPos.y, worldBlockPos.z + 5819323, (worldBlockPos.x + worldBlockPos.z) * 2.0f) * 0.05f;
+        float quartzNoise = simplex(noisePos);
+        if (quartzNoise < -0.25f)
+        {
+            *blockPtr = Block::QUARTZ;
+            return true;
+        }
+
+        if (*blockPtr == Block::BLACKSTONE)
+        {
+            return false;
+        }
+
+        float cobblestoneChance;
+        Block cobblestoneBlock;
+        if (*blockPtr == Block::STONE)
+        {
+            cobblestoneChance = 0.5f;
+            cobblestoneBlock = Block::COBBLESTONE;
+        }
+        else
+        {
+            cobblestoneChance = 0.4f;
+            cobblestoneBlock = Block::COBBLED_DEEPSLATE;
+        }
+
+        if (rand1From3(worldBlockPos) < cobblestoneChance)
+        {
+            *blockPtr = cobblestoneBlock;
+            return true;
+        }
+
+        return false;
+    }
     case CaveBiome::LUSH_CAVES:
     {
         if (*blockPtr != Block::STONE && *blockPtr != Block::DEEPSLATE && *blockPtr != Block::BLACKSTONE

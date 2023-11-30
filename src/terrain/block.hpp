@@ -89,10 +89,12 @@ enum class Block : unsigned char
     CAVE_VINES_MAIN,
     CAVE_VINES_GLOW_MAIN,
     CAVE_VINES_END,
-    CAVE_VINES_GLOW_END
+    CAVE_VINES_GLOW_END,
+    COBBLESTONE,
+    COBBLED_DEEPSLATE
 };
 
-static constexpr int numBlocks = (int)Block::CAVE_VINES_GLOW_END + 1;
+static constexpr int numBlocks = (int)Block::COBBLED_DEEPSLATE + 1;
 
 struct SideUv
 {
