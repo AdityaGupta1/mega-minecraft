@@ -588,18 +588,18 @@ __device__ bool caveBiomeBlockPostProcess(Block* blockPtr, CaveBiome caveBiome, 
     {
     case CaveBiome::LUSH_CAVES:
     {
-        if (!(*blockPtr == Block::STONE || *blockPtr == Block::DEEPSLATE || *blockPtr == Block::BLACKSTONE))
+        if (*blockPtr != Block::STONE && *blockPtr != Block::DEEPSLATE && *blockPtr != Block::BLACKSTONE
+            || !isInRange(caveBottomDepth, 0, 2) && !isInRange(caveTopDepth, 0, 2))
         {
             return false;
         }
 
-        if (isInRange(caveBottomDepth, 0, 2) || isInRange(caveTopDepth, 0, 2))
-        {
-            *blockPtr = Block::MOSS;
-            return true;
-        }
+        vec3 noisePos = vec3(worldBlockPos) * 0.025f;
+        vec3 noiseOffset = fbm3From3<3>(noisePos * 0.4f) * 2.f;
+        float clayNoise = worley(noisePos + noiseOffset);
 
-        return false;
+        *blockPtr = clayNoise < 0.25f ? Block::CLAY : Block::MOSS;
+        return true;
     }
     case CaveBiome::WARPED_FOREST:
     {

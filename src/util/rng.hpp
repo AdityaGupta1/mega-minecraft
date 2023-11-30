@@ -232,6 +232,51 @@ __device__ float worley(vec2 pos, vec3* colorPtr = nullptr, float* edgeDistPtr =
     return minDist1;
 }
 
+__device__ float worley(vec3 pos, vec3* colorPtr = nullptr, float* edgeDistPtr = nullptr)
+{
+    ivec3 uvInt = ivec3(floor(pos));
+    vec3 uvFract = fract(pos);
+
+    float minDist1 = FLT_MAX;
+    float minDist2 = FLT_MAX;
+    vec3 closestPoint;
+    for (int x = -1; x <= 1; ++x)
+    {
+        for (int y = -1; y <= 1; ++y)
+        {
+            for (int z = -1; z <= 1; ++z)
+            {
+                ivec3 neighbor = ivec3(x, y, z);
+                vec3 point = rand3From3(uvInt + neighbor);
+                vec3 diff = vec3(neighbor) + point - uvFract;
+                float dist = length(diff);
+                if (dist < minDist1)
+                {
+                    minDist2 = minDist1;
+                    minDist1 = dist;
+                    closestPoint = point;
+                }
+                else if (dist < minDist2)
+                {
+                    minDist2 = dist;
+                }
+            }
+        }
+    }
+
+    if (colorPtr != nullptr)
+    {
+        *colorPtr = rand3From3(closestPoint);
+    }
+
+    if (edgeDistPtr != nullptr)
+    {
+        *edgeDistPtr = (minDist2 - minDist1) * 0.5f;
+    }
+
+    return minDist1;
+}
+
 // idea comes from here: https://github.com/superfluke/WorleyCaves/blob/master/src/main/java/fluke/worleycaves/util/WorleyUtil.java#L315-L374
 // not sure why minDist3 and minDist1 are swapped in the final return statement though
 __device__ float specialCaveNoise(vec3 pos)
