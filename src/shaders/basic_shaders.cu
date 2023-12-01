@@ -446,6 +446,33 @@ __device__ void applyWaveNoise(const float3& pos, float3& nor)
     nor = normalize(nor);
 }
 
+float3 __device__ applyNormalMap(float3 normal, float3 m) {
+    m = 2.f * ( m - make_float3(0.5f) );
+    float3 o = make_float3(0.f, 0.f, 1.f);
+    float d = dot(normal, o);
+    if (d == 0) {
+        float3 c = cross(normal, o);
+        if (c.y == 0.f) {
+            if (c.x == -1.f) {
+                return make_float3(m.x, -m.z, m.y);
+            }
+            else {
+                return make_float3(m.x, m.z, -m.y);
+            }
+        }
+        else if (c.y == -1.f) {
+            return make_float3(m.z, m.y, -m.x);
+        }
+        else {
+            return make_float3(-m.z, m.y, m.x);
+        }
+    }
+    else if (d == -1.f) {
+        return make_float3(-m.x, m.y, -m.z);
+    }
+    return m;
+}
+
 extern "C" __global__ void __closesthit__radiance() {
     PRD& prd = *getPRD<PRD>();
 
@@ -528,6 +555,9 @@ extern "C" __global__ void __closesthit__radiance() {
     {
         nor = -nor;
     }
+
+    float3 norMap = make_float3(tex2D<float4>(chunkData.tex_normal, uv.x, uv.y));
+    nor = normalize(0.5f * normalize(applyNormalMap(nor, norMap)) + 0.5f * nor);
     float3 newDir = calculateRandomDirectionInHemisphere(nor, rng2(prd.seed));
 
     if (diffuseCol.x == 0.f && diffuseCol.y == 0.f && diffuseCol.z == 0.f)

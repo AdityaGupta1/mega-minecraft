@@ -53,4 +53,5 @@ struct ChunkData
     glm::uvec3* idx;
     cudaTextureObject_t tex_diffuse;
     cudaTextureObject_t tex_emissive;
+    cudaTextureObject_t tex_normal;
 };

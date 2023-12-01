@@ -164,7 +164,7 @@ void OptixRenderer::loadTexture(const std::string& path, int textureId)
 
 void OptixRenderer::createTextures()
 {
-    int numTextures = 2;
+    int numTextures = 3;
     texArrays.resize(numTextures);
     texObjects.resize(numTextures);
 
@@ -172,6 +172,7 @@ void OptixRenderer::createTextures()
 
     loadTexture("textures/blocks_diffuse.png", 0);
     loadTexture("textures/blocks_emissive.png", 1);
+    loadTexture("textures/blocks_normal.png", 2);
 }
 
 void OptixRenderer::buildChunkAccel(const Chunk* chunkPtr)
@@ -204,7 +205,8 @@ void OptixRenderer::buildChunkAccel(const Chunk* chunkPtr)
         (Vertex*)d_vertices,
         (uvec3*)d_indices,
         texObjects[0],
-        texObjects[1]
+        texObjects[1],
+        texObjects[2]
     };
 
     for (int i = 0; i < hitProgramGroups.size(); i++)
