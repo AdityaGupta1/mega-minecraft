@@ -98,8 +98,8 @@ __device__ float3 sampleSun(float2 sample)
 
     float3 dir = normalize(cos(around) * perpendicularDirection1 + sin(around) * perpendicularDirection2);
 
-    // 0.14 is the max radius to sample within the sun at dot = 0.99
-    return normalize(normal + sample.x * 0.14f * dir);
+    // 0.100 is the max radius to sample within the sun at dot = 0.995
+    return normalize(normal + sample.x * 0.100f * dir);
 }
 
 extern "C" __global__ void __raygen__render() {
@@ -303,10 +303,11 @@ __device__ float3 getSkyColor(float3 rayDir, bool& foundLightSource)
 {
     float d = dot(rayDir, params.sunDir);
     float3 skyColor = make_float3(0.f);
-    if (d > 0.99f)
+    if (d > 0.995f)
     {
         float hue = dot(params.sunDir, make_float3(0.f, 1.f, 0.f));
-        skyColor += make_float3(1.0f, 0.5f + 0.15f * hue, 0.3f + 0.15f * hue) * (1.f - 5000.f * (1.f - d) * (1.f - d));
+        float3 sunColor = make_float3(1.0f, 0.5f + 0.15f * hue, 0.3f + 0.15f * hue) * (1.f - 5000.f * (1.f - d) * (1.f - d));
+        skyColor += sunColor * 2.8f;
         foundLightSource = true;
     }
     else
@@ -314,9 +315,9 @@ __device__ float3 getSkyColor(float3 rayDir, bool& foundLightSource)
         skyColor += make_float3(0.5f, 0.8f, 1.0f) * 0.2f;
     }
 
-    if (d > 0.96f)
+    if (d > 0.98f)
     {
-        skyColor += powf(smoothstep(0.96f, 0.995f, d), 3.f) * make_float3(1.0f, 0.7f, 0.5f) * 0.3f;
+        skyColor += powf(smoothstep(0.98f, 0.9975f, d), 3.f) * make_float3(1.0f, 0.7f, 0.5f) * 0.4f;
     }
 
     return skyColor;
