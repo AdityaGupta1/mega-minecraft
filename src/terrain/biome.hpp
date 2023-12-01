@@ -1,10 +1,11 @@
 #pragma once
 
 #include "block.hpp"
+#include <unordered_set>
 
 #define MAX_CAVE_LAYERS_PER_COLUMN 32
-#define MAX_GATHERED_FEATURES_PER_CHUNK 1024 // ~40 per chunk
-#define MAX_GATHERED_CAVE_FEATURES_PER_CHUNK 4096 // ~160 per chunk
+#define MAX_GATHERED_FEATURES_PER_CHUNK 2048 // ~40 per gathered chunk
+#define MAX_GATHERED_CAVE_FEATURES_PER_CHUNK 4096 // ~80 per gathered chunk
 
 #define SEA_LEVEL 128
 #define LAVA_LEVEL 8
@@ -48,6 +49,7 @@ enum class CaveBiome : unsigned char
 {
     NONE,
 
+    CRYSTAL_CAVES,
     LUSH_CAVES,
 
     WARPED_FOREST,
@@ -107,8 +109,8 @@ struct CaveLayer
 {
     CaveLayer() = default;
 
-    int start; // exclusive
-    int end; // inclusive
+    int start; // exclusive (is not air)
+    int end; // inclusive (is air)
     CaveBiome bottomBiome; // random biome of block at y = start, for feature placement
     CaveBiome topBiome; // y = end + 1
     char padding[2];
@@ -139,10 +141,10 @@ enum class Feature : unsigned char
     SMALL_JUNGLE_TREE,
     TINY_JUNGLE_TREE,
 
-    // TINY_PURPLE_MUSHROOM
-    // SMALL_PURPLE_MUSHROOM
+    MEDIUM_PURPLE_MUSHROOM,
     PURPLE_MUSHROOM,
 
+    MEDIUM_CRYSTAL,
     CRYSTAL,
 
     PALM_TREE,
@@ -165,6 +167,10 @@ enum class CaveFeature : unsigned char
 
     GLOWSTONE_CLUSTER,
 
+    STORMLIGHT_SPHERE,
+    CEILING_STORMLIGHT_SPHERE,
+    CRYSTAL_PILLAR,
+
     WARPED_FUNGUS,
     AMBER_FUNGUS
 };
@@ -179,12 +185,22 @@ struct FeatureGenTopLayer
 
 struct FeatureGen
 {
+    FeatureGen(Feature feature, int gridCellSize, int gridCellPadding, float chancePerGridCell, std::vector<FeatureGenTopLayer> possibleTopLayers)
+        : feature(feature), gridCellSize(gridCellSize), gridCellPadding(gridCellPadding), chancePerGridCell(chancePerGridCell), possibleTopLayers(possibleTopLayers)
+    {}
+
     Feature feature;
     int gridCellSize;
     int gridCellPadding;
     float chancePerGridCell;
     std::vector<FeatureGenTopLayer> possibleTopLayers;
     bool canReplaceBlocks{ true };
+
+    inline FeatureGen& setNotReplaceBlocks()
+    {
+        this->canReplaceBlocks = false;
+        return *this;
+    }
 };
 
 struct FeaturePlacement
@@ -240,6 +256,38 @@ struct CaveFeaturePlacement
     glm::ivec3 pos; // lowest air block of cave layer
     int layerHeight; // block at (pos.y + layerHeight) is highest air block of cave layer
     bool canReplaceBlocks;
+};
+
+struct DecoratorGen
+{
+    DecoratorGen(Block decoratorBlock, float chance, std::unordered_set<Block> possibleUnderBlocks)
+        : decoratorBlock(decoratorBlock), chance(chance), possibleUnderBlocks(possibleUnderBlocks)
+    {}
+
+    Block decoratorBlock;
+    float chance;
+    std::unordered_set<Block> possibleUnderBlocks;
+    std::unordered_set<Block> possibleReplaceBlocks{ Block::AIR };
+    Block secondDecoratorBlock{ Block::AIR };
+    bool generatesFromCeiling{ false };
+
+    inline DecoratorGen& setPossibleReplaceBlocks(std::unordered_set<Block> blocks)
+    {
+        this->possibleReplaceBlocks = blocks;
+        return *this;
+    }
+
+    inline DecoratorGen& setSecondDecoratorBlock(Block block)
+    {
+        this->secondDecoratorBlock = block;
+        return *this;
+    }
+
+    inline DecoratorGen& setGeneratesFromCeiling()
+    {
+        this->generatesFromCeiling = true;
+        return *this;
+    }
 };
 
 namespace BiomeUtils

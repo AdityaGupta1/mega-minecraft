@@ -12,7 +12,8 @@
 #define DEBUG_SKIP_EROSION 0
 #define DEBUG_USE_CONTRIBUTION_FILL_METHOD 0
 
-//#define DEBUG_BIOME_OVERRIDE Biome::PLAINS
+//#define DEBUG_BIOME_OVERRIDE Biome::PURPLE_MUSHROOMS
+//#define DEBUG_CAVE_BIOME_OVERRIDE CaveBiome::LUSH_CAVES
 
 Chunk::Chunk(ivec2 worldChunkPos)
     : worldChunkPos(worldChunkPos), worldBlockPos(worldChunkPos.x * 16, 0, worldChunkPos.y * 16)
@@ -51,7 +52,7 @@ void Chunk::setNotReadyForQueue()
 template<std::size_t diameter>
 void Chunk::floodFill(Chunk* (&neighborChunks)[diameter][diameter], ChunkState minState)
 {
-    const int radius = diameter / 2;
+    constexpr int radius = diameter / 2;
 
     std::queue<Chunk*> chunks;
     std::unordered_set<Chunk*> visitedChunks;
@@ -89,13 +90,12 @@ void Chunk::floodFill(Chunk* (&neighborChunks)[diameter][diameter], ChunkState m
     }
 }
 
-
 template<std::size_t diameter>
 void Chunk::iterateNeighborChunks(Chunk* const (&neighborChunks)[diameter][diameter], ChunkState currentState, ChunkState nextState,
     ChunkProcessorFunc<diameter> chunkProcessorFunc)
 {
-    int start = diameter / 4; // assuming diameter = (4k + 1) for some k, so start <- k
-    int end = diameter - start;
+    constexpr int start = diameter / 4; // assuming diameter = (4k + 1) for some k, so start <- k
+    constexpr int end = diameter - start;
 
     for (int centerZ = start; centerZ < end; ++centerZ)
     {
@@ -754,9 +754,14 @@ void Chunk::fixBackwardStratifiedLayers()
 
 __device__ bool shouldGenerateCaveAtBlock(ivec3 worldPos, float maxHeight, float oceanAndBeachWeight)
 {
-    if (worldPos.y == 0 || worldPos.y > (max(maxHeight, (float)SEA_LEVEL) + 4.f))
+    if (worldPos.y == 0)
     {
         return false;
+    }
+
+    if (worldPos.y > (max((int)maxHeight, SEA_LEVEL)))
+    {
+        return true;
     }
 
     vec3 noisePos = vec3(worldPos) * 0.0050f;
@@ -768,7 +773,7 @@ __device__ bool shouldGenerateCaveAtBlock(ivec3 worldPos, float maxHeight, float
     float caveNoise = specialCaveNoise(noisePos * vec3(1.f, 1.6f, 1.f) + noiseOffset);
 
     float worleyEdgeThreshold = 0.24f + 0.12f * fbm<4>(noisePos * 4.f);
-    float hugeCaveNoise = smoothstep(0.3f, 0.45f, fbm<4>(noisePos * 0.0700f));
+    float hugeCaveNoise = smoothstep(0.2f, 0.4f, fbm<4>(noisePos * 0.0700f));
     worleyEdgeThreshold *= (1.f + 1.4f * hugeCaveNoise);
     worleyEdgeThreshold *= (topHeightRatio) * (0.3f + 0.7f * bottomHeightRatio);
 
@@ -909,7 +914,11 @@ __global__ void kernGenerateCaves(
 
         if (caveLayer.start != 384)
         {
+#ifdef DEBUG_CAVE_BIOME_OVERRIDE
+            caveLayer.bottomBiome = DEBUG_CAVE_BIOME_OVERRIDE;
+#else
             caveLayer.bottomBiome = getCaveBiome(ivec3(worldBlockPos2d.x, caveLayer.start, worldBlockPos2d.y), shared_maxHeight, 329271348);
+#endif
         }
 
         if (caveLayer.end == 384)
@@ -918,7 +927,11 @@ __global__ void kernGenerateCaves(
         }
         else
         {
+#ifdef DEBUG_CAVE_BIOME_OVERRIDE
+            caveLayer.topBiome = DEBUG_CAVE_BIOME_OVERRIDE;
+#else
             caveLayer.topBiome = getCaveBiome(ivec3(worldBlockPos2d.x, caveLayer.end + 1, worldBlockPos2d.y), shared_maxHeight, 4982921);
+#endif
         }
     }
 }
@@ -1029,7 +1042,7 @@ void Chunk::generateColumnFeaturePlacements(int localX, int localZ)
 {
     const int idx2d = posTo2dIndex(localX, localZ);
 
-    const auto& columnBiomeWeights = biomeWeights.data() + idx2d;
+    const float* columnBiomeWeights = biomeWeights.data() + idx2d;
 
     const float height = heightfield[idx2d];
     const int groundHeight = (int)height;
@@ -1140,18 +1153,20 @@ void Chunk::generateFeaturePlacements()
             generateColumnFeaturePlacements(localX, localZ);
         }
     }
-
-    // this probably won't include decorators (single block things) since those can be done on the CPU at the end of Chunk::fill()
 }
 
-static const std::array<ivec2, 25> gatherFeaturePlacementsChunkOffsets = {
+static const std::array<ivec2, 49> gatherFeaturePlacementsChunkOffsets = {
     ivec2(0, 0), ivec2(0, 1), ivec2(1, 1), ivec2(1, 0), ivec2(1, -1), ivec2(0, -1), ivec2(-1, -1),
     ivec2(-1, 0), ivec2(-1, 1), ivec2(2, 0), ivec2(2, 1), ivec2(2, 2), ivec2(1, 2), ivec2(0, 2),
     ivec2(-1, 2), ivec2(-2, 2), ivec2(-2, 1), ivec2(-2, 0), ivec2(-2, -1), ivec2(-2, -2),
-    ivec2(-1, -2), ivec2(0, -2), ivec2(1, -2), ivec2(2, -2), ivec2(2, -1)
+    ivec2(-1, -2), ivec2(0, -2), ivec2(1, -2), ivec2(2, -2), ivec2(2, -1),
+    ivec2(-3, -3), ivec2(-2, -3), ivec2(-1, -3), ivec2(0, -3), ivec2(1, -3), ivec2(2, -3), ivec2(3, -3),
+    ivec2(3, -2), ivec2(3, -1), ivec2(3, 0), ivec2(3, 1), ivec2(3, 2), ivec2(3, 3),
+    ivec2(2, 3), ivec2(1, 3), ivec2(0, 3), ivec2(-1, 3), ivec2(-2, 3), ivec2(-3, 3),
+    ivec2(-3, 2), ivec2(-3, 1), ivec2(-3, 0), ivec2(-3, -1), ivec2(-3, -2)
 };
 
-void Chunk::otherChunkGatherFeaturePlacements(Chunk* chunkPtr, Chunk* const (&neighborChunks)[9][9], int centerX, int centerZ)
+void Chunk::otherChunkGatherFeaturePlacements(Chunk* chunkPtr, Chunk* const (&neighborChunks)[13][13], int centerX, int centerZ)
 {
     chunkPtr->gatheredFeaturePlacements.clear();
 
@@ -1173,7 +1188,7 @@ void Chunk::otherChunkGatherFeaturePlacements(Chunk* chunkPtr, Chunk* const (&ne
 
 void Chunk::gatherFeaturePlacements()
 {
-    floodFillAndIterateNeighbors<9>(
+    floodFillAndIterateNeighbors<13>(
         ChunkState::NEEDS_GATHER_FEATURE_PLACEMENTS,
         ChunkState::READY_TO_FILL,
         &Chunk::otherChunkGatherFeaturePlacements
@@ -1222,7 +1237,12 @@ __device__ void chunkFillPlaceBlock(
     bool isTopBlock = y >= height - 1.f;
 
 #define doBlockPostProcess() biomeBlockPostProcess(blockPtr, randBiome, worldBlockPos, height, isTopBlock)
-#define doCaveBlockPostProcess() caveBiomeBlockPostProcess(blockPtr, getCaveBiome(worldBlockPos, height, 190249401), worldBlockPos, nullptr, isCaveTopBlock)
+#ifdef DEBUG_CAVE_BIOME_OVERRIDE
+#define postProcessCaveBiome DEBUG_CAVE_BIOME_OVERRIDE
+#else
+#define postProcessCaveBiome getCaveBiome(worldBlockPos, height, 190249401)
+#endif
+#define doCaveBlockPostProcess() caveBiomeBlockPostProcess(blockPtr, postProcessCaveBiome, worldBlockPos, caveBottomDepth, caveTopDepth)
 
     if (y > height && y <= SEA_LEVEL)
     {
@@ -1235,26 +1255,37 @@ __device__ void chunkFillPlaceBlock(
         }
     }
 
-    bool isCaveTopBlock = false;
-    for (int caveLayerIdx = 0; caveLayerIdx < MAX_CAVE_LAYERS_PER_COLUMN; ++caveLayerIdx)
+    int caveBottomDepth = -384;
+    int caveTopDepth = -384;
+    int caveLayerIdx = 0;
+    for ( ; caveLayerIdx < MAX_CAVE_LAYERS_PER_COLUMN; ++caveLayerIdx)
     {
         const auto& caveLayer = shared_caveLayers[caveLayerIdx];
-        if (caveLayer.start == 384 || y < caveLayer.start)
+        if (caveLayer.start == 384)
+        {
+            caveBottomDepth = -384; // all caves for this layer are under this block
+            break;
+        }
+
+        caveBottomDepth = caveLayer.start - y;
+
+        if (y <= caveLayer.start)
         {
             break;
         }
 
-        if (y == caveLayer.start)
+        // {{ y > caveLayer.start }}
+        if (y <= caveLayer.end)
         {
-            isCaveTopBlock = true;
-        }
-
-        if (y > caveLayer.start && y <= caveLayer.end)
-        {
+            caveBottomDepth = caveLayer.start - y;
+            caveTopDepth = y - (caveLayer.end + 1);
             *blockPtr = (y <= LAVA_LEVEL) ? Block::LAVA : Block::AIR;
             doCaveBlockPostProcess();
             return;
         }
+
+        // {{ y > caveLayer.start /\ y > caveLayer.end }}
+        caveTopDepth = y - (caveLayer.end + 1);
     }
 
     if (y > height)
@@ -1345,6 +1376,7 @@ __device__ void chunkFillPlaceBlock(
 
 #undef doBlockPostProcess
 #undef doCaveBlockPostProcess
+#undef postProcessCaveBiome
 }
 
 __global__ void kernFill(
@@ -1371,28 +1403,26 @@ __global__ void kernFill(
     const int idx2d = posTo2dIndex(x, z);
 
     int loadIdx = threadIdx.y;
-    float* loadLocation = nullptr;
-    float* storeLocation = nullptr;
+    float* floatLoadLocation = nullptr;
+    float* floatStoreLocation = nullptr;
     if (loadIdx < numBiomes)
     {
-        loadLocation = biomeWeights + (idx2d) + (256 * loadIdx);
-        storeLocation = shared_biomeWeights + loadIdx;
+        floatLoadLocation = biomeWeights + (idx2d) + (256 * loadIdx);
+        floatStoreLocation = shared_biomeWeights + loadIdx;
     }
     else if ((loadIdx -= numBiomes) <= numMaterials)
     {
-        loadLocation = loadIdx == numMaterials ? (heightfield + idx2d) : (layers + (idx2d) + (256 * loadIdx));
-        storeLocation = shared_layersAndHeight + loadIdx;
+        floatLoadLocation = loadIdx == numMaterials ? (heightfield + idx2d) : (layers + (idx2d) + (256 * loadIdx));
+        floatStoreLocation = shared_layersAndHeight + loadIdx;
     }
-
-    if (storeLocation != nullptr)
-    {
-        *storeLocation = *loadLocation;
-    }
-
-    loadIdx -= numMaterials + 1;
-    if (loadIdx >= 0 && loadIdx < MAX_CAVE_LAYERS_PER_COLUMN)
+    else if ((loadIdx -= numMaterials + 1) < MAX_CAVE_LAYERS_PER_COLUMN)
     {
         shared_caveLayers[loadIdx] = caveLayers[(MAX_CAVE_LAYERS_PER_COLUMN * idx2d) + loadIdx];
+    }
+
+    if (floatStoreLocation != nullptr)
+    {
+        *floatStoreLocation = *floatLoadLocation;
     }
 
     __syncthreads();
@@ -1407,12 +1437,6 @@ __global__ void kernFill(
 
     bool isInFeatureBounds = y >= allFeaturesHeightBounds[0] && y <= allFeaturesHeightBounds[1];
     bool isInCaveFeatureBounds = y >= allCaveFeaturesHeightBounds[0] && y <= allCaveFeaturesHeightBounds[1];
-
-    if (!isInFeatureBounds && !isInCaveFeatureBounds)
-    {
-        blocks[idx] = block;
-        return;
-    }
 
     Block featureBlock;
     bool placedFeature = false;
@@ -1601,9 +1625,125 @@ void Chunk::fill(
         Chunk* chunkPtr = chunks[i];
 
         std::memcpy(chunkPtr->blocks.data(), host_blocks + (i * devBlocksSize), devBlocksSize * sizeof(Block));
+        chunkPtr->placeDecorators();
     }
 
     CudaUtils::checkCUDAError("Chunk::fill() failed");
+}
+
+void Chunk::tryPlaceSingleDecorator(
+    ivec3 pos, 
+    const DecoratorGen& gen)
+{
+    const int decoratorIdx = posTo3dIndex(pos);
+    Block& currentBlock = this->blocks[decoratorIdx];
+    if (!gen.possibleReplaceBlocks.empty() 
+        && gen.possibleReplaceBlocks.find(currentBlock) == gen.possibleReplaceBlocks.end())
+    {
+        return;
+    }
+
+    int underBlockOffset = gen.generatesFromCeiling ? 1 : -1;
+    if (!isInRange(pos.y + underBlockOffset, 0, 383))
+    {
+        return;
+    }
+
+    const Block underBlock = blocks[decoratorIdx + underBlockOffset];
+    if ((int)underBlock < numNonSolidBlocks
+        || (!gen.possibleUnderBlocks.empty() && gen.possibleUnderBlocks.find(underBlock) == gen.possibleUnderBlocks.end()))
+    {
+        return;
+    }
+
+    if (gen.secondDecoratorBlock != Block::AIR)
+    {
+        int overBlockOffset = -underBlockOffset;
+        if (!isInRange(pos.y + overBlockOffset, 0, 383))
+        {
+            return;
+        }
+
+        Block& overBlock = this->blocks[decoratorIdx + overBlockOffset];
+        if (!gen.possibleReplaceBlocks.empty() && gen.possibleReplaceBlocks.find(overBlock) == gen.possibleReplaceBlocks.end())
+        {
+            return;
+        }
+
+        overBlock = gen.secondDecoratorBlock;
+    }
+
+    currentBlock = gen.decoratorBlock;
+}
+
+void Chunk::placeDecorators()
+{
+    auto rng = makeSeededRandomEngine(this->worldBlockPos.x, this->worldBlockPos.y, this->worldBlockPos.z, 7589341);
+    thrust::uniform_real_distribution<float> u01(0, 1);
+
+    for (int z = 0; z < 16; ++z)
+    {
+        for (int x = 0; x < 16; ++x)
+        {
+            const int idx2d = posTo2dIndex(x, z);
+
+            const float* columnBiomeWeights = biomeWeights.data() + idx2d;
+            Biome biome = getRandomBiome<256>(columnBiomeWeights, u01(rng));
+
+            float rand = u01(rng);
+            const auto& biomeDecoratorGens = host_biomeDecoratorGens[(int)biome];
+            for (int genIdx = 0; genIdx < biomeDecoratorGens.size(); ++genIdx)
+            {
+                const auto& gen = biomeDecoratorGens[genIdx];
+
+                if ((rand -= gen.chance) < 0.f)
+                {
+                    tryPlaceSingleDecorator(ivec3(x, ((int)this->heightfield[idx2d]) + 1, z), gen);
+                    break;
+                }
+            }
+
+            const CaveLayer* columnCaveLayers = this->caveLayers.data() + (MAX_CAVE_LAYERS_PER_COLUMN * idx2d);
+            for (int caveLayerIdx = 0; caveLayerIdx < MAX_CAVE_LAYERS_PER_COLUMN; ++caveLayerIdx)
+            {
+                const auto& caveLayer = columnCaveLayers[caveLayerIdx];
+
+                if (caveLayer.start == 384)
+                {
+                    break;
+                }
+
+                float bottomRand = u01(rng);
+                float topRand = u01(rng);
+                bool placedBottom = false;
+                bool placedTop = false;
+                const auto& caveBiomeDecoratorGens = host_caveBiomeDecoratorGens[(int)caveLayer.bottomBiome];
+                for (int genIdx = 0; genIdx < caveBiomeDecoratorGens.size(); ++genIdx)
+                {
+                    const auto& gen = caveBiomeDecoratorGens[genIdx];
+                    if (gen.generatesFromCeiling)
+                    {
+                        if (!placedTop && (topRand -= gen.chance) < 0.f)
+                        {
+                            tryPlaceSingleDecorator(ivec3(x, caveLayer.end, z), gen);
+                        }
+                    }
+                    else
+                    {
+                        if (!placedBottom && (bottomRand -= gen.chance) < 0.f)
+                        {
+                            tryPlaceSingleDecorator(ivec3(x, caveLayer.start + 1, z), gen);
+                        }
+                    }
+
+                    if (placedTop && placedBottom)
+                    {
+                        break;
+                    }
+                }
+            }
+        }
+    }
 }
 
 #pragma endregion
@@ -1688,7 +1828,11 @@ void Chunk::createVBOs()
                 if (thisTrans == TransparencyType::T_X_SHAPED)
                 {
                     vec3 basePos = vec3(x + 0.5f, y, z + 0.5f);
-                    // TODO random offset
+
+                    vec2 worldBlockXZ = vec2(this->worldBlockPos.x + x, this->worldBlockPos.z + z);
+                    vec2 randomOffset = 0.4f * (rand2From2(worldBlockXZ) - 0.5f);
+                    basePos.x += randomOffset.x;
+                    basePos.z += randomOffset.y;
 
                     int idx1 = verts.size();
 

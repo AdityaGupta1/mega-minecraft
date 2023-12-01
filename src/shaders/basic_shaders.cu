@@ -154,7 +154,7 @@ extern "C" __global__ void __raygen__render() {
                 1e20f,  // tmax
                 0.0f,   // rayTime
                 OptixVisibilityMask(255),
-                OPTIX_RAY_FLAG_NONE,  // OPTIX_RAY_FLAG_NONE,
+                OPTIX_RAY_FLAG_NONE,
                 0,  // SBT offset
                 1,  // SBT stride
                 0,  // missSBTIndex
@@ -166,7 +166,7 @@ extern "C" __global__ void __raygen__render() {
             }
 
             if (prd.specularHit && depth % 2 == 0 && depth < MAX_RAY_DEPTH) {
-                depth--;
+                --depth;
             }
 
             // MIS: sample light source
@@ -186,7 +186,7 @@ extern "C" __global__ void __raygen__render() {
                     1e20f,  // tmax
                     0.0f,   // rayTime
                     OptixVisibilityMask(255),
-                    OPTIX_RAY_FLAG_DISABLE_CLOSESTHIT,  // OPTIX_RAY_FLAG_NONE,
+                    OPTIX_RAY_FLAG_DISABLE_CLOSESTHIT,
                     1,  // SBT offset
                     1,  // SBT stride
                     0,  // missSBTIndex
@@ -202,7 +202,7 @@ extern "C" __global__ void __raygen__render() {
                         1e20f,  // tmax
                         0.0f,   // rayTime
                         OptixVisibilityMask(255),
-                        OPTIX_RAY_FLAG_DISABLE_CLOSESTHIT,  // OPTIX_RAY_FLAG_NONE,
+                        OPTIX_RAY_FLAG_DISABLE_CLOSESTHIT,
                         1,  // SBT offset
                         1,  // SBT stride
                         0,  // missSBTIndex
@@ -296,23 +296,42 @@ float3 refract(float3 wo, float3 n, float eta) {
     }
 }
 
+static __forceinline__ __device__ 
+float smoothstep(float edge0, float edge1, float x)
+{
+    x = clamp((x - edge0) / (edge1 - edge0), 0.0, 1.0);
+    return x * x * (3 - 2 * x);
+}
+
+__device__ float3 getSkyColor(float3 rayDir, bool& foundLightSource)
+{
+    float d = dot(rayDir, params.sunDir);
+    float3 skyColor = make_float3(0.f);
+    if (d > 0.99f)
+    {
+        float hue = dot(params.sunDir, make_float3(0.f, 1.f, 0.f));
+        skyColor += make_float3(1.0f, 0.5f + 0.15f * hue, 0.3f + 0.15f * hue) * (1.f - 5000.f * (1.f - d) * (1.f - d));
+        foundLightSource = true;
+    }
+    else
+    {
+        skyColor += make_float3(0.5f, 0.8f, 1.0f) * 0.2f;
+    }
+
+    if (d > 0.96f)
+    {
+        skyColor += powf(smoothstep(0.96f, 0.995f, d), 3.f) * make_float3(1.0f, 0.7f, 0.5f) * 0.3f;
+    }
+
+    return skyColor;
+}
+
 extern "C" __global__ void __miss__radiance()
 {
     const float3 rayDir = optixGetWorldRayDirection();
     PRD& prd = *getPRD<PRD>();
 
-    float3 skyColor;
-    float d = dot(rayDir, params.sunDir);
-    if (d > 0.99f)
-    {
-        float hue = dot(params.sunDir, make_float3(0.f, 1.f, 0.f));
-        skyColor = make_float3(1.0f, 0.6f + 0.2f * hue, 0.4f + 0.2f * hue) * (1.f - 5000.f * (1.f - d) * (1.f - d));
-        prd.foundLightSource = true;
-    }
-    else
-    {
-        skyColor = make_float3(0.5f, 0.8f, 1.0f) * 0.2f;
-    }
+    float3 skyColor = getSkyColor(rayDir, prd.foundLightSource);
 
     prd.pixelColor += skyColor * prd.rayColor;
     if (prd.specularHit && prd.foundLightSource) {
@@ -595,7 +614,7 @@ extern "C" __global__ void __closesthit__radiance() {
 }
 
 // returns true if ray should continue
-// also multiplies ray color for semi-transparent objects
+// also DOES NOT multiply ray color for semi-transparent objects, since I'm pretty sure anyhit can activate for intersections past the closest one
 static __device__ bool anyhitAlphaTest()
 {
     const ChunkData& chunkData = getChunkData();
@@ -612,7 +631,10 @@ static __device__ bool anyhitAlphaTest()
     {
         return true;
     }
-    return false;
+    else
+    {
+        return false;
+    }
 }
 
 extern "C" __global__ void __anyhit__radiance()
@@ -646,55 +668,59 @@ extern "C" __global__ void __anyhit__shadow()
     // ENTERING: mix of REFR at dot = 1 to REFL at dot = 0
     // EXITING: all REFL at dot = 0 to sinThetaT = 1, and mix of REFL to REFR at dot = 1
 
-    if (v1.m.reflecting && v1.m.refracting) {
-        prd.specularHit = true;
-        prd.needsFirstHitData = false;
-        float ior = v1.m.ior;
+    //if (v1.m.reflecting && v1.m.refracting) {
+    //    prd.specularHit = true;
+    //    prd.needsFirstHitData = false;
+    //    float ior = v1.m.ior;
 
-        if (v1.m.wavy)
-        {
-            applyWaveNoise(isectPos, nor);
-        }
+    //    if (v1.m.wavy)
+    //    {
+    //        applyWaveNoise(isectPos, nor);
+    //    }
 
-        float entering = dot(rayDir, nor);
+    //    float entering = dot(rayDir, nor);
 
-        if (entering < 0.f) {
-            if (rng(prd.seed) < -entering) {
-                // ENTERING REFR
-                prd.isect.pos = isectPos - nor * 0.001f;
-                prd.isect.newDir = refract(rayDir, nor, 1.f / ior);
+    //    if (entering < 0.f) {
+    //        if (rng(prd.seed) < -entering) {
+    //            // ENTERING REFR
+    //            prd.isect.pos = isectPos - nor * 0.001f;
+    //            prd.isect.newDir = refract(rayDir, nor, 1.f / ior);
 
-                float fresnel = schlickFresnel(rayDir, nor, ior);
-                prd.rayColor *= (1.f - fresnel);
-                return;
-            }
-            else {
-                prd.foundLightSource = false;
-                optixTerminateRay();
-            }
-        }
-        else {
-            float sinThetaT = v1.m.ior * sqrt(1 - entering * entering) + 0.0001f;
+    //            float fresnel = schlickFresnel(rayDir, nor, ior);
+    //            prd.rayColor *= (1.f - fresnel);
+    //            return;
+    //        }
+    //        else {
+    //            prd.foundLightSource = false;
+    //            optixTerminateRay();
+    //        }
+    //    }
+    //    else {
+    //        float sinThetaT = v1.m.ior * sqrt(1 - entering * entering) + 0.0001f;
 
-            if (rng(prd.seed) < entering / fmax(1.f, sinThetaT)) {
-                // EXITING REFR
-                if (dot(params.sunDir, refract(rayDir, -nor, ior)) > 0.99f) {
-                    float fresnel = schlickFresnel(rayDir, nor, ior);
-                    prd.rayColor *= (1.f - fresnel);
-                    prd.rayColor *= 0.5f / ior * diffuseCol;
-                    optixIgnoreIntersection();
-                    return;
-                }
-            }
-            else {
-                // EXITING REFL
-                prd.foundLightSource = false;
-                optixTerminateRay();
-            }
-
-        }
-        
-    } else if (anyhitAlphaTest())
+    //        if (rng(prd.seed) < entering / fmax(1.f, sinThetaT)) {
+    //            // EXITING REFR
+    //            if (dot(params.sunDir, refract(rayDir, -nor, ior)) > 0.99f) {
+    //                float fresnel = schlickFresnel(rayDir, nor, ior);
+    //                prd.rayColor *= (1.f - fresnel);
+    //                prd.rayColor *= 0.5f / ior * diffuseCol;
+    //                optixIgnoreIntersection();
+    //                return;
+    //            }
+    //        }
+    //        else {
+    //            // EXITING REFL
+    //            prd.foundLightSource = false;
+    //            optixTerminateRay();
+    //        }
+    //    }
+    //}
+    //else if (anyhitAlphaTest())
+    //{
+    //    optixIgnoreIntersection();
+    //    return;
+    //}
+    if (anyhitAlphaTest())
     {
         optixIgnoreIntersection();
         return;

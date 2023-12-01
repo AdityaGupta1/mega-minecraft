@@ -7,6 +7,9 @@
 #include "biomeFuncs.hpp"
 #include <glm/gtx/vector_angle.hpp>
 
+#undef min
+#undef max
+
 #pragma region SDFs
 
 __device__ float sdSphere(vec3 p, float s)
@@ -17,12 +20,12 @@ __device__ float sdSphere(vec3 p, float s)
 __device__ float sdCappedCylinder(vec3 p, float r, float h)
 {
     vec2 d = abs(vec2(length(vec2(p.x, p.z)), p.y)) - vec2(r, h);
-    return min(max(d.x, d.y), 0.0f) + length(max(d, 0.0f));
+    return fmin(fmax(d.x, d.y), 0.0f) + length(glm::max(d, vec2(0.f)));
 }
 
 __device__ float opSubtraction(float d1, float d2) 
 { 
-    return max(d1, -d2); 
+    return fmax(d1, -d2); 
 }
 
 __device__ float opOnion(float sdf, float thickness)
@@ -121,10 +124,27 @@ __device__ bool isInCrystal(vec3 pos, vec3 pos1, vec3 pos2, float radiusMultipli
     return distanceFromLine < crystalRadius;
 }
 
+__device__ Block getRandomCrystalBlock(float rand)
+{
+    float crystalRand = rand * 3.f;
+    if (crystalRand < 1.f)
+    {
+        return Block::MAGENTA_CRYSTAL;
+    }
+    else if (crystalRand < 2.f)
+    {
+        return Block::CYAN_CRYSTAL;
+    }
+    else
+    {
+        return Block::GREEN_CRYSTAL;
+    }
+}
+
 #pragma endregion
 
 // block should not change if return value is false
-__device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlockPos, Block* block)
+__device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlockPos, Block* blockPtr)
 {
     const ivec3& featurePos = featurePlacement.pos;
     ivec3 floorPos = worldBlockPos - featurePos;
@@ -150,7 +170,7 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
             return false;
         }
 
-        *block = Block::GRAVEL;
+        *blockPtr = Block::GRAVEL;
         return true;
     }
     case Feature::ICEBERG:
@@ -176,12 +196,12 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
 
         if (pos.y < -4.f)
         {
-            *block = Block::BLUE_ICE;
+            *blockPtr = Block::BLUE_ICE;
             return true;
         }
 
         float packedIceHeight = -2.2f + 5.6f * icebergCenterRatio + 1.2f * simplex(noisePos * 0.8000f);
-        *block = (pos.y > icebergEndHeight - packedIceHeight) ? Block::PACKED_ICE : Block::BLUE_ICE;
+        *blockPtr = (pos.y > icebergEndHeight - packedIceHeight) ? Block::PACKED_ICE : Block::BLUE_ICE;
         return true;
     }
     case Feature::ACACIA_TREE:
@@ -194,7 +214,7 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
         int trunkBaseHeight = (int)(4.5f + 1.5f * u01(featureRng));
         if (floorPos.x == 0 && floorPos.z == 0 && isInRange(floorPos.y, 0, trunkBaseHeight))
         {
-            *block = Block::ACACIA_WOOD;
+            *blockPtr = Block::ACACIA_WOOD;
             return true;
         }
 
@@ -206,7 +226,7 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
         branchEndPos.y += 2.5f + 1.5f * u01(featureRng);
         if (isInRasterizedLine(floorPos, floor(branchStartPos), ceil(branchEndPos)))
         {
-            *block = Block::ACACIA_WOOD;
+            *blockPtr = Block::ACACIA_WOOD;
             return true;
         }
 
@@ -214,7 +234,7 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
         leavesPos.y += 0.5f;
         if (jungleLeaves(leavesPos, 2.f, 2.f, 4.f, 0.5f + 0.5f * u01(featureRng)))
         {
-            *block = Block::ACACIA_LEAVES;
+            *blockPtr = Block::ACACIA_LEAVES;
             return true;
         }
 
@@ -231,7 +251,7 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
         branchEndPos.y += 2.f + 1.f * u01(featureRng);
         if (isInRasterizedLine(floorPos, floor(branchStartPos), ceil(branchEndPos)))
         {
-            *block = Block::ACACIA_WOOD;
+            *blockPtr = Block::ACACIA_WOOD;
             return true;
         }
 
@@ -239,7 +259,7 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
         leavesPos.y += 0.5f;
         if (jungleLeaves(leavesPos, 2.001f, 1.5f, 3.5f, 0.5f + 0.5f * u01(featureRng)))
         {
-            *block = Block::ACACIA_LEAVES;
+            *blockPtr = Block::ACACIA_LEAVES;
             return true;
         }
 
@@ -265,7 +285,7 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
 
             if (horizontalDistance < trunkRadius)
             {
-                *block = Block::REDWOOD_WOOD;
+                *blockPtr = Block::REDWOOD_WOOD;
                 return true;
             }
         }
@@ -301,7 +321,7 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
             {
                 if (isSaturated(branchRatio) && distFromBranch < 0.5f)
                 {
-                    *block = Block::REDWOOD_WOOD;
+                    *blockPtr = Block::REDWOOD_WOOD;
                     return true;
                 }
             }
@@ -329,7 +349,7 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
 
         if (isInLeaves)
         {
-            *block = Block::REDWOOD_LEAVES;
+            *blockPtr = Block::REDWOOD_LEAVES;
             return true;
         }
 
@@ -351,14 +371,14 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
             trunkRadius *= (1.f + (0.3f * simplex(vec3(worldBlockPos) * 0.1500f)) * smoothstep(0.55f, 0.15f, trunkRatio));
             if (trunkDistance < trunkRadius)
             {
-                *block = Block::CYPRESS_WOOD;
+                *blockPtr = Block::CYPRESS_WOOD;
                 return true;
             }
         }
 
         if (jungleLeaves(pos - vec3(0, trunkHeight, 0), 2.f, 3.f, 4.5f, u01(featureRng)))
         {
-            *block = Block::CYPRESS_LEAVES;
+            *blockPtr = Block::CYPRESS_LEAVES;
             return true;
         }
 
@@ -380,7 +400,7 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
 
             if (isInRasterizedLine(pos, branchStart, branchEnd))
             {
-                *block = Block::CYPRESS_WOOD;
+                *blockPtr = Block::CYPRESS_WOOD;
                 return true;
             }
 
@@ -393,7 +413,7 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
 
             if (jungleLeaves(leavesPos, 2.f, 2.5f, 4.f, u01(featureRng)))
             {
-                *block = Block::CYPRESS_LEAVES;
+                *blockPtr = Block::CYPRESS_LEAVES;
                 return true;
             }
         }
@@ -417,7 +437,7 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
 
         if (floorPos.x == 0 && floorPos.z == 0 && isInRange(floorPos.y, 0, height))
         {
-            *block = Block::BIRCH_WOOD;
+            *blockPtr = Block::BIRCH_WOOD;
             return true;
         }
         
@@ -454,7 +474,7 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
             leafBlock = Block::BIRCH_LEAVES;
         }
 
-        *block = leafBlock;
+        *blockPtr = leafBlock;
         return true;
     }
     case Feature::PINE_TREE:
@@ -467,7 +487,7 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
 
         if (floorPos.x == 0 && floorPos.z == 0 && floorPos.y <= height)
         {
-            *block = Block::PINE_WOOD;
+            *blockPtr = Block::PINE_WOOD;
             return true;
         }
 
@@ -482,7 +502,7 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
         float leavesRadius = mix(3.f, 1.f, leavesRatio);
         if (length(vec2(pos.x, pos.z)) < leavesRadius)
         {
-            *block = u01(featureRng) < 0.5f ? Block::PINE_LEAVES_1 : Block::PINE_LEAVES_2;
+            *blockPtr = u01(featureRng) < 0.5f ? Block::PINE_LEAVES_1 : Block::PINE_LEAVES_2;
             return true;
         }
 
@@ -498,14 +518,37 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
 
         if (floorPos.x == 0 && floorPos.z == 0 && floorPos.y <= height)
         {
-            *block = Block::PINE_WOOD;
+            *blockPtr = Block::PINE_WOOD;
             return true;
         }
 
         vec3 leavesPos = pos - vec3(0, height - 1.f, 0);
         if (jungleLeaves(leavesPos, 2.5f, 1.5f, 2.5f, u01(featureRng)))
         {
-            *block = u01(featureRng) < 0.5f ? Block::PINE_LEAVES_1 : Block::PINE_LEAVES_2;
+            *blockPtr = u01(featureRng) < 0.5f ? Block::PINE_LEAVES_1 : Block::PINE_LEAVES_2;
+            return true;
+        }
+
+        return false;
+    }
+    case Feature::MEDIUM_PURPLE_MUSHROOM:
+    {
+        if (manhattanLength(ivec2(floorPos.x, floorPos.z)) > 8)
+        {
+            return false;
+        }
+
+        int height = (int)(1.5f + 2.3f * u01(featureRng));
+        if (floorPos.x == 0 && isInRange(floorPos.y, 0, height) && floorPos.z == 0)
+        {
+            *blockPtr = Block::MUSHROOM_STEM;
+            return true;
+        }
+
+        float radius = u01(featureRng) < 0.5f ? 1.8f : 2.5f;
+        if (floorPos.y == height + 1 && length(vec2(pos.x, pos.z)) < radius)
+        {
+            *blockPtr = Block::PURPLE_MUSHROOM_CAP;
             return true;
         }
 
@@ -515,6 +558,11 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
     {
         float universalScale = 1.f + u01(featureRng) * 1.2f;
         pos *= universalScale;
+
+        if (u01(featureRng) < 0.2f)
+        {
+            pos *= 0.5f;
+        }
 
         float height = 25.f + u01(featureRng) * 30.f;
 
@@ -587,7 +635,7 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
                 }
                 else
                 {
-                    potentialBlock = Block::MUSHROOM_CAP_PURPLE;
+                    potentialBlock = Block::PURPLE_MUSHROOM_CAP;
                 }
             }
 
@@ -595,7 +643,7 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
                 || (i < lastSplineIndex && ratio < 0 && distance(pos, pos1) < radius) // start cap
                 || (i < (splineSize - 2) && ratio > 1 && distance(pos, pos2) < radius)) // end cap
             {
-                *block = potentialBlock;
+                *blockPtr = potentialBlock;
                 return true;
             }
         }
@@ -617,7 +665,7 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
 
         if (sdSphere(centerSdfPos, 1.f) < 0)
         {
-            *block = Block::RAFFLESIA_SPIKES;
+            *blockPtr = Block::RAFFLESIA_SPIKES;
             return true;
         }
 
@@ -627,7 +675,7 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
 
         if (centerSdf < 0.f)
         {
-            *block = centerSdfPos.y > 1.f ? Block::RAFFLESIA_CENTER : Block::RAFFLESIA_STEM;
+            *blockPtr = centerSdfPos.y > 1.f ? Block::RAFFLESIA_CENTER : Block::RAFFLESIA_STEM;
             return true;
         }
 
@@ -646,7 +694,7 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
 
             if (sdCappedCylinder(petalPos, 2.5f, 0.5f) < 0)
             {
-                *block = Block::RAFFLESIA_PETAL;
+                *blockPtr = Block::RAFFLESIA_PETAL;
                 return true;
             }
         }
@@ -664,7 +712,7 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
         ivec2 trunkPos = ivec2(floor(vec2(pos.x, pos.z)));
         if (isInRange(pos.y, 0.f, height) && trunkPos.x >= 0 && trunkPos.x <= 1 && trunkPos.y >= 0 && trunkPos.y <= 1)
         {
-            *block = Block::JUNGLE_WOOD;
+            *blockPtr = Block::JUNGLE_WOOD;
             return true;
         }
 
@@ -674,7 +722,7 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
         leavesPos.y -= (height - 2.f);
         if (jungleLeaves(leavesPos, 4.f, 4.f, 7.f, u01(featureRng)))
         {
-            *block = u01(blockRng) < 0.5f ? Block::JUNGLE_LEAVES_FRUITS : Block::JUNGLE_LEAVES_PLAIN;
+            *blockPtr = u01(blockRng) < 0.5f ? Block::JUNGLE_LEAVES_FRUITS : Block::JUNGLE_LEAVES_PLAIN;
             return true;
         }
 
@@ -699,14 +747,14 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
             float branchRadius = 1.2f - (0.4f * ratio);
             if (inRatio && distFromLine < branchRadius)
             {
-                *block = Block::JUNGLE_WOOD;
+                *blockPtr = Block::JUNGLE_WOOD;
                 return true;
             }
 
             leavesPos = pos - branchEnd + vec3(0, 0.2f, 0);
             if (jungleLeaves(leavesPos, 2.f, 2.5f, 3.5f, u01(featureRng)))
             {
-                *block = u01(blockRng) < 0.25f ? Block::JUNGLE_LEAVES_FRUITS : Block::JUNGLE_LEAVES_PLAIN;
+                *blockPtr = u01(blockRng) < 0.25f ? Block::JUNGLE_LEAVES_FRUITS : Block::JUNGLE_LEAVES_PLAIN;
                 return true;
             }
         }
@@ -724,14 +772,14 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
 
         if (isInRange(pos.y, 0.f, height) && ivec2(floor(vec2(pos.x, pos.z))) == ivec2(0))
         {
-            *block = Block::JUNGLE_WOOD;
+            *blockPtr = Block::JUNGLE_WOOD;
             return true;
         }
 
         vec3 leavesPos = pos - vec3(0, height - 1.f, 0);
         if (jungleLeaves(leavesPos, 3.f, 2.f, 4.f, u01(featureRng)))
         {
-            *block = u01(blockRng) < 0.25f ? Block::JUNGLE_LEAVES_FRUITS : Block::JUNGLE_LEAVES_PLAIN;
+            *blockPtr = u01(blockRng) < 0.25f ? Block::JUNGLE_LEAVES_FRUITS : Block::JUNGLE_LEAVES_PLAIN;
             return true;
         }
 
@@ -747,13 +795,13 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
         int height = (int)(0.5f + 2.5f * u01(featureRng));
         if (floorPos.x == 0 && isInRange(floorPos.y, 0, height) && floorPos.z == 0)
         {
-            *block = Block::JUNGLE_WOOD;
+            *blockPtr = Block::JUNGLE_WOOD;
             return true;
         }
 
         if (manhattanDistance(floorPos, ivec3(0, height, 0)) == 1)
         {
-            *block = Block::JUNGLE_LEAVES_PLAIN;
+            *blockPtr = Block::JUNGLE_LEAVES_PLAIN;
             return true;
         }
 
@@ -775,7 +823,7 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
 
         if (floorPos.x == 0 && isInRange(floorPos.y, 0, height) && floorPos.z == 0)
         {
-            *block = Block::CACTUS;
+            *blockPtr = Block::CACTUS;
             return true;
         }
 
@@ -798,7 +846,7 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
 
             if (isPosInRange(floorPos, armPos1, armPos2) || isPosInRange(floorPos, armPos2, armPos3))
             {
-                *block = Block::CACTUS;
+                *blockPtr = Block::CACTUS;
                 return true;
             }
         }
@@ -849,7 +897,7 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
             int leavesHeight = leavesDistance > 3.f ? -1 : 0;
             if (leavesPos.y == leavesHeight)
             {
-                *block = Block::PALM_LEAVES;
+                *blockPtr = Block::PALM_LEAVES;
                 return true;
             }
         }
@@ -870,24 +918,28 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
 
             if (isInRasterizedLine(floorPos, pos1, pos2))
             {
-                *block = Block::PALM_WOOD;
+                *blockPtr = Block::PALM_WOOD;
                 return true;
             }
         }
 
         return false;
     }
+    case Feature::MEDIUM_CRYSTAL:
     case Feature::CRYSTAL:
     {
         pos += vec3(0, 2, 0);
-        pos *= 0.6f + 0.4f * u01(featureRng);
+        pos *= 0.55f + 0.4f * u01(featureRng);
 
-        if (max(abs(floorPos.x), abs(floorPos.z)) > 15)
+        if (featurePlacement.feature == Feature::MEDIUM_CRYSTAL)
+        {
+            pos *= 2.f;
+        }
+
+        if (max(abs(floorPos.x), abs(floorPos.z)) > 25)
         {
             return false;
         }
-
-        float crystalRand = u01(featureRng) * 3.f;
 
         vec3 crystalEndPos = vec3(12.f * u11(featureRng), 18.f + 8.f * u01(featureRng), 12.f * u11(featureRng));
         if (pos.y > crystalEndPos.y + 2.f)
@@ -895,53 +947,34 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
             return false;
         }
 
-        if (!isInCrystal(pos, vec3(0), crystalEndPos, 4.f + 1.2f * u01(featureRng)))
+        Block crystalBlock = getRandomCrystalBlock(u01(featureRng));
+
+        if (isInCrystal(pos, vec3(0), crystalEndPos, 4.f + 1.2f * u01(featureRng)))
         {
-            pos *= 0.8f;
+            *blockPtr = crystalBlock;
+            return true;
+        }
 
-            bool isInSmallCrystal = false;
+        pos *= 0.8f;
 
-            int numSmallCrystals = (int)(4.f + 2.f * u01(featureRng));
-            float smallCrystalAngle = u01(featureRng) * TWO_PI;
-            for (int i = 0; i < numSmallCrystals; ++i)
+        int numSmallCrystals = (int)(4.f + 2.f * u01(featureRng));
+        float smallCrystalAngle = u01(featureRng) * TWO_PI;
+        for (int i = 0; i < numSmallCrystals; ++i)
+        {
+            smallCrystalAngle += PI_OVER_TWO + PI * u01(featureRng);
+            vec3 smallCrystalStartPos = vec3(0);
+            sincosf(smallCrystalAngle, &smallCrystalStartPos.z, &smallCrystalStartPos.x);
+            vec3 smallCrystalEndPos = smallCrystalStartPos;
+            smallCrystalStartPos *= 3.f;
+            smallCrystalEndPos *= 6.f + 3.f * u01(featureRng);
+            smallCrystalEndPos.y = 7.f + 5.f * u01(featureRng);
+
+            if (isInCrystal(pos, vec3(0), smallCrystalEndPos, 1.5f + 1.5f * u01(featureRng)))
             {
-                smallCrystalAngle += PI_OVER_TWO + PI * u01(featureRng);
-                vec3 smallCrystalStartPos = vec3(0);
-                sincosf(smallCrystalAngle, &smallCrystalStartPos.z, &smallCrystalStartPos.x);
-                vec3 smallCrystalEndPos = smallCrystalStartPos;
-                smallCrystalStartPos *= 3.f;
-                smallCrystalEndPos *= 6.f + 3.f * u01(featureRng);
-                smallCrystalEndPos.y = 7.f + 5.f * u01(featureRng);
-
-                if (isInCrystal(pos, vec3(0), smallCrystalEndPos, 1.5f + 1.5f * u01(featureRng)))
-                {
-                    isInSmallCrystal = true;
-                    break;
-                }
-            }
-
-            if (!isInSmallCrystal)
-            {
-                return false;
+                *blockPtr = crystalBlock;
+                return true;
             }
         }
-
-        Block crystalBlock;
-        if (crystalRand < 1.f)
-        {
-            crystalBlock = Block::MAGENTA_CRYSTAL;
-        }
-        else if (crystalRand < 2.f)
-        {
-            crystalBlock = Block::CYAN_CRYSTAL;
-        }
-        else
-        {
-            crystalBlock = Block::GREEN_CRYSTAL;
-        }
-
-        *block = crystalBlock;
-        return true;
 
         return false;
     }
@@ -1040,6 +1073,74 @@ __device__ bool placeCaveFeature(CaveFeaturePlacement caveFeaturePlacement, ivec
         }
 
         return false;
+    }
+    case CaveFeature::STORMLIGHT_SPHERE:
+    case CaveFeature::CEILING_STORMLIGHT_SPHERE:
+    {
+        float radius = 3.5f + 4.f * u01(featureRng);
+        float dist = caveFeaturePlacement.feature == CaveFeature::STORMLIGHT_SPHERE ? length(pos) : length(topPos);
+
+        if (dist > radius)
+        {
+            return false;
+        }
+
+        float radiusRatio = dist / radius;
+        float lightChance = smoothstep(0.4f, 0.2f, radiusRatio);
+        if (u01(blockRng) < lightChance)
+        {
+            *blockPtr = Block::GLOWSTONE;
+        }
+        else
+        {
+            *blockPtr = getRandomCrystalBlock(u01(featureRng));
+        }
+
+        return true;
+    }
+    case CaveFeature::CRYSTAL_PILLAR:
+    {
+        if (pos.y < -8.f || topPos.y > 8.f)
+        {
+            return false;
+        }
+
+        float dist = length(vec2(pos.x, pos.z));
+        if (dist > 7.f)
+        {
+            return false;
+        }
+
+        float heightRatio = pos.y / layerHeight;
+        if (heightRatio < 0.f)
+        {
+            heightRatio = 0.f;
+            dist = length(pos);
+        }
+        else if (heightRatio > 1.f)
+        {
+            heightRatio = 1.f;
+            dist = length(topPos);
+        }
+
+        float radius = heightRatio - 0.5f;
+        radius = 4.f * (2.f * radius * radius + 0.5f);
+        if (dist > radius)
+        {
+            return false;
+        }
+
+        float radiusRatio = dist / radius;
+        if (radiusRatio < 0.4f)
+        {
+            *blockPtr = Block::GLOWSTONE;
+        }
+        else
+        {
+            *blockPtr = getRandomCrystalBlock(u01(featureRng));
+        }
+
+        return true;
     }
     case CaveFeature::WARPED_FUNGUS:
     {

@@ -9,7 +9,7 @@
 #include <glm/gtx/string_cast.hpp>
 #include "defines.hpp"
 
-#define DEBUG_TIME_CHUNK_FILL 1
+#define DEBUG_TIME_CHUNK_FILL 0
 
 #define DESTROY_ZONES 0 // disabled because it causes crashes
 

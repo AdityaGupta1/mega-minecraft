@@ -70,7 +70,9 @@ struct CaveBiomeNoise
 {
     float none;
     float shallow;
+
     float warped;
+    float rocky;
 };
 
 enum class BiomeWeightType : unsigned char
@@ -94,7 +96,9 @@ struct CaveBiomeWeights
 {
     BiomeWeightType none;
     BiomeWeightType shallow;
+
     BiomeWeightType warped;
+    BiomeWeightType rocky;
 };
 
 static constexpr float overallBiomeScale = 0.32f;
@@ -137,7 +141,7 @@ __device__ CaveBiomeNoise getCaveBiomeNoise(const vec3 worldBlockPos, float maxH
 
     float caveNoiseTopHeight = SEA_LEVEL + 0.15f * (maxHeight - SEA_LEVEL);
 
-    float noneToShallowStart = caveNoiseTopHeight - 16.f + 26.f * fbm<3>(noisePos2d);
+    float noneToShallowStart = caveNoiseTopHeight - 19.f + 23.f * fbm<3>(noisePos2d);
     float noneToShallowEnd = noneToShallowStart - 5.f + 3.f * fbm<3>(noisePos2d + vec2(3821.34f, 4920.32f));
 
     float shallowToDeepStart = caveNoiseTopHeight - 72.f + 18.f * fbm<3>(noisePos2d + vec2(-4921.34f, 8402.13f));
@@ -147,6 +151,7 @@ __device__ CaveBiomeNoise getCaveBiomeNoise(const vec3 worldBlockPos, float maxH
     noise.none = smoothstep(noneToShallowEnd, noneToShallowStart, caveBiomeNoisePos.y);
     noise.shallow = smoothstep(shallowToDeepEnd, shallowToDeepStart, caveBiomeNoisePos.y);
     noise.warped = getSingleCaveBiomeNoise(caveBiomeNoisePos, 0.0030f, vec3(5821.32f, 4920.12f, 7931.59f), 0.05f);
+    noise.rocky = getSingleCaveBiomeNoise(caveBiomeNoisePos, 0.0022f, vec3(-9193.23f, -6813.39f, -2171.23), 0.05f);
     return noise;
 }
 
@@ -168,12 +173,14 @@ __device__ float getBiomeWeight(Biome biome, const BiomeNoise& noise)
     const auto& biomeWeights = dev_biomeNoiseWeights[(int)biome];
 
     float totalWeight = 1.f;
-    applySingleBiomeNoise(totalWeight, biomeWeights.ocean, noise.ocean);
-    applySingleBiomeNoise(totalWeight, biomeWeights.beach, noise.beach);
-    applySingleBiomeNoise(totalWeight, biomeWeights.rocky, noise.rocky);
-    applySingleBiomeNoise(totalWeight, biomeWeights.magic, noise.magic);
-    applySingleBiomeNoise(totalWeight, biomeWeights.temperature, noise.temperature);
-    applySingleBiomeNoise(totalWeight, biomeWeights.moisture, noise.moisture);
+#define applyNoise(type) applySingleBiomeNoise(totalWeight, biomeWeights.type, noise.type)
+    applyNoise(ocean);
+    applyNoise(beach);
+    applyNoise(rocky);
+    applyNoise(magic);
+    applyNoise(temperature);
+    applyNoise(moisture);
+#undef applyNoise
     return totalWeight;
 }
 
@@ -182,9 +189,12 @@ __device__ float getCaveBiomeWeight(CaveBiome biome, const CaveBiomeNoise& noise
     const auto& caveBiomeWeights = dev_caveBiomeNoiseWeights[(int)biome];
 
     float totalWeight = 1.f;
-    applySingleBiomeNoise(totalWeight, caveBiomeWeights.none, noise.none);
-    applySingleBiomeNoise(totalWeight, caveBiomeWeights.shallow, noise.shallow);
-    applySingleBiomeNoise(totalWeight, caveBiomeWeights.warped, noise.warped);
+#define applyNoise(type) applySingleBiomeNoise(totalWeight, caveBiomeWeights.type, noise.type)
+    applyNoise(none);
+    applyNoise(shallow);
+    applyNoise(warped);
+    applyNoise(rocky);
+#undef applyNoise
     return totalWeight;
 }
 
@@ -309,7 +319,7 @@ __device__ float getHeight(Biome biome, vec2 pos)
     case Biome::TIANZI_MOUNTAINS:
     {
         vec2 noiseOffset = simplex2From2(pos * 0.0800f) * 3.0f;
-        vec2 noisePos = (pos + noiseOffset) * 0.0300f;
+        vec2 noisePos = (pos + noiseOffset) * 0.0150f;
 
         float worley1 = smoothstep(0.45f, 0.35f, worley(noisePos)) * 1.2f;
         float worley2 = smoothstep(0.45f, 0.35f, worley(noisePos * 1.4f + vec2(4292.12f, 9183.27f))) * 0.6f;
@@ -409,7 +419,7 @@ __device__ bool biomeBlockPostProcess(Block* blockPtr, Biome biome, ivec3 worldB
         float dirtHeight = SEA_LEVEL + 1.5f + 1.7f * fbm<3>(vec2(worldBlockPos.x, worldBlockPos.z) * 0.0065f);
         if (worldBlockPos.y > dirtHeight)
         {
-            *blockPtr = isTopBlock ? Block::GRASS : Block::DIRT;
+            *blockPtr = isTopBlock ? Block::GRASS_BLOCK : Block::DIRT;
             return true;
         }
 
@@ -514,7 +524,7 @@ __device__ bool biomeBlockPostProcess(Block* blockPtr, Biome biome, ivec3 worldB
             return false;
         }
 
-        if (*blockPtr == Block::DIRT || *blockPtr == Block::JUNGLE_GRASS)
+        if (*blockPtr == Block::DIRT || *blockPtr == Block::JUNGLE_GRASS_BLOCK)
         {
             float mudEnd = SEA_LEVEL + 0.8f + 1.1f * simplex(vec2(worldBlockPos.x, worldBlockPos.z) * 0.0300f);
             if (worldBlockPos.y < mudEnd)
@@ -528,7 +538,7 @@ __device__ bool biomeBlockPostProcess(Block* blockPtr, Biome biome, ivec3 worldB
     }
     case Biome::TIANZI_MOUNTAINS:
     {
-        if (worldBlockPos.y < 90.f || *blockPtr == Block::WATER || *blockPtr == Block::DIRT || *blockPtr == Block::GRASS)
+        if (worldBlockPos.y < 90.f || *blockPtr == Block::WATER || *blockPtr == Block::DIRT || *blockPtr == Block::GRASS_BLOCK)
         {
             return false;
         }
@@ -542,6 +552,21 @@ __device__ bool biomeBlockPostProcess(Block* blockPtr, Biome biome, ivec3 worldB
 
         *blockPtr = Block::SMOOTH_SANDSTONE;
         return true;
+    }
+    case Biome::CRYSTALS:
+    {
+        if (!isTopBlock || *blockPtr == Block::QUARTZ)
+        {
+            return false;
+        }
+
+        if (rand1From2(vec2(worldBlockPos.x + 913213, worldBlockPos.z + 85941)) < 0.1f)
+        {
+            *blockPtr = Block::MYCELIUM;
+            return true;
+        }
+
+        return false;
     }
     case Biome::MOUNTAINS:
     {
@@ -564,24 +589,79 @@ __device__ bool biomeBlockPostProcess(Block* blockPtr, Biome biome, ivec3 worldB
     return false;
 }
 
-__device__ bool caveBiomeBlockPostProcess(Block* blockPtr, CaveBiome caveBiome, ivec3 worldBlockPos, const CaveLayer* caveLayer, bool isTopBlock)
+__device__ bool caveBiomeBlockPostProcess(Block* blockPtr, CaveBiome caveBiome, ivec3 worldBlockPos, int caveBottomDepth, int caveTopDepth)
 {
     if (caveBiome == CaveBiome::NONE)
     {
         return false;
     }
 
+    bool isTopBlock = caveBottomDepth == 0;
+    bool isBottomBlock = caveTopDepth == 0;
+
     switch (caveBiome)
     {
-    case CaveBiome::LUSH_CAVES:
+    case CaveBiome::CRYSTAL_CAVES:
     {
-        if (isTopBlock)
+        if (*blockPtr != Block::STONE && *blockPtr != Block::DEEPSLATE && *blockPtr != Block::BLACKSTONE)
         {
-            *blockPtr = Block::MOSS;
+            return false;
+        }
+
+        vec3 noisePos = vec3(worldBlockPos.x + worldBlockPos.y, worldBlockPos.z + 5819323, (worldBlockPos.x + worldBlockPos.z) * 2.0f) * 0.05f;
+        float quartzNoise = simplex(noisePos);
+        if (quartzNoise < -0.25f)
+        {
+            *blockPtr = Block::QUARTZ;
+            return true;
+        }
+
+        if (*blockPtr == Block::BLACKSTONE)
+        {
+            return false;
+        }
+
+        float cobblestoneChance;
+        Block cobblestoneBlock;
+        if (*blockPtr == Block::STONE)
+        {
+            cobblestoneChance = 0.5f;
+            cobblestoneBlock = Block::COBBLESTONE;
+        }
+        else
+        {
+            cobblestoneChance = 0.4f;
+            cobblestoneBlock = Block::COBBLED_DEEPSLATE;
+        }
+
+        if (rand1From3(worldBlockPos) < cobblestoneChance)
+        {
+            *blockPtr = cobblestoneBlock;
             return true;
         }
 
         return false;
+    }
+    case CaveBiome::LUSH_CAVES:
+    {
+        if (*blockPtr != Block::STONE && *blockPtr != Block::DEEPSLATE && *blockPtr != Block::BLACKSTONE)
+        {
+            return false;
+        }
+
+        vec3 noisePos = vec3(worldBlockPos) * 0.025f;
+        float threshold = 1.5f + 4.5f * simplex(noisePos);
+        if (!isInRange((float)caveBottomDepth, 0.f, threshold) && !isInRange((float)caveTopDepth, 0.f, threshold))
+        {
+            return false;
+        }
+
+        noisePos.y += 192031.9821f;
+        vec3 noiseOffset = fbm3From3<3>(noisePos * 0.4f) * 2.f;
+        float clayNoise = worley(noisePos + noiseOffset);
+
+        *blockPtr = clayNoise < 0.25f ? Block::CLAY : Block::MOSS;
+        return true;
     }
     case CaveBiome::WARPED_FOREST:
     {
@@ -639,6 +719,9 @@ static std::array<ivec2, numCaveFeatures> host_caveFeatureHeightBounds;
 __constant__ ivec2 dev_featureHeightBounds[numFeatures];
 __constant__ ivec2 dev_caveFeatureHeightBounds[numCaveFeatures];
 
+static std::array<std::vector<DecoratorGen>, numBiomes> host_biomeDecoratorGens;
+static std::array<std::vector<DecoratorGen>, numCaveBiomes> host_caveBiomeDecoratorGens;
+
 void BiomeUtils::init()
 {
 #define biomeWeights(biome) host_biomeNoiseWeights[(int)Biome::biome]
@@ -683,13 +766,14 @@ void BiomeUtils::init()
 
     CaveBiomeWeights* host_caveBiomeNoiseWeights = new CaveBiomeWeights[numCaveBiomes];
 
-                                        // none, warped
-    caveBiomeWeights(NONE) =            { wP, wI, wI };
+                                        // none, warped, rocky
+    caveBiomeWeights(NONE) =            { wP, wI, wI, wI };
+    
+    caveBiomeWeights(CRYSTAL_CAVES) =   { wN, wP, wI, wP };
+    caveBiomeWeights(LUSH_CAVES) =      { wN, wP, wI, wN };
 
-    caveBiomeWeights(LUSH_CAVES) =      { wN, wP, wI };
-
-    caveBiomeWeights(WARPED_FOREST) =   { wI, wN, wP };
-    caveBiomeWeights(AMBER_FOREST) =    { wI, wN, wN };
+    caveBiomeWeights(WARPED_FOREST) =   { wI, wN, wP, wI };
+    caveBiomeWeights(AMBER_FOREST) =    { wI, wN, wN, wI };
 
     cudaMemcpyToSymbol(dev_caveBiomeNoiseWeights, host_caveBiomeNoiseWeights, numCaveBiomes * sizeof(CaveBiomeWeights));
     delete[] host_caveBiomeNoiseWeights;
@@ -701,20 +785,20 @@ void BiomeUtils::init()
 
     BiomeBlocks* host_biomeBlocks = new BiomeBlocks[numBiomes];
 
-    host_biomeBlocks[(int)Biome::TROPICAL_BEACH].grassBlock = Block::JUNGLE_GRASS;
+    host_biomeBlocks[(int)Biome::TROPICAL_BEACH].grassBlock = Block::JUNGLE_GRASS_BLOCK;
 
-    host_biomeBlocks[(int)Biome::SAVANNA].grassBlock = Block::SAVANNA_GRASS;
-    host_biomeBlocks[(int)Biome::FROZEN_WASTELAND].grassBlock = Block::SNOWY_GRASS;
-    host_biomeBlocks[(int)Biome::REDWOOD_FOREST].grassBlock = Block::GRASS;
-    host_biomeBlocks[(int)Biome::SHREKS_SWAMP].grassBlock = Block::JUNGLE_GRASS;
-    host_biomeBlocks[(int)Biome::LUSH_BIRCH_FOREST].grassBlock = Block::GRASS;
-    host_biomeBlocks[(int)Biome::TIANZI_MOUNTAINS].grassBlock = Block::GRASS;
+    host_biomeBlocks[(int)Biome::SAVANNA].grassBlock = Block::SAVANNA_GRASS_BLOCK;
+    host_biomeBlocks[(int)Biome::FROZEN_WASTELAND].grassBlock = Block::SNOWY_GRASS_BLOCK;
+    host_biomeBlocks[(int)Biome::REDWOOD_FOREST].grassBlock = Block::GRASS_BLOCK;
+    host_biomeBlocks[(int)Biome::SHREKS_SWAMP].grassBlock = Block::JUNGLE_GRASS_BLOCK;
+    host_biomeBlocks[(int)Biome::LUSH_BIRCH_FOREST].grassBlock = Block::GRASS_BLOCK;
+    host_biomeBlocks[(int)Biome::TIANZI_MOUNTAINS].grassBlock = Block::GRASS_BLOCK;
 
-    host_biomeBlocks[(int)Biome::JUNGLE].grassBlock = Block::JUNGLE_GRASS;
+    host_biomeBlocks[(int)Biome::JUNGLE].grassBlock = Block::JUNGLE_GRASS_BLOCK;
     host_biomeBlocks[(int)Biome::PURPLE_MUSHROOMS].grassBlock = Block::MYCELIUM;
-    host_biomeBlocks[(int)Biome::OASIS].grassBlock = Block::JUNGLE_GRASS;
-    host_biomeBlocks[(int)Biome::PLAINS].grassBlock = Block::GRASS;
-    host_biomeBlocks[(int)Biome::MOUNTAINS].grassBlock = Block::GRASS;
+    host_biomeBlocks[(int)Biome::OASIS].grassBlock = Block::JUNGLE_GRASS_BLOCK;
+    host_biomeBlocks[(int)Biome::PLAINS].grassBlock = Block::GRASS_BLOCK;
+    host_biomeBlocks[(int)Biome::MOUNTAINS].grassBlock = Block::GRASS_BLOCK;
 
     cudaMemcpyToSymbol(dev_biomeBlocks, host_biomeBlocks, numBiomes * sizeof(BiomeBlocks));
     delete[] host_biomeBlocks;
@@ -881,71 +965,73 @@ void BiomeUtils::init()
 
     cudaMemcpyToSymbol(dev_dirVecs2d, DirectionEnums::dirVecs2d.data(), 8 * sizeof(ivec2));
 
-#pragma region feature gens
-
-    // feature, gridCellSize, gridCellPadding, chancePerGridCell, possibleTopLayers, canReplaceBlocks
-    host_biomeFeatureGens[(int)Biome::ICEBERGS] = {
-        { Feature::ICEBERG, 112, 6, 0.70f, {} }
-    };
-
-    host_biomeFeatureGens[(int)Biome::TROPICAL_BEACH] = {
-        { Feature::PALM_TREE, 48, 3, 0.35f, { {Material::SMOOTH_SAND, 0.3f} } }
-    };
-
-    host_biomeFeatureGens[(int)Biome::SAVANNA] = {
-        { Feature::ACACIA_TREE, 36, 4, 0.3f, { {Material::DIRT, 0.5f} } }
-    };
-
-    host_biomeFeatureGens[(int)Biome::REDWOOD_FOREST] = {
-        { Feature::REDWOOD_TREE, 10, 2, 0.75f, { {Material::DIRT, 0.5f} } }
-    };
-
-    host_biomeFeatureGens[(int)Biome::SHREKS_SWAMP] = {
-        { Feature::CYPRESS_TREE, 18, 3, 0.6f, { {Material::DIRT, 0.5f}, {Material::MUD, 0.5f} } },
-        { Feature::BIRCH_TREE, 16, 2, 0.15f, { {Material::DIRT, 0.4f} } }
-    };
-
-    host_biomeFeatureGens[(int)Biome::LUSH_BIRCH_FOREST] = {
-        { Feature::BIRCH_TREE, 9, 2, 0.7f, { {Material::DIRT, 0.5f} } }
-    };
-
-    host_biomeFeatureGens[(int)Biome::TIANZI_MOUNTAINS] = {
-        { Feature::PINE_TREE, 7, 1, 0.80f, {}, false },
-        { Feature::PINE_SHRUB, 6, 1, 0.80f, {}, false }
-    };
-
-    host_biomeFeatureGens[(int)Biome::JUNGLE] = {
-        { Feature::RAFFLESIA, 54, 6, 0.50f, { {Material::DIRT, 0.5f} } },
-        { Feature::LARGE_JUNGLE_TREE, 28, 3, 0.70f, { {Material::DIRT, 0.5f} } },
-        { Feature::SMALL_JUNGLE_TREE, 10, 2, 0.82f, { {Material::DIRT, 0.5f} } },
-        { Feature::TINY_JUNGLE_TREE, 6, 1, 0.28f, { {Material::DIRT, 0.5f} } }
-    };
-
-    host_biomeFeatureGens[(int)Biome::RED_DESERT] = {
-        { Feature::PALM_TREE, 40, 3, 0.20f, { {Material::RED_SAND, 0.3f} } },
-        { Feature::CACTUS, 16, 2, 0.20f, { {Material::RED_SAND, 0.5f} } }
-    };
-
-    host_biomeFeatureGens[(int)Biome::PURPLE_MUSHROOMS] = {
-        { Feature::PURPLE_MUSHROOM, 11, 3, 0.45f, { {Material::DIRT, 0.5f} } }
-    };
-
-    host_biomeFeatureGens[(int)Biome::CRYSTALS] = {
-        { Feature::CRYSTAL, 56, 12, 0.8f, { {Material::STONE, 0.5f} } }
-    };
-
-    host_biomeFeatureGens[(int)Biome::OASIS] = {
-        { Feature::PALM_TREE, 24, 3, 0.35f, { {Material::SAND, 0.3f} } },
-        { Feature::CACTUS, 16, 2, 0.40f, { {Material::SAND, 0.5f} } }
-    };
-
-    host_biomeFeatureGens[(int)Biome::DESERT] = {
-        { Feature::PALM_TREE, 64, 3, 0.30f, { {Material::SAND, 0.3f} } },
-        { Feature::CACTUS, 16, 2, 0.70f, { {Material::SAND, 0.5f} } }
-    };
+#pragma region feature/decorator gens
 
     // for surface features, actual bounds = (pos.y + bounds[0], pos.y + bounds[1])
 #define setFeatureHeightBounds(feature, yMin, yMax) host_featureHeightBounds[(int)Feature::feature] = ivec2(yMin, yMax)
+
+    // feature, gridCellSize, gridCellPadding, chancePerGridCell, possibleTopLayers
+    host_biomeFeatureGens[(int)Biome::ICEBERGS] = {
+        FeatureGen(Feature::ICEBERG, 112, 6, 0.70f, {})
+    };
+
+    host_biomeFeatureGens[(int)Biome::TROPICAL_BEACH] = {
+        FeatureGen(Feature::PALM_TREE, 48, 3, 0.35f, { {Material::SMOOTH_SAND, 0.3f} })
+    };
+
+    host_biomeFeatureGens[(int)Biome::SAVANNA] = {
+       FeatureGen(Feature::ACACIA_TREE, 36, 4, 0.3f, { {Material::DIRT, 0.5f} })
+    };
+
+    host_biomeFeatureGens[(int)Biome::REDWOOD_FOREST] = {
+        FeatureGen(Feature::REDWOOD_TREE, 16, 2, 0.70f, { {Material::DIRT, 0.5f} })
+    };
+
+    host_biomeFeatureGens[(int)Biome::SHREKS_SWAMP] = {
+        FeatureGen(Feature::CYPRESS_TREE, 18, 3, 0.6f, { {Material::DIRT, 0.5f}, {Material::MUD, 0.5f} }),
+        FeatureGen(Feature::BIRCH_TREE, 16, 2, 0.15f, { {Material::DIRT, 0.4f} })
+    };
+
+    host_biomeFeatureGens[(int)Biome::LUSH_BIRCH_FOREST] = {
+        FeatureGen(Feature::BIRCH_TREE, 9, 2, 0.7f, { {Material::DIRT, 0.5f} })
+    };
+
+    host_biomeFeatureGens[(int)Biome::TIANZI_MOUNTAINS] = {
+        FeatureGen(Feature::PINE_TREE, 7, 1, 0.80f, {}).setNotReplaceBlocks(),
+        FeatureGen(Feature::PINE_SHRUB, 6, 1, 0.80f, {}).setNotReplaceBlocks()
+    };
+
+    host_biomeFeatureGens[(int)Biome::JUNGLE] = {
+        FeatureGen(Feature::RAFFLESIA, 54, 6, 0.50f, { {Material::DIRT, 0.5f} }),
+        FeatureGen(Feature::LARGE_JUNGLE_TREE, 28, 3, 0.70f, { {Material::DIRT, 0.5f} }),
+        FeatureGen(Feature::SMALL_JUNGLE_TREE, 10, 2, 0.82f, { {Material::DIRT, 0.5f} }),
+        FeatureGen(Feature::TINY_JUNGLE_TREE, 6, 1, 0.28f, { {Material::DIRT, 0.5f} })
+    };
+
+    host_biomeFeatureGens[(int)Biome::RED_DESERT] = {
+        FeatureGen(Feature::PALM_TREE, 40, 3, 0.20f, { {Material::RED_SAND, 0.3f} }),
+        FeatureGen(Feature::CACTUS, 16, 2, 0.20f, { {Material::RED_SAND, 0.5f} })
+    };
+
+    host_biomeFeatureGens[(int)Biome::PURPLE_MUSHROOMS] = {
+        FeatureGen(Feature::MEDIUM_PURPLE_MUSHROOM, 10, 2, 0.50f, { {Material::DIRT, 0.3f} }),
+        FeatureGen(Feature::PURPLE_MUSHROOM, 11, 3, 0.45f, { {Material::DIRT, 0.5f} })
+    };
+
+    host_biomeFeatureGens[(int)Biome::CRYSTALS] = {
+        FeatureGen(Feature::MEDIUM_CRYSTAL, 28, 6, 0.9f, {}),
+        FeatureGen(Feature::CRYSTAL, 52, 10, 0.8f, {})
+    };
+
+    host_biomeFeatureGens[(int)Biome::OASIS] = {
+        FeatureGen(Feature::PALM_TREE, 24, 3, 0.35f, { {Material::SAND, 0.3f} }),
+        FeatureGen(Feature::CACTUS, 16, 2, 0.40f, { {Material::SAND, 0.5f} })
+    };
+
+    host_biomeFeatureGens[(int)Biome::DESERT] = {
+        FeatureGen(Feature::PALM_TREE, 64, 3, 0.30f, { {Material::SAND, 0.3f} }),
+        FeatureGen(Feature::CACTUS, 16, 2, 0.70f, { {Material::SAND, 0.5f} })
+    };
 
     setFeatureHeightBounds(NONE, 0, 0);
     setFeatureHeightBounds(SPHERE, -6, 6);
@@ -968,26 +1054,120 @@ void BiomeUtils::init()
     setFeatureHeightBounds(SMALL_JUNGLE_TREE, 0, 17);
     setFeatureHeightBounds(LARGE_JUNGLE_TREE, 0, 38);
 
-    setFeatureHeightBounds(PURPLE_MUSHROOM, 0, 80);
+    setFeatureHeightBounds(MEDIUM_PURPLE_MUSHROOM, 0, 6);
+    setFeatureHeightBounds(PURPLE_MUSHROOM, 0, 120);
 
-    setFeatureHeightBounds(CRYSTAL, -4, 65);
+    setFeatureHeightBounds(MEDIUM_CRYSTAL, -3, 32);
+    setFeatureHeightBounds(CRYSTAL, -6, 64);
 
     setFeatureHeightBounds(PALM_TREE, 0, 28);
 
     setFeatureHeightBounds(CACTUS, 0, 15);
 
-#undef setFeatureHeightBounds
-
     cudaMemcpyToSymbol(dev_featureHeightBounds, host_featureHeightBounds.data(), numFeatures * sizeof(ivec2));
 
+    // decoratorBlock, chance, possibleUnderBlocks
+    host_biomeDecoratorGens[(int)Biome::TROPICAL_BEACH] = {
+        DecoratorGen(Block::JUNGLE_GRASS, 0.1f, { Block::JUNGLE_GRASS_BLOCK })
+    };
+
+    host_biomeDecoratorGens[(int)Biome::SAVANNA] = {
+        DecoratorGen(Block::SAVANNA_GRASS, 0.1f, { Block::SAVANNA_GRASS_BLOCK })
+    };
+
+    host_biomeDecoratorGens[(int)Biome::REDWOOD_FOREST] = {
+        DecoratorGen(Block::GRASS, 0.200f, { Block::GRASS_BLOCK }),
+        DecoratorGen(Block::TALL_GRASS_BOTTOM, 0.080f, { Block::GRASS_BLOCK }).setSecondDecoratorBlock(Block::TALL_GRASS_TOP),
+        DecoratorGen(Block::OXEYE_DAISY, 0.040f, { Block::GRASS_BLOCK }),
+        DecoratorGen(Block::LILY_OF_THE_VALLEY, 0.040f, { Block::GRASS_BLOCK }),
+        DecoratorGen(Block::PEONY_BOTTOM, 0.020f, { Block::GRASS_BLOCK }).setSecondDecoratorBlock(Block::PEONY_TOP)
+    };
+
+    host_biomeDecoratorGens[(int)Biome::SHREKS_SWAMP] = {
+        DecoratorGen(Block::JUNGLE_GRASS, 0.300f, { Block::JUNGLE_GRASS_BLOCK }),
+        DecoratorGen(Block::JUNGLE_FERN, 0.050f, { Block::JUNGLE_GRASS_BLOCK }),
+        DecoratorGen(Block::CORNFLOWER, 0.030f, { Block::JUNGLE_GRASS_BLOCK }),
+        DecoratorGen(Block::BLUE_ORCHID, 0.030f, { Block::JUNGLE_GRASS_BLOCK }),
+        DecoratorGen(Block::ALLIUM, 0.030f, { Block::JUNGLE_GRASS_BLOCK })
+    };
+
+    host_biomeDecoratorGens[(int)Biome::LUSH_BIRCH_FOREST] = {
+        DecoratorGen(Block::GRASS, 0.300f, { Block::GRASS_BLOCK }),
+        DecoratorGen(Block::PEONY_BOTTOM, 0.020f, { Block::GRASS_BLOCK }).setSecondDecoratorBlock(Block::PEONY_TOP),
+        DecoratorGen(Block::LILAC_BOTTOM, 0.020f, { Block::GRASS_BLOCK }).setSecondDecoratorBlock(Block::LILAC_TOP),
+        DecoratorGen(Block::DANDELION, 0.040f, { Block::GRASS_BLOCK })
+    };
+
+    host_biomeDecoratorGens[(int)Biome::JUNGLE] = {
+        DecoratorGen(Block::JUNGLE_GRASS, 0.400f, { Block::JUNGLE_GRASS_BLOCK }),
+        DecoratorGen(Block::TALL_JUNGLE_GRASS_BOTTOM, 0.200f, { Block::JUNGLE_GRASS_BLOCK }).setSecondDecoratorBlock(Block::TALL_JUNGLE_GRASS_TOP),
+        DecoratorGen(Block::PITCHER_BOTTOM, 0.030f, { Block::JUNGLE_GRASS_BLOCK }).setSecondDecoratorBlock(Block::PITCHER_TOP),
+        DecoratorGen(Block::JUNGLE_FERN, 0.120f, { Block::JUNGLE_GRASS_BLOCK }),
+        DecoratorGen(Block::BLUE_ORCHID, 0.040f, { Block::JUNGLE_GRASS_BLOCK })
+    };
+
+    host_biomeDecoratorGens[(int)Biome::RED_DESERT] = {
+        DecoratorGen(Block::DEAD_BUSH, 0.020f, { Block::RED_SAND })
+    };
+
+    auto smallCrystalBottomBlocks = { Block::STONE, Block::TUFF, Block::CALCITE };
+
+    host_biomeDecoratorGens[(int)Biome::PURPLE_MUSHROOMS] = {
+        DecoratorGen(Block::SMALL_PURPLE_MUSHROOM, 0.100f, { Block::MYCELIUM }),
+        DecoratorGen(Block::SMALL_MAGENTA_CRYSTAL, 0.005f, smallCrystalBottomBlocks),
+        DecoratorGen(Block::SMALL_CYAN_CRYSTAL, 0.005f, smallCrystalBottomBlocks),
+        DecoratorGen(Block::SMALL_GREEN_CRYSTAL, 0.005f, smallCrystalBottomBlocks)
+    };
+
+    host_biomeDecoratorGens[(int)Biome::CRYSTALS] = {
+        DecoratorGen(Block::SMALL_PURPLE_MUSHROOM, 0.020f, { Block::MYCELIUM }),
+        DecoratorGen(Block::SMALL_MAGENTA_CRYSTAL, 0.025f, smallCrystalBottomBlocks),
+        DecoratorGen(Block::SMALL_CYAN_CRYSTAL, 0.025f, smallCrystalBottomBlocks),
+        DecoratorGen(Block::SMALL_GREEN_CRYSTAL, 0.025f, smallCrystalBottomBlocks)
+    };
+
+    host_biomeDecoratorGens[(int)Biome::OASIS] = {
+        DecoratorGen(Block::JUNGLE_GRASS, 0.200f, { Block::JUNGLE_GRASS_BLOCK }),
+        DecoratorGen(Block::CORNFLOWER, 0.020f, { Block::JUNGLE_GRASS_BLOCK })
+    };
+
+    host_biomeDecoratorGens[(int)Biome::DESERT] = {
+        DecoratorGen(Block::DEAD_BUSH, 0.030f, { Block::RED_SAND })
+    };
+
+    host_biomeDecoratorGens[(int)Biome::PLAINS] = {
+        DecoratorGen(Block::GRASS, 0.200f, { Block::GRASS_BLOCK }),
+        DecoratorGen(Block::RED_TULIP, 0.010f, { Block::GRASS_BLOCK }),
+        DecoratorGen(Block::ORANGE_TULIP, 0.010f, { Block::GRASS_BLOCK }),
+        DecoratorGen(Block::WHITE_TULIP, 0.010f, { Block::GRASS_BLOCK }),
+        DecoratorGen(Block::PINK_TULIP, 0.010f, { Block::GRASS_BLOCK }),
+        DecoratorGen(Block::DANDELION, 0.030f, { Block::GRASS_BLOCK }),
+        DecoratorGen(Block::POPPY, 0.030f, { Block::GRASS_BLOCK })
+    };
+
+    host_biomeDecoratorGens[(int)Biome::MOUNTAINS] = {
+        DecoratorGen(Block::GRASS, 0.050f, { Block::GRASS_BLOCK }),
+        DecoratorGen(Block::LILY_OF_THE_VALLEY, 0.015f, { Block::GRASS_BLOCK })
+    };
+
+#undef setFeatureHeightBounds
 #pragma endregion
 
-#pragma region cave feature gens
+#pragma region cave feature/decorator gens
+
+    // for cave features, actual bounds = (pos.y - bounds[0], pos.y + height + bounds[1])
+#define setCaveFeatureHeightBounds(caveFeature, paddingBottom, paddingTop) host_caveFeatureHeightBounds[(int)CaveFeature::caveFeature] = ivec2(paddingBottom, paddingTop)
 
     // caveFeature, gridCellSize, gridCellPadding, chancePerGridCell
+    host_caveBiomeFeatureGens[(int)CaveBiome::CRYSTAL_CAVES] = {
+        CaveFeatureGen(CaveFeature::STORMLIGHT_SPHERE, 32, 4, 0.80f).setMinLayerHeight(4),
+        CaveFeatureGen(CaveFeature::CEILING_STORMLIGHT_SPHERE, 32, 4, 0.80f).setMinLayerHeight(4).setGeneratesFromCeiling(),
+        CaveFeatureGen(CaveFeature::CRYSTAL_PILLAR, 28, 5, 0.60f).setMinLayerHeight(10).setNotReplaceBlocks().setGeneratesFromCeiling()
+    };
+
     host_caveBiomeFeatureGens[(int)CaveBiome::LUSH_CAVES] = {
         CaveFeatureGen(CaveFeature::GLOWSTONE_CLUSTER, 24, 3, 0.60f).setMinLayerHeight(16).setNotReplaceBlocks().setGeneratesFromCeiling(),
-        CaveFeatureGen(CaveFeature::CAVE_VINE, 4, 0, 0.40f).setMinLayerHeight(4).setNotReplaceBlocks().setGeneratesFromCeiling(),
+        CaveFeatureGen(CaveFeature::CAVE_VINE, 4, 0, 0.40f).setMinLayerHeight(4).setNotReplaceBlocks().setGeneratesFromCeiling()
     };
 
     host_caveBiomeFeatureGens[(int)CaveBiome::WARPED_FOREST] = {
@@ -1000,9 +1180,6 @@ void BiomeUtils::init()
         CaveFeatureGen(CaveFeature::AMBER_FUNGUS, 5, 1, 0.60f).setMinLayerHeight(9).setNotReplaceBlocks()
     };
 
-    // for cave features, actual bounds = (pos.y - bounds[0], pos.y + height + bounds[1])
-#define setCaveFeatureHeightBounds(caveFeature, paddingBottom, paddingTop) host_caveFeatureHeightBounds[(int)CaveFeature::caveFeature] = ivec2(paddingBottom, paddingTop)
-
     setCaveFeatureHeightBounds(NONE, 0, 0);
     setCaveFeatureHeightBounds(TEST_GLOWSTONE_PILLAR, -3, 3);
     setCaveFeatureHeightBounds(TEST_SHROOMLIGHT_PILLAR, -3, 3);
@@ -1011,12 +1188,41 @@ void BiomeUtils::init()
 
     setCaveFeatureHeightBounds(GLOWSTONE_CLUSTER, 0, 6);
 
+    setCaveFeatureHeightBounds(STORMLIGHT_SPHERE, -7, 7);
+    setCaveFeatureHeightBounds(CRYSTAL_PILLAR, -8, 8);
+
     setCaveFeatureHeightBounds(WARPED_FUNGUS, -2, 3);
     setCaveFeatureHeightBounds(AMBER_FUNGUS, -2, 5);
 
-#undef setCaveFeatureHeightBounds
-
     cudaMemcpyToSymbol(dev_caveFeatureHeightBounds, host_caveFeatureHeightBounds.data(), numCaveFeatures * sizeof(ivec2));
 
+    // decoratorBlock, chance, possibleUnderBlocks
+    host_caveBiomeDecoratorGens[(int)CaveBiome::CRYSTAL_CAVES] = {
+        DecoratorGen(Block::SMALL_MAGENTA_CRYSTAL, 0.015f, {}),
+        DecoratorGen(Block::SMALL_CYAN_CRYSTAL, 0.015f, {}),
+        DecoratorGen(Block::SMALL_GREEN_CRYSTAL, 0.015f, {}),
+        DecoratorGen(Block::HANGING_SMALL_MAGENTA_CRYSTAL, 0.015f, {}).setGeneratesFromCeiling(),
+        DecoratorGen(Block::HANGING_SMALL_CYAN_CRYSTAL, 0.015f, {}).setGeneratesFromCeiling(),
+        DecoratorGen(Block::HANGING_SMALL_GREEN_CRYSTAL, 0.015f, {}).setGeneratesFromCeiling()
+    };
+
+    host_caveBiomeDecoratorGens[(int)CaveBiome::LUSH_CAVES] = {
+        DecoratorGen(Block::GRASS, 0.100f, { Block::MOSS }),
+        DecoratorGen(Block::TALL_GRASS_BOTTOM, 0.030f, { Block::MOSS }).setSecondDecoratorBlock(Block::TALL_GRASS_TOP),
+        DecoratorGen(Block::TORCHFLOWER, 0.020f, { Block::MOSS })
+    };
+
+    host_caveBiomeDecoratorGens[(int)CaveBiome::WARPED_FOREST] = {
+        DecoratorGen(Block::WARPED_MUSHROOM, 0.020f, { Block::WARPED_DEEPSLATE, Block::WARPED_BLACKSTONE }),
+        DecoratorGen(Block::WARPED_ROOTS, 0.060f, { Block::WARPED_DEEPSLATE, Block::WARPED_BLACKSTONE }),
+        DecoratorGen(Block::NETHER_SPROUTS, 0.040f, { Block::WARPED_DEEPSLATE, Block::WARPED_BLACKSTONE })
+    };
+
+    host_caveBiomeDecoratorGens[(int)CaveBiome::AMBER_FOREST] = {
+        DecoratorGen(Block::INFECTED_MUSHROOM, 0.020f, { Block::AMBER_DEEPSLATE, Block::AMBER_BLACKSTONE }),
+        DecoratorGen(Block::AMBER_ROOTS, 0.060f, { Block::AMBER_DEEPSLATE, Block::AMBER_BLACKSTONE })
+    };
+
+#undef setCaveFeatureHeightBounds
 #pragma endregion
 }
