@@ -208,12 +208,12 @@ extern "C" __global__ void __raygen__render() {
                 // TODO: later, find pdf for each material, using default for now
                 // heuristics uses next direction & sun direction pdfs
 
-                if (prd.foundLightSource) {
-                    float pdf_material = INV_PI * dot(random_d, prd.isect.newDir);
-                    float3 col = powerHeuristics(1, 1.f, 1, pdf_material) * prd.rayColor;
-                    prd.foundLightSource = false;
-                    prd.pixelColor += col * prd.rayColor;
-                }
+                //if (prd.foundLightSource) {
+                    //float pdf_material = INV_PI * dot(random_d, prd.isect.newDir);
+                    //float3 col = powerHeuristics(1, 1.f, 1, pdf_material) * prd.rayColor;
+                    //prd.foundLightSource = false;
+                    //prd.pixelColor += col * prd.rayColor;
+                //}
             }
             
 
@@ -303,21 +303,28 @@ __device__ float3 getSkyColor(float3 rayDir, bool& foundLightSource)
 {
     float d = dot(rayDir, params.sunDir);
     float3 skyColor = make_float3(0.f);
-    if (d > 0.995f)
-    {
-        float hue = params.sunDir.y;
-        float3 sunColor = make_float3(1.0f, 0.5f + 0.15f * hue, 0.3f + 0.15f * hue) * (1.f - 5000.f * (1.f - d) * (1.f - d));
-        skyColor += sunColor * 2.8f;
-        foundLightSource = true;
-    }
-    else
-    {
-        skyColor += make_float3(0.5f, 0.8f, 1.0f) * 0.2f;
-    }
 
     if (d > 0.98f)
     {
-        skyColor += powf(smoothstep(0.98f, 0.9975f, d), 3.f) * make_float3(1.0f, 0.7f, 0.5f) * 0.4f;
+        float sunColorMod = smoothstep(-0.10f, 0.30f, params.sunDir.y);
+        float3 sunColor = make_float3(1.00f, 0.05f + 0.60f * sunColorMod, 0.35f * sunColorMod);
+
+        float haloStrength = smoothstep(0.05f, 0.20f, params.sunDir.y) * 0.4f;
+        skyColor += powf(smoothstep(0.98f, 0.9975f, d), 3.f) * (sunColor + make_float3(0.f, 0.1f, 0.1f)) * haloStrength;
+
+        if (d > 0.995f)
+        {
+            skyColor += sunColor * (1.f - 5000.f * (1.f - d) * (1.f - d)) * 1.7f * (0.3f + 0.7f * sunColorMod);
+            foundLightSource = true;
+        }
+    }
+
+    if (d < 0.995f)
+    {
+        // TODO: base this on sun height
+        float3 skyBaseColor = make_float3(0.5f, 0.8f, 1.0f) * 0.2f;
+
+        skyColor += skyBaseColor;
     }
 
     return skyColor;
@@ -331,9 +338,9 @@ extern "C" __global__ void __miss__radiance()
     float3 skyColor = getSkyColor(rayDir, prd.foundLightSource);
 
     prd.pixelColor += skyColor * prd.rayColor;
-    if (prd.specularHit && prd.foundLightSource) {
-        prd.pixelColor += skyColor * prd.rayColor * 2;
-    }
+    //if (prd.specularHit && prd.foundLightSource) {
+    //    prd.pixelColor += skyColor * prd.rayColor * 2;
+    //}
     prd.isDone = true;
 
     if (prd.needsFirstHitData)
