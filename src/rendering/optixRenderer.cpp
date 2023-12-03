@@ -664,7 +664,7 @@ void OptixRenderer::buildSBT(bool onlyHitGroups)
 
     // ------------------------------------------------------------------
     // build miss records
-    // ------------------------------------------------------------------
+    // ------------------------------------------------------------------   
     std::vector<MissRecord> missRecords;
     for (int i = 0; i < missProgramGroups.size(); i++) {
         MissRecord rec;

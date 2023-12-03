@@ -151,172 +151,6 @@ float smoothstep(float edge0, float edge1, float x)
     return x * x * (3.f - 2.f * x);
 }
 
-extern "C" __global__ void __raygen__render() {
-    const int ix = optixGetLaunchIndex().x;
-    const int iy = optixGetLaunchIndex().y;
-
-    const int dx = optixGetLaunchDimensions().x;
-
-    PRD prd;
-    prd.seed = tea<4>(iy * dx + ix, params.frame.frameId);
-
-    const auto& camera = params.camera;
-    float2 squareSample = rng2(prd.seed);
-    float3 rayDir = normalize(camera.forward
-        - camera.right * camera.pixelLength.x * ((float)ix - (float)params.windowSize.x * 0.5f + squareSample.x)
-        - camera.up * camera.pixelLength.y * -((float)iy - (float)params.windowSize.y * 0.5f + squareSample.y)
-    );
-
-    uint32_t u0, u1;
-    packPointer(&prd, u0, u1);
-
-    float3 finalColor = make_float3(0);
-    float3 finalAlbedo = make_float3(0);
-    float3 finalNormal = make_float3(0);
-
-    #pragma unroll
-    for (int sample = 0; sample < NUM_SAMPLES; ++sample)
-    {
-        prd.isDone = false;
-        prd.needsFirstHitData = true;
-        prd.foundLightSource = false;
-        prd.rayColor = make_float3(1.f);
-        prd.pixelColor = make_float3(0.f);
-        prd.isect.pos = camera.position;
-        prd.isect.newDir = rayDir;
-        prd.specularHit = false;
-        prd.firstHitT = 0.f;
-
-        #pragma unroll
-        for (int depth = 0; depth < MAX_RAY_DEPTH; ++depth)
-        {
-            // 1. BSDF
-            prd.foundLightSource = false;
-
-            optixTrace(params.rootHandle,
-                prd.isect.pos,
-                prd.isect.newDir,
-                0.f,    // tmin
-                1e20f,  // tmax
-                0.0f,   // rayTime
-                OptixVisibilityMask(255),
-                OPTIX_RAY_FLAG_NONE,
-                0,  // SBT offset
-                1,  // SBT stride
-                0,  // missSBTIndex
-                u0, u1);
-
-            if (prd.isDone)
-            {
-                break;
-            }
-
-            if (prd.specularHit && depth % 2 == 0 && depth < MAX_RAY_DEPTH) {
-                --depth;
-            }
-
-            // MIS: sample light source
-            // 2. pdf from Sun & random point on sun
-            if (!prd.specularHit) {
-                float2 xi = rng2(prd.seed);
-
-                float sunChance = linearstep(-0.1f, 0.1f, params.sunDir.y);
-                bool isSun = rng(prd.seed) < sunChance;
-                float3 random_d = sampleStar(xi, isSun);
-
-                // 3. test sun intersection
-                prd.foundLightSource = false;
-
-                optixTrace(params.rootHandle,
-                    prd.isect.pos,
-                    random_d,
-                    0.f,    // tmin
-                    1e20f,  // tmax
-                    0.0f,   // rayTime
-                    OptixVisibilityMask(255),
-                    OPTIX_RAY_FLAG_DISABLE_CLOSESTHIT,
-                    1,  // SBT offset
-                    1,  // SBT stride
-                    0,  // missSBTIndex
-                    u0, u1);
-
-                // if specular material is hit and entered - see if we exit it 
-
-                if (prd.specularHit) {
-                    optixTrace(params.rootHandle,
-                        prd.isect.pos,
-                        prd.isect.newDir,
-                        0.f,    // tmin
-                        1e20f,  // tmax
-                        0.0f,   // rayTime
-                        OptixVisibilityMask(255),
-                        OPTIX_RAY_FLAG_DISABLE_CLOSESTHIT,
-                        1,  // SBT offset
-                        1,  // SBT stride
-                        0,  // missSBTIndex
-                        u0, u1);
-                }
-
-                if (prd.foundLightSource)
-                {
-                    prd.pixelColor *= isSun ? 0.05f : 0.02f; // compensate for directly sampling such a small area of the sky
-                                                             // probably not physically accurate but oh well
-                }
-
-                // TODO: later, find pdf for each material, using default for now
-                // heuristics uses next direction & sun direction pdfs
-
-                //if (prd.foundLightSource) {
-                    //float pdf_material = INV_PI * dot(random_d, prd.isect.newDir);
-                    //float3 col = powerHeuristics(1, 1.f, 1, pdf_material) * prd.rayColor;
-                    //prd.foundLightSource = false;
-                    //prd.pixelColor += col * prd.rayColor;
-                //}
-            }
-            
-
-#if DO_RUSSIAN_ROULETTE
-            if (depth > 2)
-            {
-                float q = fmax(0.05f, 1.f - luminance(prd.pixelColor));
-                if (rng(prd.seed) < q)
-                {
-                    prd.pixelColor = make_float3(0);
-                    break;
-                }
-
-                prd.pixelColor /= (1.f - q);
-            }
-#endif
-        }
-         
-        prd.pixelColor = prd.firstHitT * make_float3(0.5f, 0.8f, 1.0f) * 0.2f + (1.f - prd.firstHitT) * prd.pixelColor;
-
-        finalColor += prd.pixelColor;
-        finalAlbedo += prd.pixelAlbedo;
-        finalNormal += prd.pixelNormal;
-    }
-
-    finalColor /= NUM_SAMPLES;
-    finalAlbedo /= NUM_SAMPLES;
-    finalNormal /= NUM_SAMPLES;
-
-    // accumulate colors
-    const uint32_t fbIndex = ix + iy * params.windowSize.x;
-
-    int frameId = params.frame.frameId;
-    if (frameId > 0) {
-        float multiplier = 1.f / (frameId + 1.f);
-        finalColor = (finalColor + frameId * make_float3(params.frame.colorBuffer[fbIndex])) * multiplier;
-        finalAlbedo = (finalAlbedo + frameId * make_float3(params.frame.albedoBuffer[fbIndex])) * multiplier;
-        finalNormal = (finalNormal + frameId * make_float3(params.frame.normalBuffer[fbIndex])) * multiplier;
-    }
-
-    params.frame.colorBuffer[fbIndex] = make_float4(finalColor, 1.f);
-    params.frame.albedoBuffer[fbIndex] = make_float4(finalAlbedo, 1.f);
-    params.frame.normalBuffer[fbIndex] = make_float4(finalNormal, 1.f);
-}
-
 static __forceinline__ __device__
 const ChunkData& getChunkData()
 {
@@ -438,7 +272,7 @@ float fbm(float3 p)
 {
     float fbm = 0.f;
     float amplitude = 1.f;
-    #pragma unroll
+#pragma unroll
     for (int i = 0; i < octaves; ++i)
     {
         amplitude *= 0.5f;
@@ -525,7 +359,7 @@ float3 getStarPaletteColor(float rand)
     }
 }
 
-static __device__ 
+static __device__
 float3 getStarsColor(float3 dir)
 {
     WorleyInfo worley = starsWorley(dir * 30.f);
@@ -578,7 +412,7 @@ float getCloudCoverage(float3 pos, float3 dir)
     return fminf(1.f, coverage * 0.1f);
 }
 
-static __device__ 
+static __device__
 float3 getSkyColor(float3 rayDir, PRD& prd)
 {
     float entireSkyStrength = smoothstep(-0.4f, 0.2f, rayDir.y);
@@ -604,7 +438,7 @@ float3 getSkyColor(float3 rayDir, PRD& prd)
         float haloStrength = smoothstep(0.05f, 0.20f, params.sunDir.y) * 0.4f;
         sunTotalColor += powf(smoothstep(0.98f, 0.9975f, sunD), 3.f) * (sunColor + make_float3(0.f, 0.1f, 0.1f)) * haloStrength;
 
-        if (sunD > 0.995f)
+        if (sunD > 0.995f && prd.needsFirstHitData)
         {
             sunTotalColor += sunColor * (1.f - 5000.f * (1.f - sunD) * (1.f - sunD)) * (0.3f + 0.7f * sunColorMod) * 34.f;
             isSunOrMoon = true;
@@ -625,7 +459,7 @@ float3 getSkyColor(float3 rayDir, PRD& prd)
         float haloStrength = smoothstep(0.05f, 0.20f, params.moonDir.y) * 0.2f;
         moonTotalColor += powf(smoothstep(0.985f, 0.9983f, moonD), 3.f) * (moonColor + make_float3(0.f, 0.f, 0.15f)) * haloStrength;
 
-        if (moonD > 0.997f)
+        if (moonD > 0.997f && prd.needsFirstHitData)
         {
             moonTotalColor += moonColor * 20.f;
             isSunOrMoon = true;
@@ -645,14 +479,14 @@ float3 getSkyColor(float3 rayDir, PRD& prd)
         skyColor += skyBaseColor * skyBaseStrength;
 
         float starsStrength = smoothstep(0.03f, -0.22f, params.sunDir.y);
-        if (starsStrength > 0.f)
+        if (starsStrength > 0.f && prd.needsFirstHitData)
         {
             float3 starsDir = params.starsRotateMatX * rayDir.x
                 + params.starsRotateMatY * rayDir.y
                 + params.starsRotateMatZ * rayDir.z;
 
             float3 starsColor = getStarsColor(starsDir);
-            
+
             skyColor += starsColor * starsStrength;
         }
     }
@@ -662,7 +496,7 @@ float3 getSkyColor(float3 rayDir, PRD& prd)
     if (sunStrength > 0.f && !isSunOrMoon)
     {
         float horizontalDist = acosf(dot(make_float2(rayDir.x, rayDir.z), make_float2(params.sunDir.x, params.sunDir.z)));
-        orangeStrength = smoothstep(-0.13f, -0.02f, params.sunDir.y) * smoothstep(0.25f, 0.05f, params.sunDir.y) 
+        orangeStrength = smoothstep(-0.13f, -0.02f, params.sunDir.y) * smoothstep(0.25f, 0.05f, params.sunDir.y)
             * smoothstep(-2.5f, 0.65f, sunD)
             * smoothstep(1.05f, 0.18f, rayDir.y + (smoothstep(0.f, PI, horizontalDist) * 0.6f));
         if (orangeStrength > 0.f)
@@ -686,6 +520,164 @@ float3 getSkyColor(float3 rayDir, PRD& prd)
     return skyColor * entireSkyStrength;
 }
 
+extern "C" __global__ void __raygen__render() {
+    const int ix = optixGetLaunchIndex().x;
+    const int iy = optixGetLaunchIndex().y;
+
+    const int dx = optixGetLaunchDimensions().x;
+
+    PRD prd;
+    prd.seed = tea<4>(iy * dx + ix, params.frame.frameId);
+
+    const auto& camera = params.camera;
+    float2 squareSample = rng2(prd.seed);
+    float3 rayDir = normalize(camera.forward
+        - camera.right * camera.pixelLength.x * ((float)ix - (float)params.windowSize.x * 0.5f + squareSample.x)
+        - camera.up * camera.pixelLength.y * -((float)iy - (float)params.windowSize.y * 0.5f + squareSample.y)
+    );
+
+    uint32_t u0, u1;
+    packPointer(&prd, u0, u1);
+
+    float3 finalColor = make_float3(0);
+    float3 finalAlbedo = make_float3(0);
+    float3 finalNormal = make_float3(0);
+
+    #pragma unroll
+    for (int sample = 0; sample < NUM_SAMPLES; ++sample)
+    {
+        prd.isDone = false;
+        prd.needsFirstHitData = true;
+        prd.foundLightSource = false;
+        prd.rayColor = make_float3(1.f);
+        prd.pixelColor = make_float3(0.f);
+        prd.isect.pos = camera.position;
+        prd.isect.newDir = rayDir;
+        prd.specularHit = false;
+        prd.firstHitT = 0.f;
+
+        #pragma unroll
+        for (int depth = 0; depth < MAX_RAY_DEPTH; ++depth)
+        {
+            // 1. BSDF
+            prd.foundLightSource = false;
+
+            optixTrace(params.rootHandle,
+                prd.isect.pos,
+                prd.isect.newDir,
+                0.f,    // tmin
+                1e20f,  // tmax
+                0.0f,   // rayTime
+                OptixVisibilityMask(255),
+                OPTIX_RAY_FLAG_NONE,
+                0,  // SBT offset
+                1,  // SBT stride
+                0,  // missSBTIndex
+                u0, u1);
+
+            if (prd.isDone)
+            {
+                break;
+            }
+
+            if (prd.specularHit && depth % 2 == 0 && depth < MAX_RAY_DEPTH) {
+                --depth;
+            }
+
+            // MIS: sample light source
+            // 2. pdf from Sun & random point on sun
+            if (!prd.specularHit) {
+                float2 xi = rng2(prd.seed);
+
+                float sunChance = linearstep(-0.1f, 0.1f, params.sunDir.y);
+                bool isSun = rng(prd.seed) < sunChance;
+                float3 random_d = sampleStar(xi, isSun);
+
+                // 3. test sun intersection
+                prd.foundLightSource = false;
+
+                optixTrace(params.rootHandle,
+                    prd.isect.pos,
+                    random_d,
+                    0.f,    // tmin
+                    1e20f,  // tmax
+                    0.0f,   // rayTime
+                    OptixVisibilityMask(255),
+                    OPTIX_RAY_FLAG_DISABLE_CLOSESTHIT,
+                    1,  // SBT offset
+                    1,  // SBT stride
+                    0,  // missSBTIndex
+                    u0, u1);
+
+                // if specular material is hit and entered - see if we exit it 
+
+                if (prd.specularHit) {
+                    optixTrace(params.rootHandle,
+                        prd.isect.pos,
+                        prd.isect.newDir,
+                        0.f,    // tmin
+                        1e20f,  // tmax
+                        0.0f,   // rayTime
+                        OptixVisibilityMask(255),
+                        OPTIX_RAY_FLAG_DISABLE_CLOSESTHIT,
+                        1,  // SBT offset
+                        1,  // SBT stride
+                        0,  // missSBTIndex
+                        u0, u1);
+                }
+
+                if (prd.foundLightSource)
+                {
+                    prd.pixelColor *= isSun ? 0.05f : 0.02f; // compensate for directly sampling such a small area of the sky
+                                                             // probably not physically accurate but oh well
+                }
+            }
+            
+
+#if DO_RUSSIAN_ROULETTE
+            if (depth > 2)
+            {
+                float q = fmax(0.05f, 1.f - luminance(prd.pixelColor));
+                if (rng(prd.seed) < q)
+                {
+                    prd.pixelColor = make_float3(0);
+                    break;
+                }
+
+                prd.pixelColor /= (1.f - q);
+            }
+#endif
+        }
+
+        prd.pixelColor = prd.firstHitT * prd.fogColor + (1.f - prd.firstHitT) * prd.pixelColor;
+         
+        finalColor += prd.pixelColor;
+        finalAlbedo += prd.pixelAlbedo;
+        finalNormal += prd.pixelNormal;
+    }
+
+    finalColor /= NUM_SAMPLES;
+    finalAlbedo /= NUM_SAMPLES;
+    finalNormal /= NUM_SAMPLES;
+
+    // accumulate colors
+    const uint32_t fbIndex = ix + iy * params.windowSize.x;
+
+    int frameId = params.frame.frameId;
+    if (frameId > 0) {
+        float multiplier = 1.f / (frameId + 1.f);
+        finalColor = (finalColor + frameId * make_float3(params.frame.colorBuffer[fbIndex])) * multiplier;
+        finalAlbedo = (finalAlbedo + frameId * make_float3(params.frame.albedoBuffer[fbIndex])) * multiplier;
+        finalNormal = (finalNormal + frameId * make_float3(params.frame.normalBuffer[fbIndex])) * multiplier;
+    }
+
+    params.frame.colorBuffer[fbIndex] = make_float4(finalColor, 1.f);
+    params.frame.albedoBuffer[fbIndex] = make_float4(finalAlbedo, 1.f);
+    params.frame.normalBuffer[fbIndex] = make_float4(finalNormal, 1.f);
+}
+
+
+
 extern "C" __global__ void __miss__radiance()
 {
     const float3 rayDir = optixGetWorldRayDirection();
@@ -694,9 +686,6 @@ extern "C" __global__ void __miss__radiance()
     float3 skyColor = getSkyColor(rayDir, prd);
 
     prd.pixelColor += skyColor * prd.rayColor;
-    //if (prd.specularHit && prd.foundLightSource) {
-    //    prd.pixelColor += skyColor * prd.rayColor * 2.f;
-    //}
     prd.isDone = true;
 
     if (prd.needsFirstHitData)
@@ -804,8 +793,8 @@ float __device__ TrowbridgeReitzD(float3 wh, float3 n, float roughness) {
 
 float __device__ sparkling(float2 in, float r) {
     float x = dot(in * cos(in.y * 403.58f) * sin(1067.79f * in.x), in * sin(in.x * 587.29f) * cos(5892.68f * in.y));
-    if (x - floor(x) > sqrt(r)) {
-        return 1.f + r;
+    if (fract(x) > sqrt(r)) {
+        return 1.f + sqrt(r);
     }
     return 1.f;
 }
@@ -824,13 +813,10 @@ extern "C" __global__ void __closesthit__radiance() {
     const float3 rayDir = optixGetWorldRayDirection();
     float3 diffuseCol = make_float3(tex2D<float4>(chunkData.tex_diffuse, uv.x, uv.y));
 
-    const float3 rayOrigin = optixGetWorldRayOrigin();
-    const float3 isectPos = rayOrigin + rayDir * optixGetRayTmax();
+    const float t = optixGetRayTmax();
 
-    if (prd.needsFirstHitData)
-    {
-        prd.firstHitT = (powf(fmin(optixGetRayTmax(), 256.f), 2.f) / 65536.f);
-    }
+    const float3 rayOrigin = optixGetWorldRayOrigin();
+    const float3 isectPos = rayOrigin + rayDir * t;
 
     // REFL REFR
 
@@ -890,6 +876,17 @@ extern "C" __global__ void __closesthit__radiance() {
             
         }
         prd.rayColor *= ior * diffuseCol;
+
+        if (prd.needsFirstHitData)
+        {
+            prd.needsFirstHitData = false;
+            prd.pixelAlbedo = diffuseCol;
+            prd.pixelNormal = nor;
+            prd.firstHitT = (powf(fmin(fmax(optixGetRayTmax() - 100.f, 0.f), 150.f), 2.f) / 22500.f);
+            prd.fogColor = getSkyColor(rayDir, prd);
+            prd.foundLightSource = false;
+        }
+
         return;
     }
 
@@ -906,7 +903,7 @@ extern "C" __global__ void __closesthit__radiance() {
        
         float D = TrowbridgeReitzD(wh, nor, m.roughness);
 
-        diffuseCol *= clamp(D / (4.f * fabs(dot(nor, newDir)) * fabs(dot(nor, wo))), 0.5f, 2.f);
+        diffuseCol *= clamp(D / (4.f * fabs(dot(nor, newDir)) * fabs(dot(nor, wo))), 0.5f, 3.f);
         
         float sparkles = sparkling(make_float2(rayOrigin.x, rayOrigin.z) + floor(uv * 256.f), m.roughness);
         
@@ -932,6 +929,9 @@ extern "C" __global__ void __closesthit__radiance() {
                 prd.needsFirstHitData = false;
                 prd.pixelAlbedo = emissiveCol;
                 prd.pixelNormal = nor;
+                prd.firstHitT = (powf(fmin(fmax(optixGetRayTmax() - 100.f, 0.f), 150.f), 2.f) / 22500.f);
+                prd.fogColor = getSkyColor(rayDir, prd);
+                prd.foundLightSource = false;
             }
 
             prd.isDone = true;
@@ -954,6 +954,9 @@ extern "C" __global__ void __closesthit__radiance() {
         prd.needsFirstHitData = false;
         prd.pixelAlbedo = diffuseCol;
         prd.pixelNormal = nor;
+        prd.firstHitT = (powf(fmin(fmax(optixGetRayTmax() - 100.f, 0.f), 150.f), 2.f) / 22500.f);
+        prd.fogColor = getSkyColor(rayDir, prd);
+        prd.foundLightSource = false;
     }
 }
 
