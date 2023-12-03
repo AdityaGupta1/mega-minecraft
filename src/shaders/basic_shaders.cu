@@ -120,6 +120,13 @@ float smoothstep(float edge0, float edge1, float x)
     return x * x * (3.f - 2.f * x);
 }
 
+static __device__
+float getFogDensity(float3 pos)
+{
+    float exponentialDecay = expf(-0.05f * (pos.y - 128.f));
+    return lerp(0.0f, 0.6f, clamp(exponentialDecay, 0.0f, 1.0f));
+}
+
 extern "C" __global__ void __raygen__render() {
     const int ix = optixGetLaunchIndex().x;
     const int iy = optixGetLaunchIndex().y;
@@ -130,8 +137,8 @@ extern "C" __global__ void __raygen__render() {
     prd.seed = tea<4>(iy * dx + ix, params.frame.frameId);
 
     const auto& camera = params.camera;
-    float2 squareSample = rng2(prd.seed);
-    float3 rayDir = normalize(camera.forward
+    const float2 squareSample = rng2(prd.seed);
+    const float3 rayDir = normalize(camera.forward
         - camera.right * camera.pixelLength.x * ((float)ix - (float)params.windowSize.x * 0.5f + squareSample.x)
         - camera.up * camera.pixelLength.y * -((float)iy - (float)params.windowSize.y * 0.5f + squareSample.y)
     );
@@ -155,13 +162,16 @@ extern "C" __global__ void __raygen__render() {
         prd.isect.newDir = rayDir;
         prd.specularHit = false;
 
+        bool didFog = false;
+
         #pragma unroll
         for (int depth = 0; depth < MAX_RAY_DEPTH; ++depth)
         {
             // 1. BSDF
             prd.foundLightSource = false;
 
-            optixTrace(params.rootHandle,
+            optixTrace(
+                params.rootHandle,
                 prd.isect.pos,
                 prd.isect.newDir,
                 0.f,    // tmin
@@ -173,6 +183,80 @@ extern "C" __global__ void __raygen__render() {
                 1,  // SBT stride
                 0,  // missSBTIndex
                 u0, u1);
+
+            if (!didFog)
+            {
+                didFog = true;
+
+                const float distFromCamera = length(prd.isect.pos - camera.position);
+
+                PRD prdShadow;
+
+                uint32_t u2, u3;
+                packPointer(&prdShadow, u2, u3);
+
+                float4 scatteringAndTransmittance = make_float4(0.f);
+                float t = 0.f;
+                for (int i = 0; i < 128; ++i)
+                {
+                    float d = i / 128.f;
+                    float newT = d * d * 160;
+                    float stepDist = newT - t;
+                    t = newT;
+
+                    if (t > distFromCamera)
+                    {
+                        break;
+                    }
+
+                    float3 samplePos = camera.position + t * rayDir;
+
+                    prdShadow.foundLightSource = true;
+                    optixTrace(
+                        params.rootHandle,
+                        samplePos,
+                        params.sunDir,
+                        0.f,    // tmin
+                        1e20f,  // tmax
+                        0.0f,   // rayTime
+                        OptixVisibilityMask(255),
+                        OPTIX_RAY_FLAG_DISABLE_CLOSESTHIT,
+                        1,  // SBT offset
+                        1,  // SBT stride
+                        0,  // missSBTIndex
+                        u2, u3);
+
+                    float3 lighting;
+                    if (prdShadow.foundLightSource)
+                    {
+                        lighting = make_float3(1.f, 0.8f, 0.6f) * PI_OVER_FOUR; // TODO: actual sun color
+                                                                                // pi/4 is the """phase function"""
+                    }
+                    else
+                    {
+                        lighting = make_float3(0.f);
+                    }
+
+                    float scattering = getFogDensity(samplePos) * stepDist;
+                    lighting *= scattering;
+
+                    scatteringAndTransmittance = make_float4(
+                        make_float3(scatteringAndTransmittance) + (expf(-scatteringAndTransmittance.w) * lighting),
+                        scatteringAndTransmittance.w + scattering
+                    );
+                }
+
+                float3 inScattering = make_float3(scatteringAndTransmittance);
+                float transmittance = expf(-scatteringAndTransmittance.w);
+                if (prd.isDone)
+                {
+                    prd.pixelColor = prd.pixelColor * transmittance + inScattering;
+                }
+                else
+                {
+                    prd.rayColor = prd.rayColor * transmittance + inScattering;
+                }
+            }
 
             if (prd.isDone)
             {
@@ -195,7 +279,8 @@ extern "C" __global__ void __raygen__render() {
                 // 3. test sun intersection
                 prd.foundLightSource = false;
 
-                optixTrace(params.rootHandle,
+                optixTrace(
+                    params.rootHandle,
                     prd.isect.pos,
                     random_d,
                     0.f,    // tmin
@@ -211,7 +296,8 @@ extern "C" __global__ void __raygen__render() {
                 // if specular material is hit and entered - see if we exit it 
 
                 if (prd.specularHit) {
-                    optixTrace(params.rootHandle,
+                    optixTrace(
+                        params.rootHandle,
                         prd.isect.pos,
                         prd.isect.newDir,
                         0.f,    // tmin
@@ -657,6 +743,8 @@ extern "C" __global__ void __miss__radiance()
     //    prd.pixelColor += skyColor * prd.rayColor * 2.f;
     //}
     prd.isDone = true;
+
+    prd.isect.pos = optixGetWorldRayOrigin() + rayDir * 1e4f;
 
     if (prd.needsFirstHitData)
     {
