@@ -403,7 +403,7 @@ float3 getStarsColor(float3 dir)
 
     if (starBrightness > 0.f)
     {
-        return getStarPaletteColor(worley.rand) * starBrightness * 2.2f;
+        return getStarPaletteColor(worley.rand) * starBrightness * 3.f;
     }
     else
     {
