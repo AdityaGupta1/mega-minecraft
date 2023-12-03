@@ -428,13 +428,13 @@ void keyCallback(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
     case VK_OEM_4: // [
         if (message == WM_KEYUP)
         {
-            optix->addSunTime(-15.f);
+            optix->addSunTime(-5.f);
         }
         break;
     case VK_OEM_6: // ]
         if (message == WM_KEYUP)
         {
-            optix->addSunTime(15.f);
+            optix->addSunTime(5.f);
         }
         break;
 #endif

@@ -193,7 +193,7 @@ extern "C" __global__ void __raygen__render() {
                 float3 random_d = sampleStar(xi, isSun);
 
                 // 3. test sun intersection
-                prd.foundLightSource = true;
+                prd.foundLightSource = false;
 
                 optixTrace(params.rootHandle,
                     prd.isect.pos,
@@ -223,6 +223,12 @@ extern "C" __global__ void __raygen__render() {
                         1,  // SBT stride
                         0,  // missSBTIndex
                         u0, u1);
+                }
+
+                if (prd.foundLightSource)
+                {
+                    prd.pixelColor *= isSun ? 0.05f : 0.02f; // compensate for directly sampling such a small area of the sky
+                                                             // probably not physically accurate but oh well
                 }
 
                 // TODO: later, find pdf for each material, using default for now
@@ -412,42 +418,51 @@ float3 getSkyColor(float3 rayDir, bool& foundLightSource)
 
     bool isSunOrMoon = false;
 
+    float sunStrength = smoothstep(-0.5f, -0.2f, params.sunDir.y);
     float sunD = dot(rayDir, params.sunDir);
-    if (sunD > 0.98f)
+    if (sunStrength > 0.f && sunD > 0.98f)
     {
-        float sunColorMod = smoothstep(-0.10f, 0.30f, params.sunDir.y);
+        float3 sunTotalColor = make_float3(0.f);
+
+        float sunColorMod = smoothstep(-0.05f, 0.40f, params.sunDir.y);
         float3 sunColor = make_float3(1.00f, 0.05f + 0.70f * sunColorMod, 0.42f * sunColorMod);
 
         float haloStrength = smoothstep(0.05f, 0.20f, params.sunDir.y) * 0.4f;
-        skyColor += powf(smoothstep(0.98f, 0.9975f, sunD), 3.f) * (sunColor + make_float3(0.f, 0.1f, 0.1f)) * haloStrength;
+        sunTotalColor += powf(smoothstep(0.98f, 0.9975f, sunD), 3.f) * (sunColor + make_float3(0.f, 0.1f, 0.1f)) * haloStrength;
 
         if (sunD > 0.995f)
         {
-            skyColor += sunColor * (1.f - 5000.f * (1.f - sunD) * (1.f - sunD)) * 1.7f * (0.3f + 0.7f * sunColorMod);
+            sunTotalColor += sunColor * (1.f - 5000.f * (1.f - sunD) * (1.f - sunD)) * (0.3f + 0.7f * sunColorMod) * 34.f;
             isSunOrMoon = true;
         }
+
+        skyColor += sunTotalColor * sunStrength;
     }
 
+    float moonStrength = smoothstep(-0.5f, -0.2f, params.moonDir.y);
     float moonD = dot(rayDir, params.moonDir);
-    if (moonD > 0.985f)
+    if (moonStrength > 0.f && moonD > 0.985f)
     {
+        float3 moonTotalColor = make_float3(0.f);
+
         float3 moonColor = make_float3(0.6f, 0.7f, 1.f) * 0.3f;
 
         float haloStrength = smoothstep(0.05f, 0.20f, params.moonDir.y) * 0.2f;
-        skyColor += powf(smoothstep(0.985f, 0.9983f, moonD), 3.f) * (moonColor + make_float3(0.f, 0.f, 0.15f)) * haloStrength;
+        moonTotalColor += powf(smoothstep(0.985f, 0.9983f, moonD), 3.f) * (moonColor + make_float3(0.f, 0.f, 0.15f)) * haloStrength;
 
         if (moonD > 0.997f)
         {
-            skyColor += moonColor;
+            moonTotalColor += moonColor * 20.f;
             isSunOrMoon = true;
         }
+
+        skyColor += moonTotalColor * moonStrength;
     }
 
-    if (isSunOrMoon)
-    {
-        foundLightSource = true;
-    }
-    else
+
+    foundLightSource = isSunOrMoon;
+
+    if (!isSunOrMoon)
     {
         float skyBaseStrength = 0.062f + 0.950f * smoothstep(-0.25f, 0.10f, params.sunDir.y);
         float3 skyBaseColor = make_float3(0.10f, 0.16f, 0.2f);
