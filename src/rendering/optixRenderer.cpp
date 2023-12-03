@@ -30,13 +30,16 @@ OptixRenderer::OptixRenderer(GLFWwindow* window, uvec2* windowSize, Terrain* ter
     gasBufferPtrs.resize(numMaxDrawableChunks);
     host_hitGroupRecords.resize(numMaxDrawableChunks * numRayTypes);
 
+    const uint32_t inWidth = windowSize->x;
+    const uint32_t inHeight = windowSize->y;
+
     launchParamsBuffer.alloc(sizeof(OptixParams));
-    launchParams.windowSize = make_int2(windowSize->x >> 1, windowSize->y >> 1);
-    pixels.resize(windowSize->x * windowSize->y >> 2);
+    launchParams.windowSize = make_int2(inWidth, inHeight);
+    pixels.resize(inWidth * inHeight);
 
     CUDA_CHECK(cudaMalloc((void**)&dev_chunkInstances, numMaxDrawableChunks * sizeof(OptixInstance)));
 
-    size_t imageSizeBytes = (windowSize->x * windowSize->y >> 2) * sizeof(float4);
+    size_t imageSizeBytes = inWidth * inHeight * sizeof(float4);
     CUDA_CHECK(cudaMalloc((void**)&dev_renderBuffer, imageSizeBytes));
     CUDA_CHECK(cudaMalloc((void**)&dev_albedoBuffer, imageSizeBytes));
     CUDA_CHECK(cudaMalloc((void**)&dev_normalBuffer, imageSizeBytes));
@@ -401,15 +404,17 @@ inline float3 vec3ToFloat3(glm::vec3 v)
 
 void OptixRenderer::setCamera()
 {
+    const uint32_t inWidth = windowSize->x;
+    const uint32_t inHeight = windowSize->y;
     float yscaled = tanFovy;
-    float xscaled = (yscaled * (windowSize->x >> 1)) / (windowSize->y >> 1);
-    launchParams.camera.pixelLength = make_float2(2 * xscaled / (float)(windowSize->x >> 1), 2 * yscaled / (float)(windowSize->y >> 1));
+    float xscaled = (yscaled * inWidth) / inHeight;
+    launchParams.camera.pixelLength = make_float2(2 * xscaled / (float)inWidth, 2 * yscaled / (float)inHeight);
 
     launchParams.camera.forward = vec3ToFloat3(player->getForward());
     launchParams.camera.up = vec3ToFloat3(player->getUp());
     launchParams.camera.right = vec3ToFloat3(player->getRight());
     launchParams.camera.position = vec3ToFloat3(player->getPos());
-    launchParams.windowSize = make_int2(windowSize->x >> 1, windowSize->y >> 1);
+    launchParams.windowSize = make_int2(inWidth, inHeight);
     launchParams.frame.frameId = 0;
 
     cameraChanged = false;
@@ -688,14 +693,14 @@ void OptixRenderer::createDenoiser()
         OPTIX_CHECK(optixDenoiserDestroy(denoiser));
     };
 
-    const uint32_t inWidth = windowSize->x >> 1;
-    const uint32_t inHeight = windowSize->y >> 1;
+    const uint32_t inWidth = windowSize->x;
+    const uint32_t inHeight = windowSize->y;
 
     OptixDenoiserOptions denoiserOptions = {};
     denoiserOptions.guideAlbedo = 1;
     denoiserOptions.guideNormal = 1;
     denoiserOptions.denoiseAlpha = (OptixDenoiserAlphaMode)0;
-    OPTIX_CHECK(optixDenoiserCreate(optixContext, OPTIX_DENOISER_MODEL_KIND_TEMPORAL_UPSCALE2X, &denoiserOptions, &denoiser));
+    OPTIX_CHECK(optixDenoiserCreate(optixContext, OPTIX_DENOISER_MODEL_KIND_TEMPORAL, &denoiserOptions, &denoiser));
 
     OptixDenoiserSizes denoiserReturnSizes;
     OPTIX_CHECK(optixDenoiserComputeMemoryResources(denoiser, windowSize->x, windowSize->y, &denoiserReturnSizes));
@@ -731,13 +736,13 @@ void OptixRenderer::createDenoiser()
 
     // flowTrustworthiness?
 
-    denoiserGuideLayer.albedo = createOptixImage2D(windowSize->x >> 1, windowSize->y >> 1, (CUdeviceptr)dev_albedoBuffer);
-    denoiserGuideLayer.normal = createOptixImage2D(windowSize->x >> 1, windowSize->y >> 1, (CUdeviceptr)dev_normalBuffer);
+    denoiserGuideLayer.albedo = createOptixImage2D(inWidth, inHeight, (CUdeviceptr)dev_albedoBuffer);
+    denoiserGuideLayer.normal = createOptixImage2D(inWidth, inHeight, (CUdeviceptr)dev_normalBuffer);
 
     OPTIX_CHECK(optixDenoiserSetup(
         denoiser,
         0, // stream
-        windowSize->x >> 1, windowSize->y >> 1,
+        inWidth, inHeight,
         denoiserState.dev_ptr(),
         denoiserState.size(),
         denoiserScratch.dev_ptr(),
