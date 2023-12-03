@@ -8,8 +8,8 @@
 #define GPU_DEVICE 0
 
 // OptiX
-#define USE_DENOISING 1
-#define RESET_CAMERA_ON_BUILD_IAS 0
+#define USE_DENOISING 0
+#define RESET_CAMERA_ON_BUILD_IAS 1
 
 // ============================================================
 // DEBUG FLAGS

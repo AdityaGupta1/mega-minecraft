@@ -58,22 +58,22 @@ enum class Block : unsigned char
     STONE,
     DIRT,
     GRASS_BLOCK,
-    SAND,
-    GRAVEL,
+    SAND,                   // rough microfacet
+    GRAVEL,                 // rough microfacet
     MYCELIUM,
     SNOW,
     SNOWY_GRASS_BLOCK,
     MUSHROOM_STEM,
     MUSHROOM_UNDERSIDE,
     PURPLE_MUSHROOM_CAP,
-    MARBLE,
-    ANDESITE,
-    CALCITE,
+    MARBLE,                 // smooth microfacet
+    ANDESITE,               // smooth microfacet
+    CALCITE,                // smooth microfacet
     BLACKSTONE,
     TUFF,
-    DEEPSLATE,
-    GRANITE,
-    SLATE,
+    DEEPSLATE,              // smooth microfacet
+    GRANITE,                // smooth microfacet
+    SLATE,                  // smooth microfacet
     SANDSTONE,
     CLAY,
     RED_SAND,
@@ -100,10 +100,10 @@ enum class Block : unsigned char
     PURPLE_TERRACOTTA,
     RED_TERRACOTTA,
     WHITE_TERRACOTTA,
-    QUARTZ,
-    ICE,
-    PACKED_ICE,
-    BLUE_ICE,
+    QUARTZ,                 // smooth microfacet
+    ICE,                    // smooth microfacet
+    PACKED_ICE,             // smooth microfacet
+    BLUE_ICE,               // smooth microfacet
     SAVANNA_GRASS_BLOCK,
     BIRCH_WOOD,
     BIRCH_LEAVES,

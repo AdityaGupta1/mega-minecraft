@@ -1794,32 +1794,26 @@ void Chunk::createVBOs()
                 ivec3 thisPos = ivec3(x, y, z);
                 Block thisBlock = blocks[posTo3dIndex(thisPos)];
 
-                Mat mat;
+                enum Mats mat;
 
-                if (thisBlock == Block::AIR)
-                {
+                if (thisBlock == Block::AIR) {
                     continue;
                 }
-                else if (thisBlock == Block::WATER)
+
+                if (thisBlock == Block::WATER)
                 {
-                    mat.ior = 1.33f;
-                    mat.reflecting = true;
-                    mat.refracting = true;
-                    mat.wavy = true;
+                    mat = Mats::M_WATER;
                 }
                 else if (thisBlock == Block::CYAN_CRYSTAL || thisBlock == Block::GREEN_CRYSTAL || thisBlock == Block::MAGENTA_CRYSTAL)
                 {
-                    mat.ior = 2.3f;
-                    mat.reflecting = true;
-                    mat.refracting = true;
-                    mat.wavy = false;
+                    mat = Mats::M_CRYSTAL;
                 }
-                else
+                else if (thisBlock == Block::SAND || thisBlock == Block::GRAVEL) 
                 {
-                    mat.ior = 0.f;
-                    mat.reflecting = false;
-                    mat.refracting = false;
-                    mat.wavy = false;
+                    mat = Mats::M_ROUGH_MICRO;
+                }
+                else {
+                    mat = Mats::M_DIFFUSE;
                 }
 
                 BlockData thisBlockData = BlockUtils::getBlockData(thisBlock);

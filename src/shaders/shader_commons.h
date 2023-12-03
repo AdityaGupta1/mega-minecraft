@@ -5,9 +5,19 @@
 #include <cuda_runtime.h>
 #include "vector_math.h"
 
+enum class Mats : size_t {
+    M_DIFFUSE,
+    M_WATER,
+    M_CRYSTAL,
+    M_SMOOTH_MICRO,
+    M_MICRO,
+    M_ROUGH_MICRO
+};
+
 struct Mat
 {
     float ior;
+    float roughness;
     bool reflecting;
     bool refracting;
     bool wavy;
@@ -18,7 +28,7 @@ struct Vertex
     float3 pos;
     float3 nor; // TODO: compact this
     float2 uv;
-    Mat m;
+    Mats m{ Mats::M_DIFFUSE };
 };
 
 struct OptixParams

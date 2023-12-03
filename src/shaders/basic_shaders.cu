@@ -20,6 +20,14 @@
       optixLaunch) */
 extern "C" __constant__ OptixParams params;
 
+__constant__ struct Mat diffuse = { 0.f, 0.f, false, false, false };
+__constant__ struct Mat water = { 1.33f, 0.f, true, true, true };
+__constant__ struct Mat crystal = { 2.3f, 0.f, true, true, false };
+__constant__ struct Mat smooth = { 0.f, 0.1f, false, false, false };
+__constant__ struct Mat micro = { 0.f, 0.3f, false, false, false };
+__constant__ struct Mat rough = { 0.f, 0.8f, false, false, false };
+
+
 static __forceinline__ __device__
 void* unpackPointer(uint32_t i0, uint32_t i1)
 {
@@ -42,6 +50,29 @@ static __forceinline__ __device__ T* getPRD()
     const uint32_t u0 = optixGetPayload_0();
     const uint32_t u1 = optixGetPayload_1();
     return reinterpret_cast<T*>(unpackPointer(u0, u1));
+}
+
+void static __forceinline__ __device__ getMaterial(Mats m, Mat& material) {
+    switch (m) {
+    case (Mats::M_WATER):
+        material = water;
+        return;
+    case (Mats::M_CRYSTAL):
+        material = crystal;
+        return;
+    case (Mats::M_ROUGH_MICRO):
+        material = rough;
+        return;
+    case (Mats::M_MICRO):
+        material = micro;
+        return;
+    case (Mats::M_SMOOTH_MICRO):
+        material = smooth;
+        return;
+    default:
+        material = diffuse;
+        return;
+    }
 }
 
 static __forceinline__ __device__ float luminance(float3 color)
@@ -191,33 +222,6 @@ extern "C" __global__ void __raygen__render() {
                     1,  // SBT stride
                     0,  // missSBTIndex
                     u0, u1);
-
-                // if specular material is hit and entered - see if we exit it 
-
-                if (prd.specularHit) {
-                    optixTrace(params.rootHandle,
-                        prd.isect.pos,
-                        prd.isect.newDir,
-                        0.f,    // tmin
-                        1e20f,  // tmax
-                        0.0f,   // rayTime
-                        OptixVisibilityMask(255),
-                        OPTIX_RAY_FLAG_DISABLE_CLOSESTHIT,
-                        1,  // SBT offset
-                        1,  // SBT stride
-                        0,  // missSBTIndex
-                        u0, u1);
-                }
-
-                // TODO: later, find pdf for each material, using default for now
-                // heuristics uses next direction & sun direction pdfs
-
-                if (prd.foundLightSource) {
-                    float pdf_material = INV_PI * dot(random_d, prd.isect.newDir);
-                    float3 col = powerHeuristics(1, 1.f, 1, pdf_material) * prd.rayColor;
-                    prd.foundLightSource = false;
-                    prd.pixelColor += col * prd.rayColor;
-                }
             }
             
 
@@ -489,6 +493,60 @@ float3 __device__ applyNormalMap(float3 normal, float3 m) {
     return m;
 }
 
+float3 __device__ importanceSampleGGX(float2 xi, float3 N, float roughness) {
+    float a = roughness * roughness;
+    float phi = 2.f * PI * xi.x;
+    float cosTheta = sqrt((1.f - xi.y) / (1.f + (a * a - 1.f) * xi.y));
+    float sinTheta = sqrt(1.f - cosTheta * cosTheta);
+
+    // from spherical coordinates to cartesian coordinates - halfway vector
+    float3 wh;
+    wh.x = cos(phi) * sinTheta;
+    wh.y = sin(phi) * sinTheta;
+    wh.z = cosTheta;
+
+    // from tangent-space H vector to world-space sample vector
+
+    const float3 perpendicularDirection1 = normalize(cross(N, calculateDirectionNotNormal(N)));
+    const float3 perpendicularDirection2 = normalize(cross(N, perpendicularDirection1));
+
+    float3 whW = perpendicularDirection1 * wh.x + perpendicularDirection2 * wh.y + N * wh.z;
+    return normalize(whW);
+}
+
+float __device__ TrowbridgeReitzD(float3 wh, float3 n, float roughness) {
+    /*float cos4Theta = powf(dot(wh, n), 4.f);
+
+    float e = alpha(wh, n, roughness);
+    if (e == 0) return 0.f;
+    return 1 / (PI * roughness * roughness * cos4Theta * (1 + e) * (1 + e));*/
+
+
+    float cos2Theta = powf(dot(wh, n), 2.f);
+    float tan2Theta = (1.f - cos2Theta) / cos2Theta;
+    if (isinf(tan2Theta)) return 0.f;
+
+    float cos4Theta = powf(dot(wh, n), 4.f);
+
+    const float3 perpendicularDirection1 = normalize(cross(n, calculateDirectionNotNormal(n)));
+    const float3 perpendicularDirection2 = normalize(cross(n, perpendicularDirection1));
+
+    float sinTheta = sqrt(1.f - cos2Theta);
+    float cos2Phi = powf((sinTheta == 0.f) ? 1.f : clamp(dot(perpendicularDirection1, wh) / sinTheta, -1.f, 1.f), 2.f);
+    float sin2Phi = powf((sinTheta == 0.f) ? 0.f : clamp(dot(perpendicularDirection2, wh) / sinTheta, -1.f, 1.f), 2.f);
+
+    float e = fabsf((cos2Phi / (roughness * roughness) + sin2Phi / (roughness * roughness)) * sqrt(tan2Theta));
+    return fmax(1.f / (PI * roughness * roughness * cos4Theta * (1.f + e) * (1.f + e)), 0.f);
+}
+
+float __device__ sparkling(float2 in, float r) {
+    float x = dot(in * cos(in.y * 403.58f) * sin(1067.79f * in.x), in * sin(in.x * 587.29f) * cos(5892.68f * in.y));
+    if (x - floor(x) > sqrt(r)) {
+        return 1.f + r;
+    }
+    return 1.f;
+}
+
 extern "C" __global__ void __closesthit__radiance() {
     PRD& prd = *getPRD<PRD>();
 
@@ -510,13 +568,15 @@ extern "C" __global__ void __closesthit__radiance() {
 
     // ENTERING: mix of REFR at dot = 1 to REFL at dot = 0
     // EXITING: all REFL at dot = 0 to sinThetaT = 1, and mix of REFL to REFR at dot = 1
+    struct Mat m;
+    getMaterial(v1.m, m);
 
-    if (v1.m.reflecting && v1.m.refracting) {
+    if (m.reflecting && m.refracting) {
         prd.specularHit = true;
         prd.needsFirstHitData = false;
-        float ior = v1.m.ior;
+        float ior = m.ior;
 
-        if (v1.m.wavy) {
+        if (m.wavy) {
             applyWaveNoise(isectPos, nor);
         }
         
@@ -565,16 +625,29 @@ extern "C" __global__ void __closesthit__radiance() {
         return;
     }
 
-    // EMISSION
     prd.specularHit = false;
-    if (dot(rayDir, nor) > 0.f)
-    {
-        nor = -nor;
-    }
 
     float3 norMap = make_float3(tex2D<float4>(chunkData.tex_normal, uv.x, uv.y));
-    nor = normalize(0.5f * normalize(applyNormalMap(nor, norMap)) + 0.5f * nor);
+    float3 mappednor = normalize(0.5f * normalize(applyNormalMap(nor, norMap)) + 0.5f * nor);
     float3 newDir = calculateRandomDirectionInHemisphere(nor, rng2(prd.seed));
+
+    if (m.roughness > 0.f) {
+        float3 wo = -rayDir;
+        float3 wh = importanceSampleGGX(rng2(prd.seed), nor, m.roughness); // warping xi to wi
+        newDir = normalize(2.f * dot(wo, wh) * wh - wo);
+       
+        float D = TrowbridgeReitzD(wh, nor, m.roughness);
+
+        diffuseCol *= clamp(D / (4.f * fabs(dot(nor, newDir)) * fabs(dot(nor, wo))), 0.5f, 2.f);
+        
+        float sparkles = sparkling(make_float2(rayOrigin.x, rayOrigin.z) + floor(uv * 256.f), m.roughness);
+        
+        diffuseCol *= sparkles;
+        
+    }
+
+    // EMISSION
+    
 
     if (diffuseCol.x == 0.f && diffuseCol.y == 0.f && diffuseCol.z == 0.f)
     {
@@ -602,7 +675,7 @@ extern "C" __global__ void __closesthit__radiance() {
     // don't multiply by lambert term since it's canceled out by PDF for uniform hemisphere sampling
 
     prd.rayColor *= diffuseCol;
-    prd.isect.pos = isectPos + nor * 0.001f;
+    prd.isect.pos = isectPos + mappednor * 0.001f;
     prd.isect.newDir = newDir;
 
     if (prd.needsFirstHitData)
@@ -649,77 +722,6 @@ extern "C" __global__ void __anyhit__shadow()
 {
     PRD& prd = *getPRD<PRD>();
 
-    const ChunkData& chunkData = getChunkData();
-    Vertex v1, v2, v3;
-    getVerts(chunkData, &v1, &v2, &v3);
-
-    const float3 bary = getBarycentricCoords();
-    float2 uv = bary.x * v1.uv + bary.y * v2.uv + bary.z * v3.uv;
-    float3 nor = normalize(bary.x * v1.nor + bary.y * v2.nor + bary.z * v3.nor);
-
-    const float3 rayDir = optixGetWorldRayDirection();
-    float3 diffuseCol = make_float3(tex2D<float4>(chunkData.tex_diffuse, uv.x, uv.y));
-
-    const float3 rayOrigin = optixGetWorldRayOrigin();
-    const float3 isectPos = rayOrigin + rayDir * optixGetRayTmax();
-
-    // REFL REFR
-
-    // ENTERING: mix of REFR at dot = 1 to REFL at dot = 0
-    // EXITING: all REFL at dot = 0 to sinThetaT = 1, and mix of REFL to REFR at dot = 1
-
-    //if (v1.m.reflecting && v1.m.refracting) {
-    //    prd.specularHit = true;
-    //    prd.needsFirstHitData = false;
-    //    float ior = v1.m.ior;
-
-    //    if (v1.m.wavy)
-    //    {
-    //        applyWaveNoise(isectPos, nor);
-    //    }
-
-    //    float entering = dot(rayDir, nor);
-
-    //    if (entering < 0.f) {
-    //        if (rng(prd.seed) < -entering) {
-    //            // ENTERING REFR
-    //            prd.isect.pos = isectPos - nor * 0.001f;
-    //            prd.isect.newDir = refract(rayDir, nor, 1.f / ior);
-
-    //            float fresnel = schlickFresnel(rayDir, nor, ior);
-    //            prd.rayColor *= (1.f - fresnel);
-    //            return;
-    //        }
-    //        else {
-    //            prd.foundLightSource = false;
-    //            optixTerminateRay();
-    //        }
-    //    }
-    //    else {
-    //        float sinThetaT = v1.m.ior * sqrt(1 - entering * entering) + 0.0001f;
-
-    //        if (rng(prd.seed) < entering / fmax(1.f, sinThetaT)) {
-    //            // EXITING REFR
-    //            if (dot(params.sunDir, refract(rayDir, -nor, ior)) > 0.99f) {
-    //                float fresnel = schlickFresnel(rayDir, nor, ior);
-    //                prd.rayColor *= (1.f - fresnel);
-    //                prd.rayColor *= 0.5f / ior * diffuseCol;
-    //                optixIgnoreIntersection();
-    //                return;
-    //            }
-    //        }
-    //        else {
-    //            // EXITING REFL
-    //            prd.foundLightSource = false;
-    //            optixTerminateRay();
-    //        }
-    //    }
-    //}
-    //else if (anyhitAlphaTest())
-    //{
-    //    optixIgnoreIntersection();
-    //    return;
-    //}
     if (anyhitAlphaTest())
     {
         optixIgnoreIntersection();
