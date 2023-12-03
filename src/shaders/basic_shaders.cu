@@ -510,14 +510,15 @@ float3 getStarsColor(float3 dir)
 static __forceinline__ __device__
 float sampleCloudsNoise(float3 cloudsPos)
 {
-    float2 noiseOffset = make_float2(pnoise(cloudsPos * 0.1f - 962.43f), pnoise(cloudsPos * 0.1f + 254.32f)) * 0.13f;
-    float cloudsNoise = (fbm<5>(make_float3(cloudsPos.x * 0.05f + noiseOffset.x, cloudsPos.z * 0.05f + noiseOffset.y, params.time * 0.015f)) + 1.f) * 0.5f;
+    float2 noiseOffset = make_float2(pnoise(cloudsPos - 962.43f), pnoise(cloudsPos * 254.32f)) * 0.01f;
+    float cloudsNoise = (fbm<3>(make_float3(cloudsPos.x * 0.05f + noiseOffset.x, cloudsPos.z * 0.05f + noiseOffset.y, params.time * 0.015f)) + 1.f) * 0.5f;
+    cloudsNoise += fbm<3>(make_float3(cloudsPos.x * 0.15f - 325.32f, cloudsPos.z * 0.15f + 613.58f, params.time * 0.040f)) * 0.3f;
     cloudsNoise *= (pnoise(make_float3(cloudsPos.x * 0.03f + 821.23f, cloudsPos.z * 0.03f - 721.33f, params.time * 0.003f + 276.21f)) + 1.f) * 0.9f;
-    return smoothstep(0.35f, 0.75f, cloudsNoise);
+    return smoothstep(0.35f, 0.75f, cloudsNoise - 0.01 * cloudsPos.y);
 }
 
 static __device__
-float getCloudCoverage(float3 dir)
+float getCloudCoverage(float3 pos, float3 dir)
 {
     // assumes camera is below clouds
     if (dir.y < 0.04f)
@@ -527,12 +528,14 @@ float getCloudCoverage(float3 dir)
 
     float t = 20.f / dir.y;
     float3 cloudsPos = dir * t;
-    cloudsPos.z += 0.6f * params.time;
+    cloudsPos.x += (pos.x * 0.01f) + (0.3f * params.time);
+    cloudsPos.y = 0.f;
+    cloudsPos.z += (pos.z * 0.01f) + (0.6f * params.time);
 
     float coverage = 0.f;
-    for (int i = 0; i < 10; ++i)
+    for (int i = 0; i < 12; ++i)
     {
-        float stepDist = 1.5f;
+        float stepDist = 0.2f * i;
         cloudsPos += dir * stepDist;
 
         coverage += sampleCloudsNoise(cloudsPos) * stepDist;
@@ -544,6 +547,12 @@ float getCloudCoverage(float3 dir)
 static __device__ 
 float3 getSkyColor(float3 rayDir, PRD& prd)
 {
+    float entireSkyStrength = smoothstep(-0.4f, 0.2f, rayDir.y);
+    if (entireSkyStrength == 0.f)
+    {
+        return make_float3(0.f);
+    }
+
     float3 skyColor = make_float3(0.f);
 
     bool isSunOrMoon = false;
@@ -599,6 +608,7 @@ float3 getSkyColor(float3 rayDir, PRD& prd)
     if (!isSunOrMoon)
     {
         float3 skyBaseColor = make_float3(0.10f, 0.16f, 0.2f);
+        skyBaseColor = lerp(skyBaseColor, make_float3(0.8f, 0.8f, 1.f), smoothstep(0.15f, -0.15f, rayDir.y) * 0.14f);
         skyColor += skyBaseColor * skyBaseStrength;
 
         float starsStrength = smoothstep(0.03f, -0.22f, params.sunDir.y);
@@ -629,20 +639,18 @@ float3 getSkyColor(float3 rayDir, PRD& prd)
     }
 
     // clouds (only for camera rays)
-    //if (prd.needsFirstHitData)
-    //{
-    //    float cloudCoverage = getCloudCoverage(rayDir);
-    //    if (cloudCoverage > 0.f)
-    //    {
-    //        float3 cloudColor = make_float3(0.9f) * powf(skyBaseStrength, 1.2f);
-    //        cloudColor = lerp(cloudColor, make_float3(1.20f, 0.30f, 0.10f), orangeStrength * 0.9f);
-    //        //cloudColor *= 0.45f + 0.55f * linearstep(1.3f, 0.4f, cloudCoverage);
+    if (prd.needsFirstHitData)
+    {
+        float cloudCoverage = getCloudCoverage(optixGetWorldRayOrigin(), rayDir);
+        if (cloudCoverage > 0.f)
+        {
+            float3 cloudColor = make_float3(0.9f) * powf(skyBaseStrength, 1.2f);
+            cloudColor = lerp(cloudColor, make_float3(1.20f, 0.30f, 0.10f), orangeStrength * 0.9f);
+            skyColor = lerp(skyColor, cloudColor, fminf(0.92f, cloudCoverage));
+        }
+    }
 
-    //        skyColor = lerp(skyColor, cloudColor, fminf(0.92f, cloudCoverage));
-    //    }
-    //}
-
-    return skyColor;
+    return skyColor * entireSkyStrength;
 }
 
 extern "C" __global__ void __miss__radiance()
