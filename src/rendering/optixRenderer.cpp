@@ -698,7 +698,7 @@ void OptixRenderer::createDenoiser()
 
     OptixDenoiserOptions denoiserOptions = {};
     denoiserOptions.guideAlbedo = 1;
-    denoiserOptions.guideNormal = 1;
+    //denoiserOptions.guideNormal = 1;
     denoiserOptions.denoiseAlpha = OPTIX_DENOISER_ALPHA_MODE_COPY;
     OPTIX_CHECK(optixDenoiserCreate(optixContext, OPTIX_DENOISER_MODEL_KIND_AOV, &denoiserOptions, &denoiser));
 
@@ -767,7 +767,7 @@ void OptixRenderer::updateTime(float deltaTime)
 
 void OptixRenderer::optixRenderFrame()
 {
-    if (launchParams.windowSize.x == 0 || chunkInstances.empty())
+    if (launchParams.windowSize.x == 0/* || chunkInstances.empty()*/)
     {
         return;
     }

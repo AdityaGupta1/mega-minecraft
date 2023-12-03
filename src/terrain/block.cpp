@@ -57,6 +57,16 @@ void BlockUtils::init()
     blockDatas[(int)Block::TALL_JUNGLE_GRASS_BOTTOM] = { BlockUvs(ivec2(4, 9)), TransparencyType::T_X_SHAPED };
     blockDatas[(int)Block::TALL_JUNGLE_GRASS_TOP] = { BlockUvs(ivec2(4, 10)), TransparencyType::T_X_SHAPED };
     blockDatas[(int)Block::TORCHFLOWER] = { BlockUvs(ivec2(7, 9)), TransparencyType::T_X_SHAPED };
+    blockDatas[(int)Block::BRAIN_CORAL] = { BlockUvs(ivec2(8, 9)), TransparencyType::T_X_SHAPED };
+    blockDatas[(int)Block::BUBBLE_CORAL] = { BlockUvs(ivec2(9, 9)), TransparencyType::T_X_SHAPED };
+    blockDatas[(int)Block::FIRE_CORAL] = { BlockUvs(ivec2(10, 9)), TransparencyType::T_X_SHAPED };
+    blockDatas[(int)Block::HORN_CORAL] = { BlockUvs(ivec2(11, 9)), TransparencyType::T_X_SHAPED };
+    blockDatas[(int)Block::TUBE_CORAL] = { BlockUvs(ivec2(12, 9)), TransparencyType::T_X_SHAPED };
+    blockDatas[(int)Block::SEAGRASS] = { BlockUvs(ivec2(13, 9)), TransparencyType::T_X_SHAPED };
+    blockDatas[(int)Block::TALL_SEAGRASS_BOTTOM] = { BlockUvs(ivec2(14, 9)), TransparencyType::T_X_SHAPED };
+    blockDatas[(int)Block::TALL_SEAGRASS_TOP] = { BlockUvs(ivec2(14, 10)), TransparencyType::T_X_SHAPED };
+    blockDatas[(int)Block::KELP_MAIN] = { BlockUvs(ivec2(15, 9)), TransparencyType::T_X_SHAPED };
+    blockDatas[(int)Block::KELP_END] = { BlockUvs(ivec2(15, 10)), TransparencyType::T_X_SHAPED };
 
     blockDatas[(int)Block::BEDROCK] = { BlockUvs(ivec2(0, 5)) };
 
@@ -137,6 +147,12 @@ void BlockUtils::init()
     blockDatas[(int)Block::AMBER_WART] = { BlockUvs(ivec2(7, 6)) };
     blockDatas[(int)Block::COBBLESTONE] = { BlockUvs(ivec2(6, 7)) };
     blockDatas[(int)Block::COBBLED_DEEPSLATE] = { BlockUvs(ivec2(7, 7)) };
+    blockDatas[(int)Block::BRAIN_CORAL_BLOCK] = { BlockUvs(ivec2(8, 10)) };
+    blockDatas[(int)Block::BUBBLE_CORAL_BLOCK] = { BlockUvs(ivec2(9, 10)) };
+    blockDatas[(int)Block::FIRE_CORAL_BLOCK] = { BlockUvs(ivec2(10, 10)) };
+    blockDatas[(int)Block::HORN_CORAL_BLOCK] = { BlockUvs(ivec2(11, 10)) };
+    blockDatas[(int)Block::TUBE_CORAL_BLOCK] = { BlockUvs(ivec2(12, 10)) };
+    blockDatas[(int)Block::SEA_LANTERN] = { BlockUvs(ivec2(0, 10)) };
 }
 
 BlockData BlockUtils::getBlockData(Block block)

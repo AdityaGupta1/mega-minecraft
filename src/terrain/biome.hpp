@@ -121,7 +121,8 @@ enum class Feature : unsigned char
     NONE,
     SPHERE,
 
-    // CORAL (make multiple types of this)
+    CORAL,
+    KELP,
 
     ICEBERG,
 
@@ -275,6 +276,11 @@ struct DecoratorGen
     {
         this->possibleReplaceBlocks = blocks;
         return *this;
+    }
+
+    inline DecoratorGen& setWater()
+    {
+        return this->setPossibleReplaceBlocks({ Block::WATER });
     }
 
     inline DecoratorGen& setSecondDecoratorBlock(Block block)
