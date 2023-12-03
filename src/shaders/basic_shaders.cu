@@ -526,7 +526,7 @@ float getCloudCoverage(float3 dir)
 }
 
 static __device__ 
-float3 getSkyColor(float3 rayDir, bool& foundLightSource)
+float3 getSkyColor(float3 rayDir, PRD& prd)
 {
     float3 skyColor = make_float3(0.f);
 
@@ -575,7 +575,7 @@ float3 getSkyColor(float3 rayDir, bool& foundLightSource)
         skyColor += moonTotalColor * moonStrength;
     }
 
-    foundLightSource = isSunOrMoon;
+    prd.foundLightSource = isSunOrMoon;
 
     float skyBaseStrength = 0.062f + 0.938f * smoothstep(-0.25f, 0.10f, params.sunDir.y);
 
@@ -612,13 +612,16 @@ float3 getSkyColor(float3 rayDir, bool& foundLightSource)
         }
     }
 
-    // clouds (disabled for now due to bad performance)
-    //float cloudCoverage = getCloudCoverage(rayDir);
-    //if (cloudCoverage > 0.f)
-    //{
-    //    float3 cloudColor = make_float3(0.9f) * powf(skyBaseStrength, 1.2f);
-    //    skyColor = lerp(skyColor, cloudColor, fmin(0.9f, cloudCoverage));
-    //}
+    // clouds (for now, enabled only for camera rays)
+    if (prd.needsFirstHitData)
+    {
+        float cloudCoverage = getCloudCoverage(rayDir);
+        if (cloudCoverage > 0.f)
+        {
+            float3 cloudColor = make_float3(0.9f) * powf(skyBaseStrength, 1.2f);
+            skyColor = lerp(skyColor, cloudColor, fmin(0.9f, cloudCoverage));
+        }
+    }
 
     return skyColor;
 }
@@ -628,7 +631,7 @@ extern "C" __global__ void __miss__radiance()
     const float3 rayDir = optixGetWorldRayDirection();
     PRD& prd = *getPRD<PRD>();
 
-    float3 skyColor = getSkyColor(rayDir, prd.foundLightSource);
+    float3 skyColor = getSkyColor(rayDir, prd);
 
     prd.pixelColor += skyColor * prd.rayColor;
     //if (prd.specularHit && prd.foundLightSource) {
