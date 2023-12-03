@@ -167,6 +167,7 @@ extern "C" __global__ void __raygen__render() {
         prd.isect.pos = camera.position;
         prd.isect.newDir = rayDir;
         prd.specularHit = false;
+        prd.firstHitT = 0.f;
 
         #pragma unroll
         for (int depth = 0; depth < MAX_RAY_DEPTH; ++depth)
@@ -235,6 +236,8 @@ extern "C" __global__ void __raygen__render() {
             }
 #endif
         }
+         
+        prd.pixelColor = prd.firstHitT * make_float3(0.5f, 0.8f, 1.0f) * 0.2f + (1.f - prd.firstHitT) * prd.pixelColor;
 
         finalColor += prd.pixelColor;
         finalAlbedo += prd.pixelAlbedo;
@@ -560,6 +563,11 @@ extern "C" __global__ void __closesthit__radiance() {
     const float3 rayOrigin = optixGetWorldRayOrigin();
     const float3 isectPos = rayOrigin + rayDir * optixGetRayTmax();
 
+    if (prd.needsFirstHitData)
+    {
+        prd.firstHitT = (powf(fmin(optixGetRayTmax(), 256.f), 2.f) / 65536.f);
+    }
+
     // REFL REFR
 
     // ENTERING: mix of REFR at dot = 1 to REFL at dot = 0
@@ -667,6 +675,9 @@ extern "C" __global__ void __closesthit__radiance() {
         }
     }
 
+    // distance fog test 
+    
+    
 
     // don't multiply by lambert term since it's canceled out by PDF for uniform hemisphere sampling
 
