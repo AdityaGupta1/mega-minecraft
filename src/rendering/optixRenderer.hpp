@@ -114,14 +114,18 @@ protected:
 #endif
 
     OptixDenoiser denoiser{ nullptr };
+    OptixDenoiserParams denoiserParams = {};
+    OptixDenoiserGuideLayer denoiserGuideLayer = {};
+    OptixDenoiserLayer denoiserLayer = {};
     CUBuffer denoiserScratch;
     CUBuffer denoiserState;
-    CUBuffer denoiserIntensity;
+    CUBuffer denoiserAvgCol;
 
     float4* dev_renderBuffer;
     float4* dev_albedoBuffer;
     float4* dev_normalBuffer;
     float4* dev_denoisedBuffer;
+    float4* dev_flowBuffer;
 
     bool isTimePaused{ true };
     float time{ 0 };
@@ -155,6 +159,28 @@ protected:
     void updateSunDirection();
     void optixRenderFrame();
     void updateFrame();
+
+    static OptixImage2D createOptixImage2D(unsigned int width, unsigned int height, CUdeviceptr mem = 0)
+    {
+        OptixImage2D oi;
+        if (mem) {
+            oi.data = mem;
+        } 
+        else {
+            CUDA_CHECK(cudaMalloc((void**)(&oi.data), width * height * sizeof(float4)));
+        }
+        oi.width = width;
+        oi.height = height;
+        oi.rowStrideInBytes = width * sizeof(float4);
+        oi.pixelStrideInBytes = sizeof(float4);
+        oi.format = OPTIX_PIXEL_FORMAT_FLOAT4;
+        return oi;
+    }
+
+    static void copyOptixImage2D(OptixImage2D& dest, const OptixImage2D& src)
+    {
+        CUDA_CHECK(cudaMemcpy((void*)dest.data, (void*)src.data, src.width * src.height * sizeof(float4), cudaMemcpyDeviceToDevice));
+    }
 
     // GL stuff
 

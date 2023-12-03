@@ -244,13 +244,13 @@ extern "C" __global__ void __raygen__render() {
     // accumulate colors
     const uint32_t fbIndex = ix + iy * params.windowSize.x;
 
-    int frameId = params.frame.frameId;
+    /*int frameId = params.frame.frameId;
     if (frameId > 0) {
         float multiplier = 1.f / (frameId + 1.f);
         finalColor = (finalColor + frameId * make_float3(params.frame.colorBuffer[fbIndex])) * multiplier;
         finalAlbedo = (finalAlbedo + frameId * make_float3(params.frame.albedoBuffer[fbIndex])) * multiplier;
         finalNormal = (finalNormal + frameId * make_float3(params.frame.normalBuffer[fbIndex])) * multiplier;
-    }
+    }*/
 
     params.frame.colorBuffer[fbIndex] = make_float4(finalColor, 1.f);
     params.frame.albedoBuffer[fbIndex] = make_float4(finalAlbedo, 1.f);
