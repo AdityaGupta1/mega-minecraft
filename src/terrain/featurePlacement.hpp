@@ -286,7 +286,7 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
     }
     case Feature::ICEBERG:
     {
-        if (featurePos.y > SEA_LEVEL - 20)
+        if (featurePos.y > SEA_LEVEL - 32)
         {
             return false;
         }
