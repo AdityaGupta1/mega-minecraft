@@ -120,9 +120,6 @@ __device__ float3 calculateRandomDirectionInHemisphere(float3 normal, float2 sam
 
 __device__ float3 sampleSun(float2 sample)
 {
-    // find radius and theta in sun space
-
-    // Use not-normal direction to generate two perpendicular directions
     const float3 normal = normalize(params.sunDir);
 
     const float3 perpendicularDirection1 = normalize(cross(normal, calculateDirectionNotNormal(normal)));
@@ -132,8 +129,7 @@ __device__ float3 sampleSun(float2 sample)
 
     float3 dir = normalize(cos(around) * perpendicularDirection1 + sin(around) * perpendicularDirection2);
 
-    float max_r = (0.99f - dot(normal, normal)) / dot(dir, normal);
-
+    // 0.14 is the max radius to sample within the sun at dot = 0.99
     return normalize(normal + sample.x * 0.14f * dir);
 }
 
