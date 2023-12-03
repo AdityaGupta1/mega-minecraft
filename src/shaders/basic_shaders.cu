@@ -404,7 +404,7 @@ float fbm(float3 p)
 {
     float fbm = 0.f;
     float amplitude = 1.f;
-#pragma unroll
+    #pragma unroll
     for (int i = 0; i < octaves; ++i)
     {
         amplitude *= 0.5f;
@@ -511,7 +511,7 @@ static __device__
 float getCloudCoverage(float3 dir)
 {
     // assumes camera is below clouds
-    if (dir.y < 0.07f)
+    if (dir.y < 0.04f)
     {
         return 0.f;
     }
@@ -520,9 +520,11 @@ float getCloudCoverage(float3 dir)
     float3 cloudsPos = dir * t;
     cloudsPos.z += 0.6f * params.time;
 
-    float cloudsNoise = (fbm<6>(make_float3(cloudsPos.x * 0.05f, cloudsPos.z * 0.05f, params.time * 0.005f)) + 1.f) * 0.5f;
-    cloudsNoise *= (fbm<3>(make_float3(cloudsPos.x * 0.03f + 821.23f, cloudsPos.z * 0.03f - 721.33f, params.time * 0.001f + 276.21f)) + 1.f) * 0.9f;
-    return smoothstep(0.4f, 0.8f, cloudsNoise);
+    float2 noiseOffset = make_float2(pnoise(cloudsPos * 0.1f - 962.43f), pnoise(cloudsPos * 0.1f + 254.32f)) * 0.13f;
+    float cloudsNoise = (fbm<6>(make_float3(cloudsPos.x * 0.05f + noiseOffset.x, cloudsPos.z * 0.05f + noiseOffset.y, params.time * 0.015f)) + 1.f) * 0.5f;
+    cloudsNoise *= (fbm<3>(make_float3(cloudsPos.x * 0.03f + 821.23f, cloudsPos.z * 0.03f - 721.33f, params.time * 0.003f + 276.21f)) + 1.f) * 0.9f;
+
+    return smoothstep(0.35f, 0.75f, cloudsNoise);
 }
 
 static __device__ 
@@ -599,16 +601,16 @@ float3 getSkyColor(float3 rayDir, PRD& prd)
     }
 
     // sunrise/sunset
+    float orangeStrength = 0.f;
     if (sunStrength > 0.f && !isSunOrMoon)
     {
         float horizontalDist = acosf(dot(make_float2(rayDir.x, rayDir.z), make_float2(params.sunDir.x, params.sunDir.z)));
-        float orangeStrength = smoothstep(-0.13f, -0.02f, params.sunDir.y) * smoothstep(0.25f, 0.05f, params.sunDir.y) 
+        orangeStrength = smoothstep(-0.13f, -0.02f, params.sunDir.y) * smoothstep(0.25f, 0.05f, params.sunDir.y) 
             * smoothstep(-2.5f, 0.65f, sunD)
             * smoothstep(1.05f, 0.18f, rayDir.y + (smoothstep(0.f, PI, horizontalDist) * 0.6f));
         if (orangeStrength > 0.f)
         {
-            float3 orangeColor = make_float3(1.4f, 0.35f, 0.f);
-            skyColor = lerp(skyColor, orangeColor, orangeStrength);
+            skyColor = lerp(skyColor, make_float3(1.40f, 0.35f, 0.f), orangeStrength);
         }
     }
 
@@ -619,7 +621,10 @@ float3 getSkyColor(float3 rayDir, PRD& prd)
         if (cloudCoverage > 0.f)
         {
             float3 cloudColor = make_float3(0.9f) * powf(skyBaseStrength, 1.2f);
-            skyColor = lerp(skyColor, cloudColor, fmin(0.9f, cloudCoverage));
+            cloudColor = lerp(cloudColor, make_float3(1.20f, 0.30f, 0.10f), orangeStrength * 0.9f);
+            //cloudColor *= 0.45f + 0.55f * linearstep(1.3f, 0.4f, cloudCoverage);
+
+            skyColor = lerp(skyColor, cloudColor, cloudCoverage);
         }
     }
 
