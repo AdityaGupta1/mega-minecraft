@@ -60,7 +60,7 @@ OptixRenderer::OptixRenderer(GLFWwindow* window, uvec2* windowSize, Terrain* ter
     sunAxisForward = normalize(vec3(6.0f, -2.0f, 2.0f));
     sunAxisRight = normalize(cross(sunAxisForward, vec3(0, 1, 0)));
     sunAxisUp = normalize(cross(sunAxisRight, sunAxisForward));
-    updateSunAndMoon(0.f);
+    updateTime(0.f);
 }
 
 static void context_log_cb(unsigned int level,
@@ -387,14 +387,14 @@ void OptixRenderer::setZoomed(bool zoomed)
     cameraChanged = true;
 }
 
-void OptixRenderer::toggleSunPaused()
+void OptixRenderer::toggleTimePaused()
 {
-    this->isSunPaused = !this->isSunPaused;
+    this->isTimePaused = !this->isTimePaused;
 }
 
-void OptixRenderer::addSunTime(float deltaTime)
+void OptixRenderer::addTime(float deltaTime)
 {
-    updateSunAndMoon(deltaTime);
+    updateTime(deltaTime);
 }
 
 inline float3 vec3ToFloat3(glm::vec3 v)
@@ -714,13 +714,10 @@ void OptixRenderer::createDenoiser()
 
 void OptixRenderer::render(float deltaTime)
 {
-    if (!isSunPaused)
+    if (!isTimePaused)
     {
-        updateSunAndMoon(deltaTime);
+        updateTime(deltaTime);
     }
-
-    time += deltaTime;
-    launchParams.time = time;
 
     if (cameraChanged)
     {
@@ -738,8 +735,11 @@ void OptixRenderer::onResize()
     CUDA_CHECK(cudaMalloc((void**)&dev_denoisedBuffer, windowSize->x * windowSize->y * sizeof(float4)));
 }
 
-void OptixRenderer::updateSunAndMoon(float deltaTime)
+void OptixRenderer::updateTime(float deltaTime)
 {
+    time += deltaTime;
+    launchParams.time = time;
+
     sunTime += deltaTime * -0.025f;
     const glm::vec3 rotatedAxisRight = cosf(sunTime) * sunAxisRight + sinf(sunTime) * sunAxisUp;
     const glm::vec3 rotatedAxisUp = normalize(cross(rotatedAxisRight, sunAxisForward));

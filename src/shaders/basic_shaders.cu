@@ -630,8 +630,7 @@ static __device__ float schlickFresnel(const float3& V, const float3& N, const f
 __device__
 void applyWaveNoise(const float3& pos, float3& nor)
 {
-    //float3 noisePos = make_float3(pos.x + pos.y, pos.z + pos.y, params.time);
-    float3 noisePos = pos;
+    float3 noisePos = make_float3(pos.x + pos.y, pos.z + pos.y, params.time * 0.3f);
     noisePos.x *= 0.45f;
 
     float perlinX = fbm<4>(noisePos);

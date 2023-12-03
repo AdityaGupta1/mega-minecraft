@@ -90,11 +90,11 @@ bool init(int argc, char **argv) {
     }
 #elif USE_D3D11_RENDERER
     d3dRenderer = std::make_unique<D3D11Renderer>(g_hWnd, &windowSize.x, &windowSize.y);
-    optix = std::make_unique<OptixRenderer>(d3dRenderer.get(), &windowSize, terrain.get(), player.get());
+    optixRenderer = std::make_unique<OptixRenderer>(d3dRenderer.get(), &windowSize, terrain.get(), player.get());
 #else
-    optix = std::make_unique<OptixRenderer>(window, &windowSize, terrain.get(), player.get());
+    optixRenderer = std::make_unique<OptixRenderer>(window, &windowSize, terrain.get(), player.get());
 #endif
-    terrain->setOptixRenderer(optix.get());
+    terrain->setOptixRenderer(optixRenderer.get());
     
     terrain->init(); // call after creating CUDA context in OptixRenderer
 
@@ -248,8 +248,8 @@ LRESULT CALLBACK MsgProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             windowSize.y = newHeight;
             if (d3dRenderer)
                 d3dRenderer->onResize();
-            if (optix)
-                optix->onResize();
+            if (optixRenderer)
+                optixRenderer->onResize();
         }
         break;
 
@@ -365,11 +365,11 @@ void keyCallback(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 #else
         if (message == WM_KEYDOWN)
         {
-            optix->setZoomed(true);
+            optixRenderer->setZoomed(true);
         }
         else if (message == WM_KEYUP)
         {
-            optix->setZoomed(false);
+            optixRenderer->setZoomed(false);
         }
 #endif
         break;
@@ -379,7 +379,7 @@ void keyCallback(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 #if DEBUG_USE_GL_RENDERER
             renderer->toggleTimePaused();
 #else
-            optix->toggleSunPaused();
+            optixRenderer->toggleTimePaused();
 #endif
         }
         break;
@@ -428,13 +428,13 @@ void keyCallback(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
     case VK_OEM_4: // [
         if (message == WM_KEYUP)
         {
-            optix->addSunTime(-5.f);
+            optixRenderer->addTime(-5.f);
         }
         break;
     case VK_OEM_6: // ]
         if (message == WM_KEYUP)
         {
-            optix->addSunTime(5.f);
+            optixRenderer->addTime(5.f);
         }
         break;
 #endif
@@ -562,11 +562,11 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
 #else
         if (action == GLFW_PRESS)
         {
-            optix->setZoomed(true);
+            optixRenderer->setZoomed(true);
         }
         else if (action == GLFW_RELEASE)
         {
-            optix->setZoomed(false);
+            optixRenderer->setZoomed(false);
         }
 #endif
         break;
@@ -576,7 +576,7 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
 #if DEBUG_USE_GL_RENDERER
             renderer->toggleTimePaused();
 #else
-            optix->toggleSunPaused();
+            optixRenderer->toggleSunPaused();
 #endif
         }
         break;
@@ -703,9 +703,9 @@ void tick(float deltaTime)
     renderer->draw(deltaTime, viewMatChanged, windowSizeChanged);
 #else
     if (viewMatChanged) {
-        optix->setCamera();
+        optixRenderer->setCamera();
     }
-    optix->render(deltaTime);
+    optixRenderer->render(deltaTime);
 #endif
 
     windowSizeChanged = false;

@@ -123,7 +123,7 @@ protected:
     float4* dev_normalBuffer;
     float4* dev_denoisedBuffer;
 
-    bool isSunPaused{ true };
+    bool isTimePaused{ true };
     float time{ 0 };
     float sunTime{ 0.4f };
 
@@ -143,8 +143,8 @@ public:
     void destroyChunk(const Chunk* chunkPtr);
 
     void setZoomed(bool zoomed);
-    void toggleSunPaused();
-    void addSunTime(float deltaTime);
+    void toggleTimePaused();
+    void addTime(float deltaTime);
 
     void setCamera();
 
@@ -156,7 +156,7 @@ protected:
     void buildSBT(bool onlyHitGroups);
     void createDenoiser();
 
-    void updateSunAndMoon(float deltaTime);
+    void updateTime(float deltaTime);
     void optixRenderFrame();
     void updateFrame();
 
