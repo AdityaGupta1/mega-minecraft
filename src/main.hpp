@@ -179,7 +179,7 @@ glm::uvec2 windowSize = uvec2(1920, 1080);
 //glm::ivec2 windowSize = ivec2(1920 / 2, 1080 / 2);
 bool windowSizeChanged;
 
-std::unique_ptr<OptixRenderer> optix;
+std::unique_ptr<OptixRenderer> optixRenderer;
 std::unique_ptr<Renderer> renderer;
 
 std::unique_ptr<StepTimer> timer;

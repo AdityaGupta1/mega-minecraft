@@ -928,6 +928,12 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
     case Feature::MEDIUM_CRYSTAL:
     case Feature::CRYSTAL:
     {
+        // mega scuffed lol but whatever
+        if (featurePos.y > 180)
+        {
+            return false;
+        }
+
         pos += vec3(0, 2, 0);
         pos *= 0.55f + 0.4f * u01(featureRng);
 

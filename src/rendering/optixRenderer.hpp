@@ -125,8 +125,11 @@ protected:
 
     bool isTimePaused{ true };
     float time{ 0 };
+    float sunTime{ 0.4f };
 
-    glm::mat3 sunRotateMat{};
+    glm::vec3 sunAxisForward{};
+    glm::vec3 sunAxisRight{};
+    glm::vec3 sunAxisUp{};
 
     void createContext();
 
@@ -141,6 +144,7 @@ public:
 
     void setZoomed(bool zoomed);
     void toggleTimePaused();
+    void addTime(float deltaTime);
 
     void setCamera();
 
@@ -152,7 +156,7 @@ protected:
     void buildSBT(bool onlyHitGroups);
     void createDenoiser();
 
-    void updateSunDirection();
+    void updateTime(float deltaTime);
     void optixRenderFrame();
     void updateFrame();
 
