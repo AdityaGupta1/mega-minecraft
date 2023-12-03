@@ -420,27 +420,32 @@ float3 getSkyColor(float3 rayDir, bool& foundLightSource)
 
     float sunStrength = smoothstep(-0.5f, -0.2f, params.sunDir.y);
     float sunD = dot(rayDir, params.sunDir);
-    if (sunStrength > 0.f && sunD > 0.98f)
+    if (sunStrength > 0.f)
     {
-        float3 sunTotalColor = make_float3(0.f);
-
-        float sunColorMod = smoothstep(-0.05f, 0.40f, params.sunDir.y);
-        float3 sunColor = make_float3(1.00f, 0.05f + 0.70f * sunColorMod, 0.42f * sunColorMod);
-
-        float haloStrength = smoothstep(0.05f, 0.20f, params.sunDir.y) * 0.4f;
-        sunTotalColor += powf(smoothstep(0.98f, 0.9975f, sunD), 3.f) * (sunColor + make_float3(0.f, 0.1f, 0.1f)) * haloStrength;
-
-        if (sunD > 0.995f)
+        // sun
+        if (sunD > 0.98f)
         {
-            sunTotalColor += sunColor * (1.f - 5000.f * (1.f - sunD) * (1.f - sunD)) * (0.3f + 0.7f * sunColorMod) * 34.f;
-            isSunOrMoon = true;
-        }
+            float3 sunTotalColor = make_float3(0.f);
 
-        skyColor += sunTotalColor * sunStrength;
+            float sunColorMod = smoothstep(-0.05f, 0.40f, params.sunDir.y);
+            float3 sunColor = make_float3(1.20f, 0.05f + 0.70f * sunColorMod, 0.42f * sunColorMod);
+
+            float haloStrength = smoothstep(0.05f, 0.20f, params.sunDir.y) * 0.4f;
+            sunTotalColor += powf(smoothstep(0.98f, 0.9975f, sunD), 3.f) * (sunColor + make_float3(0.f, 0.1f, 0.1f)) * haloStrength;
+
+            if (sunD > 0.995f)
+            {
+                sunTotalColor += sunColor * (1.f - 5000.f * (1.f - sunD) * (1.f - sunD)) * (0.3f + 0.7f * sunColorMod) * 34.f;
+                isSunOrMoon = true;
+            }
+
+            skyColor += sunTotalColor * sunStrength;
+        }
     }
 
     float moonStrength = smoothstep(-0.5f, -0.2f, params.moonDir.y);
     float moonD = dot(rayDir, params.moonDir);
+    // moon
     if (moonStrength > 0.f && moonD > 0.985f)
     {
         float3 moonTotalColor = make_float3(0.f);
@@ -458,7 +463,6 @@ float3 getSkyColor(float3 rayDir, bool& foundLightSource)
 
         skyColor += moonTotalColor * moonStrength;
     }
-
 
     foundLightSource = isSunOrMoon;
 
@@ -478,6 +482,20 @@ float3 getSkyColor(float3 rayDir, bool& foundLightSource)
             float3 starsColor = getStarsColor(starsDir);
             
             skyColor += starsColor * starsStrength;
+        }
+    }
+
+    // sunrise/sunset
+    if (sunStrength > 0.f && !isSunOrMoon)
+    {
+        float horizontalDist = acosf(dot(make_float2(rayDir.x, rayDir.z), make_float2(params.sunDir.x, params.sunDir.z)));
+        float orangeStrength = smoothstep(-0.13f, -0.02f, params.sunDir.y) * smoothstep(0.25f, 0.05f, params.sunDir.y) 
+            * smoothstep(-1.4f, 0.65f, sunD)
+            * smoothstep(1.05f, 0.18f, rayDir.y + (powf(horizontalDist, 1.4f) * 0.13f));
+        if (orangeStrength > 0.f)
+        {
+            float3 orangeColor = make_float3(1.4f, 0.35f, 0.f);
+            skyColor = lerp(skyColor, orangeColor, orangeStrength);
         }
     }
 
