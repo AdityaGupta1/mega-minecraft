@@ -507,6 +507,15 @@ float3 getStarsColor(float3 dir)
     }
 }
 
+static __forceinline__ __device__
+float sampleCloudsNoise(float3 cloudsPos)
+{
+    float2 noiseOffset = make_float2(pnoise(cloudsPos * 0.1f - 962.43f), pnoise(cloudsPos * 0.1f + 254.32f)) * 0.13f;
+    float cloudsNoise = (fbm<5>(make_float3(cloudsPos.x * 0.05f + noiseOffset.x, cloudsPos.z * 0.05f + noiseOffset.y, params.time * 0.015f)) + 1.f) * 0.5f;
+    cloudsNoise *= (pnoise(make_float3(cloudsPos.x * 0.03f + 821.23f, cloudsPos.z * 0.03f - 721.33f, params.time * 0.003f + 276.21f)) + 1.f) * 0.9f;
+    return smoothstep(0.35f, 0.75f, cloudsNoise);
+}
+
 static __device__
 float getCloudCoverage(float3 dir)
 {
@@ -520,11 +529,16 @@ float getCloudCoverage(float3 dir)
     float3 cloudsPos = dir * t;
     cloudsPos.z += 0.6f * params.time;
 
-    float2 noiseOffset = make_float2(pnoise(cloudsPos * 0.1f - 962.43f), pnoise(cloudsPos * 0.1f + 254.32f)) * 0.13f;
-    float cloudsNoise = (fbm<6>(make_float3(cloudsPos.x * 0.05f + noiseOffset.x, cloudsPos.z * 0.05f + noiseOffset.y, params.time * 0.015f)) + 1.f) * 0.5f;
-    cloudsNoise *= (fbm<3>(make_float3(cloudsPos.x * 0.03f + 821.23f, cloudsPos.z * 0.03f - 721.33f, params.time * 0.003f + 276.21f)) + 1.f) * 0.9f;
+    float coverage = 0.f;
+    for (int i = 0; i < 10; ++i)
+    {
+        float stepDist = 1.5f;
+        cloudsPos += dir * stepDist;
 
-    return smoothstep(0.35f, 0.75f, cloudsNoise);
+        coverage += sampleCloudsNoise(cloudsPos) * stepDist;
+    }
+
+    return fminf(1.f, coverage * 0.1f);
 }
 
 static __device__ 
@@ -614,19 +628,19 @@ float3 getSkyColor(float3 rayDir, PRD& prd)
         }
     }
 
-    // clouds (for now, enabled only for camera rays)
-    if (prd.needsFirstHitData)
-    {
-        float cloudCoverage = getCloudCoverage(rayDir);
-        if (cloudCoverage > 0.f)
-        {
-            float3 cloudColor = make_float3(0.9f) * powf(skyBaseStrength, 1.2f);
-            cloudColor = lerp(cloudColor, make_float3(1.20f, 0.30f, 0.10f), orangeStrength * 0.9f);
-            //cloudColor *= 0.45f + 0.55f * linearstep(1.3f, 0.4f, cloudCoverage);
+    // clouds (only for camera rays)
+    //if (prd.needsFirstHitData)
+    //{
+    //    float cloudCoverage = getCloudCoverage(rayDir);
+    //    if (cloudCoverage > 0.f)
+    //    {
+    //        float3 cloudColor = make_float3(0.9f) * powf(skyBaseStrength, 1.2f);
+    //        cloudColor = lerp(cloudColor, make_float3(1.20f, 0.30f, 0.10f), orangeStrength * 0.9f);
+    //        //cloudColor *= 0.45f + 0.55f * linearstep(1.3f, 0.4f, cloudCoverage);
 
-            skyColor = lerp(skyColor, cloudColor, cloudCoverage);
-        }
-    }
+    //        skyColor = lerp(skyColor, cloudColor, fminf(0.92f, cloudCoverage));
+    //    }
+    //}
 
     return skyColor;
 }
