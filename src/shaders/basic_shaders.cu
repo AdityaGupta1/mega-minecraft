@@ -507,6 +507,24 @@ float3 getStarsColor(float3 dir)
     }
 }
 
+static __device__
+float getCloudCoverage(float3 dir)
+{
+    // assumes camera is below clouds
+    if (dir.y < 0.07f)
+    {
+        return 0.f;
+    }
+
+    float t = 20.f / dir.y;
+    float3 cloudsPos = dir * t;
+    cloudsPos.z += 0.6f * params.time;
+
+    float cloudsNoise = (fbm<6>(make_float3(cloudsPos.x * 0.05f, cloudsPos.z * 0.05f, params.time * 0.005f)) + 1.f) * 0.5f;
+    cloudsNoise *= (fbm<3>(make_float3(cloudsPos.x * 0.03f + 821.23f, cloudsPos.z * 0.03f - 721.33f, params.time * 0.001f + 276.21f)) + 1.f) * 0.9f;
+    return smoothstep(0.4f, 0.8f, cloudsNoise);
+}
+
 static __device__ 
 float3 getSkyColor(float3 rayDir, bool& foundLightSource)
 {
@@ -516,27 +534,24 @@ float3 getSkyColor(float3 rayDir, bool& foundLightSource)
 
     float sunStrength = smoothstep(-0.5f, -0.2f, params.sunDir.y);
     float sunD = dot(rayDir, params.sunDir);
-    if (sunStrength > 0.f)
+    // sun
+    if (sunStrength > 0.f && sunD > 0.98f)
     {
-        // sun
-        if (sunD > 0.98f)
+        float3 sunTotalColor = make_float3(0.f);
+
+        float sunColorMod = smoothstep(-0.05f, 0.40f, params.sunDir.y);
+        float3 sunColor = make_float3(1.20f, 0.05f + 0.70f * sunColorMod, 0.42f * sunColorMod);
+
+        float haloStrength = smoothstep(0.05f, 0.20f, params.sunDir.y) * 0.4f;
+        sunTotalColor += powf(smoothstep(0.98f, 0.9975f, sunD), 3.f) * (sunColor + make_float3(0.f, 0.1f, 0.1f)) * haloStrength;
+
+        if (sunD > 0.995f)
         {
-            float3 sunTotalColor = make_float3(0.f);
-
-            float sunColorMod = smoothstep(-0.05f, 0.40f, params.sunDir.y);
-            float3 sunColor = make_float3(1.20f, 0.05f + 0.70f * sunColorMod, 0.42f * sunColorMod);
-
-            float haloStrength = smoothstep(0.05f, 0.20f, params.sunDir.y) * 0.4f;
-            sunTotalColor += powf(smoothstep(0.98f, 0.9975f, sunD), 3.f) * (sunColor + make_float3(0.f, 0.1f, 0.1f)) * haloStrength;
-
-            if (sunD > 0.995f)
-            {
-                sunTotalColor += sunColor * (1.f - 5000.f * (1.f - sunD) * (1.f - sunD)) * (0.3f + 0.7f * sunColorMod) * 34.f;
-                isSunOrMoon = true;
-            }
-
-            skyColor += sunTotalColor * sunStrength;
+            sunTotalColor += sunColor * (1.f - 5000.f * (1.f - sunD) * (1.f - sunD)) * (0.3f + 0.7f * sunColorMod) * 34.f;
+            isSunOrMoon = true;
         }
+
+        skyColor += sunTotalColor * sunStrength;
     }
 
     float moonStrength = smoothstep(-0.5f, -0.2f, params.moonDir.y);
@@ -562,9 +577,11 @@ float3 getSkyColor(float3 rayDir, bool& foundLightSource)
 
     foundLightSource = isSunOrMoon;
 
+    float skyBaseStrength = 0.062f + 0.938f * smoothstep(-0.25f, 0.10f, params.sunDir.y);
+
+    // base color and stars
     if (!isSunOrMoon)
     {
-        float skyBaseStrength = 0.062f + 0.950f * smoothstep(-0.25f, 0.10f, params.sunDir.y);
         float3 skyBaseColor = make_float3(0.10f, 0.16f, 0.2f);
         skyColor += skyBaseColor * skyBaseStrength;
 
@@ -594,6 +611,14 @@ float3 getSkyColor(float3 rayDir, bool& foundLightSource)
             skyColor = lerp(skyColor, orangeColor, orangeStrength);
         }
     }
+
+    // clouds (disabled for now due to bad performance)
+    //float cloudCoverage = getCloudCoverage(rayDir);
+    //if (cloudCoverage > 0.f)
+    //{
+    //    float3 cloudColor = make_float3(0.9f) * powf(skyBaseStrength, 1.2f);
+    //    skyColor = lerp(skyColor, cloudColor, fmin(0.9f, cloudCoverage));
+    //}
 
     return skyColor;
 }
