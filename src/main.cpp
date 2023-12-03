@@ -379,7 +379,7 @@ void keyCallback(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 #if DEBUG_USE_GL_RENDERER
             renderer->toggleTimePaused();
 #else
-            optix->toggleTimePaused();
+            optix->toggleSunPaused();
 #endif
         }
         break;
@@ -424,6 +424,20 @@ void keyCallback(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             printf("player position: (%.2f, %.2f, %.2f)\n", playerPos.x, playerPos.y, playerPos.z);
         }
         break;
+#if !DEBUG_USE_GL_RENDERER
+    case VK_OEM_4: // [
+        if (message == WM_KEYUP)
+        {
+            optix->addSunTime(-15.f);
+        }
+        break;
+    case VK_OEM_6: // ]
+        if (message == WM_KEYUP)
+        {
+            optix->addSunTime(15.f);
+        }
+        break;
+#endif
     }
 }
 
@@ -562,7 +576,7 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
 #if DEBUG_USE_GL_RENDERER
             renderer->toggleTimePaused();
 #else
-            optix->toggleTimePaused();
+            optix->toggleSunPaused();
 #endif
         }
         break;

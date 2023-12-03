@@ -123,10 +123,13 @@ protected:
     float4* dev_normalBuffer;
     float4* dev_denoisedBuffer;
 
-    bool isTimePaused{ true };
+    bool isSunPaused{ true };
     float time{ 0 };
+    float sunTime{ 0.4f };
 
-    glm::mat3 sunRotateMat{};
+    glm::vec3 sunAxisForward{};
+    glm::vec3 sunAxisRight{};
+    glm::vec3 sunAxisUp{};
 
     void createContext();
 
@@ -140,7 +143,8 @@ public:
     void destroyChunk(const Chunk* chunkPtr);
 
     void setZoomed(bool zoomed);
-    void toggleTimePaused();
+    void toggleSunPaused();
+    void addSunTime(float deltaTime);
 
     void setCamera();
 
@@ -152,7 +156,7 @@ protected:
     void buildSBT(bool onlyHitGroups);
     void createDenoiser();
 
-    void updateSunDirection();
+    void updateSunAndMoon(float deltaTime);
     void optixRenderFrame();
     void updateFrame();
 

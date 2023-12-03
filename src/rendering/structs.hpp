@@ -44,7 +44,14 @@ struct OptixParams
         float2 pixelLength;
     } camera;
 
+    float time;
+
     float3 sunDir;
+    float3 moonDir;
+
+    float3 starsRotateMatX; // columns of a 3x3 matrix, inverse of sunRotateMat
+    float3 starsRotateMatY;
+    float3 starsRotateMatZ;
 };
 
 struct ChunkData

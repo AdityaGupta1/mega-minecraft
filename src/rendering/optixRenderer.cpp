@@ -57,11 +57,10 @@ OptixRenderer::OptixRenderer(GLFWwindow* window, uvec2* windowSize, Terrain* ter
     initTexture();
 #endif
 
-    const glm::vec3 sunAxisForward = normalize(vec3(6.0f, -2.0f, 2.0f));
-    const glm::vec3 sunAxisRight = normalize(cross(sunAxisForward, vec3(0, 1, 0)));
-    const glm::vec3 sunAxisUp = normalize(cross(sunAxisRight, sunAxisForward));
-    sunRotateMat = glm::mat3(sunAxisRight, sunAxisForward, sunAxisUp);
-    updateSunDirection();
+    sunAxisForward = normalize(vec3(6.0f, -2.0f, 2.0f));
+    sunAxisRight = normalize(cross(sunAxisForward, vec3(0, 1, 0)));
+    sunAxisUp = normalize(cross(sunAxisRight, sunAxisForward));
+    updateSunAndMoon(0.f);
 }
 
 static void context_log_cb(unsigned int level,
@@ -388,9 +387,14 @@ void OptixRenderer::setZoomed(bool zoomed)
     cameraChanged = true;
 }
 
-void OptixRenderer::toggleTimePaused()
+void OptixRenderer::toggleSunPaused()
 {
-    this->isTimePaused = !this->isTimePaused;
+    this->isSunPaused = !this->isSunPaused;
+}
+
+void OptixRenderer::addSunTime(float deltaTime)
+{
+    updateSunAndMoon(deltaTime);
 }
 
 inline float3 vec3ToFloat3(glm::vec3 v)
@@ -710,11 +714,13 @@ void OptixRenderer::createDenoiser()
 
 void OptixRenderer::render(float deltaTime)
 {
-    if (!isTimePaused)
+    if (!isSunPaused)
     {
-        time += deltaTime;
-        updateSunDirection();
+        updateSunAndMoon(deltaTime);
     }
+
+    time += deltaTime;
+    launchParams.time = time;
 
     if (cameraChanged)
     {
@@ -732,10 +738,22 @@ void OptixRenderer::onResize()
     CUDA_CHECK(cudaMalloc((void**)&dev_denoisedBuffer, windowSize->x * windowSize->y * sizeof(float4)));
 }
 
-void OptixRenderer::updateSunDirection()
+void OptixRenderer::updateSunAndMoon(float deltaTime)
 {
-    const float sunTime = time * 0.2f + 0.4f;
-    launchParams.sunDir = vec3ToFloat3(glm::normalize(sunRotateMat * glm::vec3(cosf(sunTime), 0.15f, sinf(sunTime))));
+    sunTime += deltaTime * -0.025f;
+    const glm::vec3 rotatedAxisRight = cosf(sunTime) * sunAxisRight + sinf(sunTime) * sunAxisUp;
+    const glm::vec3 rotatedAxisUp = normalize(cross(rotatedAxisRight, sunAxisForward));
+
+    mat3 sunRotateMat = glm::mat3(rotatedAxisRight, sunAxisForward, rotatedAxisUp);
+
+    launchParams.sunDir = vec3ToFloat3(glm::normalize(sunRotateMat * glm::vec3(1.f, 0.15f, 0.f)));
+    launchParams.moonDir = vec3ToFloat3(glm::normalize(sunRotateMat * glm::vec3(-1.f, 0.50f, 0.f)));
+
+    // store rows of sunRotateMat as columns of starsRotateMat to do transpose (for inverting sunRotateMat)
+    launchParams.starsRotateMatX = make_float3(sunRotateMat[0][0], sunRotateMat[1][0], sunRotateMat[2][0]);
+    launchParams.starsRotateMatY = make_float3(sunRotateMat[0][1], sunRotateMat[1][1], sunRotateMat[2][1]);
+    launchParams.starsRotateMatZ = make_float3(sunRotateMat[0][2], sunRotateMat[1][2], sunRotateMat[2][2]);
+
     cameraChanged = true;
 }
 
