@@ -602,9 +602,8 @@ float3 getSkyColor(float3 rayDir, PRD& prd)
 
     prd.foundLightSource = isSunOrMoon;
 
-    float skyBaseStrength = 0.062f + 0.938f * smoothstep(-0.25f, 0.10f, params.sunDir.y);
-
     // base color and stars
+    float skyBaseStrength = 0.08f + 0.92f * smoothstep(-0.25f, 0.10f, params.sunDir.y);
     if (!isSunOrMoon)
     {
         float3 skyBaseColor = make_float3(0.10f, 0.16f, 0.2f);
@@ -644,7 +643,7 @@ float3 getSkyColor(float3 rayDir, PRD& prd)
         float cloudCoverage = getCloudCoverage(optixGetWorldRayOrigin(), rayDir);
         if (cloudCoverage > 0.f)
         {
-            float3 cloudColor = make_float3(0.9f) * powf(skyBaseStrength, 1.2f);
+            float3 cloudColor = make_float3(0.9f * powf(skyBaseStrength, 1.35f));
             cloudColor = lerp(cloudColor, make_float3(1.20f, 0.30f, 0.10f), orangeStrength * 0.9f);
             skyColor = lerp(skyColor, cloudColor, fminf(0.92f, cloudCoverage));
         }

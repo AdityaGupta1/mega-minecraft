@@ -321,6 +321,11 @@ void OptixRenderer::buildChunkAccel(const Chunk* chunkPtr)
 
 void OptixRenderer::buildRootAccel()
 {
+    if (chunkInstances.empty())
+    {
+        return;
+    }
+
     std::vector<OptixInstance> chunkInstancesVector;
     chunkInstancesVector.reserve(chunkInstances.size());
     for (const auto& elem : chunkInstances)
@@ -692,6 +697,9 @@ void OptixRenderer::createDenoiser()
     };
 
     OptixDenoiserOptions denoiserOptions = {};
+    denoiserOptions.guideAlbedo = 1;
+    denoiserOptions.guideNormal = 1;
+    denoiserOptions.denoiseAlpha = OPTIX_DENOISER_ALPHA_MODE_COPY;
     OPTIX_CHECK(optixDenoiserCreate(optixContext, OPTIX_DENOISER_MODEL_KIND_AOV, &denoiserOptions, &denoiser));
 
     OptixDenoiserSizes denoiserReturnSizes;
@@ -759,7 +767,10 @@ void OptixRenderer::updateTime(float deltaTime)
 
 void OptixRenderer::optixRenderFrame()
 {
-    if (launchParams.windowSize.x == 0) return;
+    if (launchParams.windowSize.x == 0 || chunkInstances.empty())
+    {
+        return;
+    }
 
     launchParams.frame.colorBuffer = dev_renderBuffer;
     launchParams.frame.albedoBuffer = dev_albedoBuffer;

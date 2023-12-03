@@ -1067,6 +1067,11 @@ void BiomeUtils::init()
     cudaMemcpyToSymbol(dev_featureHeightBounds, host_featureHeightBounds.data(), numFeatures * sizeof(ivec2));
 
     // decoratorBlock, chance, possibleUnderBlocks
+    host_biomeDecoratorGens[(int)Biome::ARCHIPELAGO] = {
+        DecoratorGen(Block::GRASS, 0.200f, { Block::GRASS_BLOCK }),
+        DecoratorGen(Block::LILY_OF_THE_VALLEY, 0.025f, { Block::GRASS_BLOCK })
+    };
+
     host_biomeDecoratorGens[(int)Biome::TROPICAL_BEACH] = {
         DecoratorGen(Block::JUNGLE_GRASS, 0.1f, { Block::JUNGLE_GRASS_BLOCK })
     };
