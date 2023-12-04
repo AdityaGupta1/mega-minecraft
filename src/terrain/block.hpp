@@ -52,6 +52,16 @@ enum class Block : unsigned char
     TALL_JUNGLE_GRASS_BOTTOM,
     TALL_JUNGLE_GRASS_TOP,
     TORCHFLOWER,
+    BRAIN_CORAL,
+    BUBBLE_CORAL,
+    FIRE_CORAL,
+    HORN_CORAL,
+    TUBE_CORAL,
+    SEAGRASS,
+    TALL_SEAGRASS_BOTTOM,
+    TALL_SEAGRASS_TOP,
+    KELP_MAIN,
+    KELP_END,
 
     BEDROCK,
 
@@ -131,11 +141,17 @@ enum class Block : unsigned char
     AMBER_STEM,
     AMBER_WART,
     COBBLESTONE,
-    COBBLED_DEEPSLATE
+    COBBLED_DEEPSLATE,
+    BRAIN_CORAL_BLOCK,
+    BUBBLE_CORAL_BLOCK,
+    FIRE_CORAL_BLOCK,
+    HORN_CORAL_BLOCK,
+    TUBE_CORAL_BLOCK,
+    SEA_LANTERN
 };
 
-static constexpr int numBlocks = (int)Block::COBBLED_DEEPSLATE + 1;
-static constexpr int numNonSolidBlocks = (int)Block::TORCHFLOWER + 1;
+static constexpr int numBlocks = (int)Block::SEA_LANTERN + 1;
+static constexpr int numNonSolidBlocks = (int)Block::KELP_END + 1;
 
 struct SideUv
 {

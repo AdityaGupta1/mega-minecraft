@@ -12,8 +12,8 @@
 #define DEBUG_SKIP_EROSION 0
 #define DEBUG_USE_CONTRIBUTION_FILL_METHOD 0
 
-//#define DEBUG_BIOME_OVERRIDE Biome::ARCHIPELAGO
-//#define DEBUG_CAVE_BIOME_OVERRIDE CaveBiome::LUSH_CAVES
+//#define DEBUG_BIOME_OVERRIDE Biome::OASIS
+//#define DEBUG_CAVE_BIOME_OVERRIDE CaveBiome::NONE
 
 Chunk::Chunk(ivec2 worldChunkPos)
     : worldChunkPos(worldChunkPos), worldBlockPos(worldChunkPos.x * 16, 0, worldChunkPos.y * 16)

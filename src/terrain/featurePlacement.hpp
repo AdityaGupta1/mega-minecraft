@@ -173,8 +173,124 @@ __device__ bool placeFeature(FeaturePlacement featurePlacement, ivec3 worldBlock
         *blockPtr = Block::GRAVEL;
         return true;
     }
+    case Feature::CORAL:
+    {
+        if (featurePos.y > SEA_LEVEL - 6)
+        {
+            return false;
+        }
+
+        if (length(vec2(pos.x, pos.z)) > 8.f)
+        {
+            return false;
+        }
+
+        int coralRand = (int)(u01(featureRng) * 5.f);
+        switch (coralRand)
+        {
+        case 0: // brain
+        {
+            pos.y *= 1.15f;
+            float radius = 2.8f + 1.4f * u01(featureRng);
+            radius += 0.4f * simplex(vec3(worldBlockPos) * 0.2f);
+
+            if (length(pos) < radius)
+            {
+                *blockPtr = Block::BRAIN_CORAL_BLOCK;
+                return true;
+            }
+            
+            return false;
+        }
+        case 1: // bubble
+        {
+            pos.y *= 1.25f;
+            float radius = 2.2f + 1.7f * u01(featureRng);
+            radius += 1.2f * simplex(vec3(worldBlockPos) * 0.3f);
+
+            if (length(pos) < radius)
+            {
+                *blockPtr = Block::BUBBLE_CORAL_BLOCK;
+                return true;
+            }
+
+            return false;
+        }
+        case 2: // fire
+        case 3: // horn
+        {
+            Block coralBlock = coralRand == 2 ? Block::FIRE_CORAL_BLOCK : Block::HORN_CORAL_BLOCK;
+
+            const vec3 pos1 = vec3(u11(featureRng), u01(featureRng), u11(featureRng)) * vec3(2.5f, 3.5f, 2.5f);
+            if (isInRasterizedLine(floorPos, vec3(0), pos1))
+            {
+                *blockPtr = coralBlock;
+                return true;
+            }
+
+            for (int i = 0; i < 5; ++i)
+            {
+                vec3 pos2 = pos1;
+                pos2.x += 4.f * u11(featureRng);
+                pos2.y += 2.f + 3.f * u01(featureRng);
+                pos2.z += 4.f * u11(featureRng);
+                if (isInRasterizedLine(floorPos, pos1, pos2))
+                {
+                    *blockPtr = coralBlock;
+                    return true;
+                }
+            }
+
+            return false;
+        }
+        case 4: // tube
+        {
+            float edgeDist;
+            float height = worley(vec2(worldBlockPos.x, worldBlockPos.z) * 0.7f, nullptr, &edgeDist);
+            height = (1.f - height) + edgeDist;
+            height *= 3.5f;
+            height *= smoothstep(3.7f, 2.5f, length(vec2(pos.x, pos.z)));
+            height -= 2.f;
+
+            if (isInRange(pos.y, -1.f, height))
+            {
+                *blockPtr = Block::TUBE_CORAL_BLOCK;
+                return true;
+            }
+
+            return false;
+        }
+        }
+
+        printf("placeFeature() reached an unreachable section (corals)");
+        return false;
+    }
+    case Feature::KELP:
+    {
+        if (floorPos.x != 0 || floorPos.z != 0)
+        {
+            return false;
+        }
+
+        int height = (int)(5.f + 15.f * u01(featureRng));
+        height = min(height, SEA_LEVEL - featurePos.y - 1);
+
+        if (!isInRange(floorPos.y, 0, height))
+        {
+            return false;
+        }
+
+        bool isEnd = floorPos.y == height;
+        *blockPtr = isEnd ? Block::KELP_END : Block::KELP_MAIN;
+        return true;
+    }
     case Feature::ICEBERG:
     {
+        if (featurePos.y > SEA_LEVEL - 32)
+        {
+            return false;
+        }
+
         pos.y = worldBlockPos.y - SEA_LEVEL;
 
         float horizontalDistance = length(vec2(pos.x, pos.z));
