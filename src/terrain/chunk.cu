@@ -1812,6 +1812,17 @@ void Chunk::createVBOs()
                 {
                     mat = Mats::M_ROUGH_MICRO;
                 }
+                else if (thisBlock == Block::SNOW || thisBlock == Block::SNOWY_GRASS_BLOCK) {
+                    mat = Mats::M_MICRO;
+                }
+                else if (thisBlock == Block::MARBLE ||
+                            thisBlock == Block::QUARTZ ||
+                            thisBlock == Block::ICE ||
+                            thisBlock == Block::PACKED_ICE ||
+                            thisBlock == Block::BLUE_ICE) {
+                    mat = Mats::M_SMOOTH_MICRO;
+                }
+
                 else {
                     mat = Mats::M_DIFFUSE;
                 }

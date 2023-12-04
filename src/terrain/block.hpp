@@ -61,8 +61,8 @@ enum class Block : unsigned char
     SAND,                   // rough microfacet
     GRAVEL,                 // rough microfacet
     MYCELIUM,
-    SNOW,
-    SNOWY_GRASS_BLOCK,
+    SNOW,                   // microfacet
+    SNOWY_GRASS_BLOCK,      // microfacet
     MUSHROOM_STEM,
     MUSHROOM_UNDERSIDE,
     PURPLE_MUSHROOM_CAP,

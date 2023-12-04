@@ -23,9 +23,9 @@ extern "C" __constant__ OptixParams params;
 __constant__ struct Mat diffuse = { 0.f, 0.f, false, false, false };
 __constant__ struct Mat water = { 1.33f, 0.f, true, true, true };
 __constant__ struct Mat crystal = { 2.3f, 0.f, true, true, false };
-__constant__ struct Mat smooth = { 0.f, 0.1f, false, false, false };
-__constant__ struct Mat micro = { 0.f, 0.3f, false, false, false };
-__constant__ struct Mat rough = { 0.f, 0.8f, false, false, false };
+__constant__ struct Mat smooth = { 0.f, 0.4f, false, false, false };
+__constant__ struct Mat micro = { 0.f, 0.6f, false, false, false };
+__constant__ struct Mat rough = { 0.f, 0.9f, false, false, false };
 
 
 static __forceinline__ __device__
@@ -767,13 +767,6 @@ float3 __device__ importanceSampleGGX(float2 xi, float3 N, float roughness) {
 }
 
 float __device__ TrowbridgeReitzD(float3 wh, float3 n, float roughness) {
-    /*float cos4Theta = powf(dot(wh, n), 4.f);
-
-    float e = alpha(wh, n, roughness);
-    if (e == 0) return 0.f;
-    return 1 / (PI * roughness * roughness * cos4Theta * (1 + e) * (1 + e));*/
-
-
     float cos2Theta = powf(dot(wh, n), 2.f);
     float tan2Theta = (1.f - cos2Theta) / cos2Theta;
     if (isinf(tan2Theta)) return 0.f;
@@ -792,9 +785,9 @@ float __device__ TrowbridgeReitzD(float3 wh, float3 n, float roughness) {
 }
 
 float __device__ sparkling(float2 in, float r) {
-    float x = dot(in * cos(in.y * 403.58f) * sin(1067.79f * in.x), in * sin(in.x * 587.29f) * cos(5892.68f * in.y));
-    if (fract(x) > sqrt(r)) {
-        return 1.f + sqrt(r);
+    float x = fbm(make_float3(r, in)) * rand1From3(make_float3(in, r));
+    if (fract(x) < powf(r, 3.f)) {
+        return 1.f + r;
     }
     return 1.f;
 }
@@ -827,7 +820,6 @@ extern "C" __global__ void __closesthit__radiance() {
 
     if (m.reflecting && m.refracting) {
         prd.specularHit = true;
-        prd.needsFirstHitData = false;
         float ior = m.ior;
 
         if (m.wavy) {
@@ -903,9 +895,9 @@ extern "C" __global__ void __closesthit__radiance() {
        
         float D = TrowbridgeReitzD(wh, nor, m.roughness);
 
-        diffuseCol *= clamp(D / (4.f * fabs(dot(nor, newDir)) * fabs(dot(nor, wo))), 0.5f, 3.f);
+        diffuseCol *= clamp(D / (4.f * fabs(dot(nor, newDir)) * fabs(dot(nor, wo))), 1.f, 2.f);
         
-        float sparkles = sparkling(make_float2(rayOrigin.x, rayOrigin.z) + floor(uv * 256.f), m.roughness);
+        float sparkles = sparkling((make_float2(rayOrigin.x, rayOrigin.z) * make_float2(v1.pos.x, v1.pos.z)) + floor(uv * 256.f), m.roughness);
         
         diffuseCol *= sparkles;
         
