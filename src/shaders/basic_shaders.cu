@@ -786,8 +786,10 @@ float __device__ TrowbridgeReitzD(float3 wh, float3 n, float roughness) {
 
 float __device__ sparkling(float2 in, float r) {
     float x = fbm(make_float3(r, in)) * rand1From3(make_float3(in, r));
-    if (fract(x) < powf(r, 3.f)) {
-        return 1.f + r;
+    if (r > 0.5f) {
+        if (fract(x) > 0.9f + 0.2f * (1.f - r)) {
+            return 1.f + 0.5f * r;
+        }
     }
     return 1.f;
 }
