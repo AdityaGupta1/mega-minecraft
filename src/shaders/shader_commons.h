@@ -102,5 +102,5 @@ struct PRD {
     float3  pixelAlbedo;
     float3  pixelNormal;
     float3 fogColor;
-    float firstHitT;
+    float fogFactor;
 };

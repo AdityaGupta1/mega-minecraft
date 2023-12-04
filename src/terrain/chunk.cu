@@ -1794,37 +1794,37 @@ void Chunk::createVBOs()
                 ivec3 thisPos = ivec3(x, y, z);
                 Block thisBlock = blocks[posTo3dIndex(thisPos)];
 
-                enum Mats mat;
-
-                if (thisBlock == Block::AIR) {
+                Mats mat;
+                switch (thisBlock)
+                {
+                case Block::AIR:
                     continue;
-                }
-
-                if (thisBlock == Block::WATER)
-                {
+                case Block::WATER:
                     mat = Mats::M_WATER;
-                }
-                else if (thisBlock == Block::CYAN_CRYSTAL || thisBlock == Block::GREEN_CRYSTAL || thisBlock == Block::MAGENTA_CRYSTAL)
-                {
+                    break;
+                case Block::CYAN_CRYSTAL:
+                case Block::GREEN_CRYSTAL:
+                case Block::MAGENTA_CRYSTAL:
                     mat = Mats::M_CRYSTAL;
-                }
-                else if (thisBlock == Block::SAND || thisBlock == Block::GRAVEL) 
-                {
-                    mat = Mats::M_ROUGH_MICRO;
-                }
-                else if (thisBlock == Block::SNOW || thisBlock == Block::SNOWY_GRASS_BLOCK) {
-                    mat = Mats::M_MICRO;
-                }
-                else if (thisBlock == Block::MARBLE ||
-                            thisBlock == Block::QUARTZ ||
-                            thisBlock == Block::ICE ||
-                            thisBlock == Block::PACKED_ICE ||
-                            thisBlock == Block::BLUE_ICE) {
+                    break;
+                case Block::MARBLE:
+                case Block::QUARTZ:
+                case Block::ICE:
+                case Block::PACKED_ICE:
+                case Block::BLUE_ICE:
                     mat = Mats::M_SMOOTH_MICRO;
-                }
-
-                else {
+                    break;
+                case Block::SNOW:
+                case Block::SNOWY_GRASS_BLOCK: // really should only apply to the snowy part but whatever
+                    mat = Mats::M_MICRO;
+                    break;
+                case Block::SAND:
+                case Block::GRAVEL:
+                    mat = Mats::M_ROUGH_MICRO;
+                    break;
+                default:
                     mat = Mats::M_DIFFUSE;
+                    break;
                 }
 
                 BlockData thisBlockData = BlockUtils::getBlockData(thisBlock);

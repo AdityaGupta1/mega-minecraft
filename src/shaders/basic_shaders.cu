@@ -12,7 +12,7 @@
 
 #define DO_RUSSIAN_ROULETTE 1
 
-#define NUM_SAMPLES 2
+#define NUM_SAMPLES 1
 #define MAX_RAY_DEPTH 4
 
 /*! launch parameters in constant memory, filled in by optix upon
@@ -440,7 +440,7 @@ float3 getSkyColor(float3 rayDir, PRD& prd)
 
         if (sunD > 0.995f && prd.needsFirstHitData)
         {
-            sunTotalColor += sunColor * (1.f - 5000.f * (1.f - sunD) * (1.f - sunD)) * (0.3f + 0.7f * sunColorMod) * 34.f;
+            sunTotalColor += sunColor * (1.f - 5000.f * (1.f - sunD) * (1.f - sunD)) * (0.3f + 0.7f * sunColorMod) * 50.f;
             isSunOrMoon = true;
         }
 
@@ -461,7 +461,7 @@ float3 getSkyColor(float3 rayDir, PRD& prd)
 
         if (moonD > 0.997f && prd.needsFirstHitData)
         {
-            moonTotalColor += moonColor * 20.f;
+            moonTotalColor += moonColor * 28.f;
             isSunOrMoon = true;
         }
 
@@ -554,7 +554,7 @@ extern "C" __global__ void __raygen__render() {
         prd.isect.pos = camera.position;
         prd.isect.newDir = rayDir;
         prd.specularHit = false;
-        prd.firstHitT = 0.f;
+        prd.fogFactor = 0.f;
 
         #pragma unroll
         for (int depth = 0; depth < MAX_RAY_DEPTH; ++depth)
@@ -649,8 +649,8 @@ extern "C" __global__ void __raygen__render() {
 #endif
         }
 
-        prd.pixelColor = prd.firstHitT * prd.fogColor + (1.f - prd.firstHitT) * prd.pixelColor;
-         
+        prd.pixelColor = lerp(prd.pixelColor, prd.fogColor, prd.fogFactor);
+
         finalColor += prd.pixelColor;
         finalAlbedo += prd.pixelAlbedo;
         finalNormal += prd.pixelNormal;
@@ -794,6 +794,14 @@ float __device__ sparkling(float2 in, float r) {
     return 1.f;
 }
 
+static __device__
+float calculateFogFactor()
+{
+    const float3 rayDir = optixGetWorldRayDirection();
+    const float horizontalDist = length(make_float2(rayDir.x, rayDir.z)) * optixGetRayTmax();
+    return smoothstep(160.f, 240.f, horizontalDist);
+}
+
 extern "C" __global__ void __closesthit__radiance() {
     PRD& prd = *getPRD<PRD>();
 
@@ -876,7 +884,7 @@ extern "C" __global__ void __closesthit__radiance() {
             prd.needsFirstHitData = false;
             prd.pixelAlbedo = diffuseCol;
             prd.pixelNormal = nor;
-            prd.firstHitT = (powf(fmin(fmax(optixGetRayTmax() - 100.f, 0.f), 150.f), 2.f) / 22500.f);
+            prd.fogFactor = calculateFogFactor();
             prd.fogColor = getSkyColor(rayDir, prd);
             prd.foundLightSource = false;
         }
@@ -887,7 +895,7 @@ extern "C" __global__ void __closesthit__radiance() {
     prd.specularHit = false;
 
     float3 norMap = make_float3(tex2D<float4>(chunkData.tex_normal, uv.x, uv.y));
-    float3 mappednor = normalize(0.75f * normalize(applyNormalMap(nor, norMap)) + 0.25f * nor);
+    //float3 mappednor = normalize(lerp(nor, normalize(applyNormalMap(nor, norMap)), 0.75f));
     float3 newDir = calculateRandomDirectionInHemisphere(nor, rng2(prd.seed));
 
     if (m.roughness > 0.f) {
@@ -897,16 +905,13 @@ extern "C" __global__ void __closesthit__radiance() {
        
         float D = TrowbridgeReitzD(wh, nor, m.roughness);
 
-        diffuseCol *= clamp(D / (4.f * fabs(dot(nor, newDir)) * fabs(dot(nor, wo))), 0.5f, 4.f);
+        diffuseCol *= clamp(D / (4.f * fabs(dot(nor, newDir)) * fabs(dot(nor, wo))), 1.f, 4.f);
         
-        float sparkles = sparkling((make_float2(rayOrigin.x, rayOrigin.z) * make_float2(v1.pos.x, v1.pos.z)) + floor(uv * 256.f), m.roughness);
-        
-        diffuseCol *= sparkles;
-        
+        //float sparkles = sparkling((make_float2(rayOrigin.x, rayOrigin.z) * make_float2(v1.pos.x, v1.pos.z)) + floor(uv * 256.f), m.roughness);
+        //diffuseCol *= sparkles;
     }
 
     // EMISSION
-    
 
     if (diffuseCol.x == 0.f && diffuseCol.y == 0.f && diffuseCol.z == 0.f)
     {
@@ -923,7 +928,7 @@ extern "C" __global__ void __closesthit__radiance() {
                 prd.needsFirstHitData = false;
                 prd.pixelAlbedo = emissiveCol;
                 prd.pixelNormal = nor;
-                prd.firstHitT = (powf(fmin(fmax(optixGetRayTmax() - 100.f, 0.f), 150.f), 2.f) / 22500.f);
+                prd.fogFactor = calculateFogFactor();
                 prd.fogColor = getSkyColor(rayDir, prd);
                 prd.foundLightSource = false;
             }
@@ -940,7 +945,7 @@ extern "C" __global__ void __closesthit__radiance() {
     // don't multiply by lambert term since it's canceled out by PDF for uniform hemisphere sampling
 
     prd.rayColor *= diffuseCol;
-    prd.isect.pos = isectPos + mappednor * 0.001f;
+    prd.isect.pos = isectPos + nor * 0.001f;
     prd.isect.newDir = newDir;
 
     if (prd.needsFirstHitData)
@@ -948,7 +953,7 @@ extern "C" __global__ void __closesthit__radiance() {
         prd.needsFirstHitData = false;
         prd.pixelAlbedo = diffuseCol;
         prd.pixelNormal = nor;
-        prd.firstHitT = (powf(fmin(fmax(optixGetRayTmax() - 100.f, 0.f), 150.f), 2.f) / 22500.f);
+        prd.fogFactor = calculateFogFactor();
         prd.fogColor = getSkyColor(rayDir, prd);
         prd.foundLightSource = false;
     }
