@@ -413,7 +413,7 @@ float getCloudCoverage(float3 pos, float3 dir)
 }
 
 static __device__
-float3 getSkyColor(float3 rayDir, PRD& prd)
+float3 getSkyColor(const float3 rayDir, PRD& prd)
 {
     float entireSkyStrength = smoothstep(-0.4f, 0.2f, rayDir.y);
     if (entireSkyStrength == 0.f)
@@ -438,9 +438,9 @@ float3 getSkyColor(float3 rayDir, PRD& prd)
         float haloStrength = smoothstep(0.05f, 0.20f, params.sunDir.y) * 0.4f;
         sunTotalColor += powf(smoothstep(0.98f, 0.9975f, sunD), 3.f) * (sunColor + make_float3(0.f, 0.1f, 0.1f)) * haloStrength;
 
-        if (sunD > 0.995f && prd.needsFirstHitData)
+        if (sunD > 0.995f)
         {
-            sunTotalColor += sunColor * (1.f - 5000.f * (1.f - sunD) * (1.f - sunD)) * (0.3f + 0.7f * sunColorMod) * 50.f;
+            sunTotalColor += sunColor * (1.f - 5000.f * (1.f - sunD) * (1.f - sunD)) * (0.3f + 0.7f * sunColorMod) * 45.f;
             isSunOrMoon = true;
         }
 
@@ -459,9 +459,9 @@ float3 getSkyColor(float3 rayDir, PRD& prd)
         float haloStrength = smoothstep(0.05f, 0.20f, params.moonDir.y) * 0.2f;
         moonTotalColor += powf(smoothstep(0.985f, 0.9983f, moonD), 3.f) * (moonColor + make_float3(0.f, 0.f, 0.15f)) * haloStrength;
 
-        if (moonD > 0.997f && prd.needsFirstHitData)
+        if (moonD > 0.997f)
         {
-            moonTotalColor += moonColor * 28.f;
+            moonTotalColor += moonColor * 24.f;
             isSunOrMoon = true;
         }
 
@@ -563,6 +563,7 @@ extern "C" __global__ void __raygen__render() {
         {
             // 1. BSDF
             prd.foundLightSource = false;
+            prd.specularHit = false;
 
             optixTrace(params.rootHandle,
                 prd.isect.pos,
@@ -588,7 +589,8 @@ extern "C" __global__ void __raygen__render() {
 
             // MIS: sample light source
             // 2. pdf from Sun & random point on sun
-            if (!prd.specularHit) {
+            if (!prd.specularHit)
+            {
                 float2 xi = rng2(prd.seed);
 
                 float sunChance = linearstep(-0.1f, 0.1f, params.sunDir.y);
@@ -876,16 +878,17 @@ extern "C" __global__ void __closesthit__radiance() {
             }
             
         }
+
         prd.rayColor *= ior * diffuseCol;
 
         if (prd.needsFirstHitData)
         {
-            prd.needsFirstHitData = false;
             prd.pixelAlbedo = diffuseCol;
             prd.pixelNormal = nor;
             prd.fogFactor = calculateFogFactor();
             prd.fogColor = getSkyColor(rayDir, prd);
             prd.foundLightSource = false;
+            prd.needsFirstHitData = false;
         }
 
         return;
