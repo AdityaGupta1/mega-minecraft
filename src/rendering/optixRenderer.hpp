@@ -125,7 +125,7 @@ protected:
     float4* dev_albedoBuffer;
     float4* dev_normalBuffer;
     float4* dev_denoisedBuffer;
-    float4* dev_flowBuffer;
+//    float4* dev_flowBuffer;
 
     bool isTimePaused{ true };
     float time{ 0 };

@@ -28,7 +28,7 @@ struct CUBuffer {
     }
 
     void alloc(size_t size) {
-        assert(d_ptr == nullptr);
+        if (d_ptr) free();
         this->byteSize = size;
         CUDA_CHECK(cudaMalloc((void**)&d_ptr, byteSize));
     }
