@@ -159,7 +159,19 @@ As shown in the flowchart above, a typical cycle or frame of this application st
 
 ### Base path tracer
 
-TODO: Alan and Helena
+The path tracing functionalities are implemented on various OptiX Programs. These programs, similar to shaders, are located on the GPU and represent different shading operations. The shading programs are organized into different program groups that represent their functionality. The main program group that serves as the entry point to the device side code and defines the ray tracing behavior from the camera is the raygen program group, the shading that results from rays hitting the surface is defined in the hit program group, and the miss program group adds shading for rays that never hit geometry in the scene. 
+
+TODO: SBT
+
+As the user navigates through the terrain, old chunks are no longer rendered and new chunks are generated. To offload old chunks and render new chunks, the programs receive the TraversableHandle of the Instance Accelerated Structure, in which stores the Geometry Accelerated Structures of individual chunks. This way, the chunks to render can be updated dynamically by adding and removing GAS from the IAS, and the IAS Traversable Handle will remain the input to the geometry that gets passed to the programs. 
+
+The OptiX dispatch to render will call the raygen program first. As mentioned above, this program is responsible for the ray generation to shade every pixel shown to the screen. This function acts similarly to other device functions: it gets the launch index of the thread and each thread is solely responsible for the shading of one pixel. Then, this program will launch rays and the behavior of the rays are defined in the hit and miss programs. 
+
+TODO: hit program
+
+TODO: miss program
+
+TODO: path tracing iteration overview
 
 ### Optimizations
 
