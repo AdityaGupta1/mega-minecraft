@@ -4,7 +4,7 @@
 
 - [Aditya Gupta](https://adityag1.com/)
 - [Helena Zhang](https://TODO.com/)
-- [Alan Qiao](https://TODO.com/)
+- [Alan Qiao](https://github.com/alan-qiao)
 
 ## Overview
 
@@ -147,7 +147,15 @@ Once decorators are placed, the chunk's block data is fully complete. All that r
 
 TODO: Alan and Helena
 
-maybe copy the optix/directx flowchart into here
+To efficiently render the terrain in a reaslistic fashion, this project uses a hardware-accelerated Path Tracing that supports \[list features here\]. For better performance optimization across different compatible compute devices, the path tracer is built using Nvidia OptiX 8.0 is for maximal usage of Ray Tracing Cores. The final pixel image is then rasterized through DirectX 11 that selects on start the latest supported version of DirectX 11 implementation to maximize rasterization performance. The application window and controls are implemented using the Windows API for maximal compatibility with the DirectX 11 renderer.
+
+<p align="center">
+  <img src="screenshots/readme/app_pipeline.png" width="50%" />
+  <br>
+  <em>Flowchart outlining Application Process and API segmentation</em>
+</p>
+
+As shown in the flowchart above, a typical cycle or frame of this application starts from processing any application messages. If an application message is received, it will trigger a corresponding scene state update, which may be a player movement, window resize, zoom adjustment, or camera rotation. All of these events may result in an update in the visible region, in which case the terrain generation process for the newly visible chunks are dispatched. Once chunk generation is complete, it would then trigger an update to the acceleration structures that the OptiX Ray Tracer checks for objects to trace. Regardless of whether new chunks are generated, the Path Tracing procedure would then be launched to determine what is currently visible to the camera, and send the accumulated noisy image to the denoiser with other guiding information. The final denoised output is then transferred to DirectX 11 for access through a fullscreen texture, which is then render as a textured rectangle that covers the entire application screen.
 
 ### Base path tracer
 
@@ -176,6 +184,13 @@ TODO: Aditya
 ### Denoising
 
 TODO: Alan
+There are three denoisers supported in this program. The OptiX AOV Denoiser offers most detailed static output and is compatible with both OpenGL and DirectX 11 renderer. The OptiX 2X Upscaling Denoiser is the least resource intensive and compatible with both renders, but suffers from lower output quality. The Nivdia Real-time Denoiser offers the best dynamic outcome, but is only compatible with the DirectX 11 renderer and performs worth than OptiX AOV when static. This section will provide a brief overview of how each denoiser works and the render outcomes. For more details on the denoisers, please refer to the official API documentations, linked below in the reference section.
+
+#### OptiX AOV
+
+#### OptiX 2X Upscaling AOV
+
+#### Nvidia Real-time Denoiser (NDR)
 
 ## Gallery
 
