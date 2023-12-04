@@ -787,8 +787,8 @@ float __device__ TrowbridgeReitzD(float3 wh, float3 n, float roughness) {
 float __device__ sparkling(float2 in, float r) {
     float x = fbm(make_float3(r, in)) * rand1From3(make_float3(in, r));
     if (r > 0.5f) {
-        if (fract(x) > 0.9f + 0.2f * (1.f - r)) {
-            return 1.f + 0.5f * r;
+        if (fract(x) > 0.95f + 0.2f * (1.f - r)) {
+            return 1.f + powf(r, 2.f);
         }
     }
     return 1.f;
@@ -887,7 +887,7 @@ extern "C" __global__ void __closesthit__radiance() {
     prd.specularHit = false;
 
     float3 norMap = make_float3(tex2D<float4>(chunkData.tex_normal, uv.x, uv.y));
-    float3 mappednor = normalize(0.5f * normalize(applyNormalMap(nor, norMap)) + 0.5f * nor);
+    float3 mappednor = normalize(0.75f * normalize(applyNormalMap(nor, norMap)) + 0.25f * nor);
     float3 newDir = calculateRandomDirectionInHemisphere(nor, rng2(prd.seed));
 
     if (m.roughness > 0.f) {
@@ -897,7 +897,7 @@ extern "C" __global__ void __closesthit__radiance() {
        
         float D = TrowbridgeReitzD(wh, nor, m.roughness);
 
-        diffuseCol *= clamp(D / (4.f * fabs(dot(nor, newDir)) * fabs(dot(nor, wo))), 1.f, 2.f);
+        diffuseCol *= clamp(D / (4.f * fabs(dot(nor, newDir)) * fabs(dot(nor, wo))), 0.5f, 4.f);
         
         float sparkles = sparkling((make_float2(rayOrigin.x, rayOrigin.z) * make_float2(v1.pos.x, v1.pos.z)) + floor(uv * 256.f), m.roughness);
         
