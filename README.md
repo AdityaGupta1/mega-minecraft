@@ -150,7 +150,7 @@ TODO: Alan and Helena
 To efficiently render the terrain in a reaslistic fashion, this project uses a hardware-accelerated Path Tracing that supports \[list features here\]. For better performance optimization across different compatible compute devices, the path tracer is built using Nvidia OptiX 8.0 is for maximal usage of Ray Tracing Cores. The final pixel image is then rasterized through DirectX 11 that selects on start the latest supported version of DirectX 11 implementation to maximize rasterization performance. The application window and controls are implemented using the Windows API for maximal compatibility with the DirectX 11 renderer.
 
 <p align="center">
-  <img src="screenshots/readme/app_pipeline.png" width="50%" />
+  <img src="screenshots/readme/app_pipeline.png" width="30%" />
   <br>
   <em>Flowchart outlining Application Process and API segmentation</em>
 </p>
