@@ -515,8 +515,6 @@ float3 getSkyColor(const float3 rayDir, PRD& prd)
             cloudColor = lerp(cloudColor, make_float3(1.20f, 0.30f, 0.10f), orangeStrength * 0.9f);
             skyColor = lerp(skyColor, cloudColor, fminf(0.92f, cloudCoverage));
         }
-
-        prd.fogFactor = 0.f;
     }
 
     return skyColor * entireSkyStrength;
