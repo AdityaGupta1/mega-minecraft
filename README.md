@@ -12,43 +12,9 @@
 	<img src="screenshots/12-3-2023/010.png" />
 </p>
 
-This project aims to recreate Minecraft with two major upgrades: **real-time path tracing** with OptiX and **GPU-accelerated terrain generation** with CUDA.
+This project aims to create a Minecraft-like experience with two major upgrades: **GPU-accelerated terrain generation** with CUDA and **real-time path tracing** with OptiX.
 
 TODO: expand on this
-
-## OptiX Path Tracing
-
-TODO: Alan and Helena
-
-maybe copy the optix/directx flowchart into here
-
-### Base path tracer
-
-TODO: Alan and Helena
-
-### Optimizations
-
-TODO: Alan
-
-### Sky
-
-TODO: Aditya
-
-<p align="center">
-  <img src="screenshots/12-3-2023/002.png" width="50%" />
-  <br>
-  <em>The sun sets over an oasis.</em>
-</p>
-
-<p align="center">
-  <img src="screenshots/12-3-2023/006.png" width="50%" />
-  <br>
-  <em>Shadowy fungi against a starry night sky.</em>
-</p>
-
-### Denoising
-
-TODO: Alan
 
 ## CUDA Terrain Generation
 
@@ -106,7 +72,7 @@ Erosion leads to more natural looking terrain, especially in steep areas. For ex
 
 ### Caves and cave biomes
 
-Once terrain erosion has completed, caves are carved out of the terrain. The main caves are heavily inspired by a Minecraft mod called [Worley's Caves](https://www.curseforge.com/minecraft/mc-mods/worleys-caves). True to their name, these caves use a modified version of Worley noise to generate infinite branching tunnels and large open areas. Most of the caves are hidden fully underground, but ravines spread out throughout the terrain provide access to the subterranean world.
+Once terrain erosion has completed, caves are carved out of the terrain. The main caves are heavily inspired by a Minecraft mod called [Worley's Caves](https://www.curseforge.com/minecraft/mc-mods/worleys-caves). True to their name, these caves use a modified version of Worley noise to generate infinite branching tunnels and large open areas. Most of the caves are hidden fully underground, but ravines located throughout the terrain provide access to the subterranean world.
 
 <p align="center">
   <img src="screenshots/readme/ravine.png" width="50%" />
@@ -175,6 +141,42 @@ Once all features are placed, the blocks are copied from the GPU to the CPU. The
   <em>Decorators in the lush birch forest biome, including grass, dandelions, peonies, and lilacs.</em>
 </p>
 
+Once decorators are placed, the chunk's block data is fully complete. All that remains is creating vertices from the blocks and sending those to the GPU to construct acceleration structures.
+
+## OptiX Path Tracing
+
+TODO: Alan and Helena
+
+maybe copy the optix/directx flowchart into here
+
+### Base path tracer
+
+TODO: Alan and Helena
+
+### Optimizations
+
+TODO: Alan
+
+### Sky
+
+TODO: Aditya
+
+<p align="center">
+  <img src="screenshots/12-3-2023/002.png" width="50%" />
+  <br>
+  <em>The sun sets over an oasis.</em>
+</p>
+
+<p align="center">
+  <img src="screenshots/12-3-2023/006.png" width="50%" />
+  <br>
+  <em>Shadowy fungi against a starry night sky.</em>
+</p>
+
+### Denoising
+
+TODO: Alan
+
 ## Gallery
 
 Sections are organized in chronological order.
@@ -215,14 +217,17 @@ Sections are organized in chronological order.
 
 TODO
 
--
--
--
--
--
+- [Procedural Generation of Volumetric Data for Terrain](https://www.diva-portal.org/smash/get/diva2:1355216/FULLTEXT01.pdf) (Machado 2019)
+- [Worley's Caves](https://www.curseforge.com/minecraft/mc-mods/worleys-caves)
+- [<em>Physically Based Rendering: From Theory to Implementation</em>](https://pbrt.org/)
+- [Ingo Wald's OptiX 7 course](https://github.com/ingowald/optix7course)
 
 ## Special Thanks
 
 TODO
 
-detlef lol
+- [Detlef Roettger](https://forums.developer.nvidia.com/u/droettger/) for giving invaluable OptiX advice and looking through our codebase
+- [Eric Haines](https://erich.realtimerendering.com/) for putting us in contact with Detlef
+- [Henrique Furtado Machado](https://www.linkedin.com/in/henriquefur/) for discussing the details of his paper with us
+- [Wayne Wu](https://www.wuwayne.com/), [Shehzan Mohammed](https://www.linkedin.com/in/shehzan-mohammed/), and the TAs for teaching CIS 5650
+- [Adam Mally](https://www.linkedin.com/in/adam-mally-888b912b/) for assigning the original Mini Minecraft project
