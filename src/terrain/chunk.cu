@@ -12,7 +12,7 @@
 #define DEBUG_SKIP_EROSION 0
 #define DEBUG_USE_CONTRIBUTION_FILL_METHOD 0
 
-//#define DEBUG_BIOME_OVERRIDE Biome::OASIS
+//#define DEBUG_BIOME_OVERRIDE Biome::ICEBERGS
 //#define DEBUG_CAVE_BIOME_OVERRIDE CaveBiome::NONE
 
 Chunk::Chunk(ivec2 worldChunkPos)

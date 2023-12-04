@@ -413,7 +413,7 @@ float getCloudCoverage(float3 pos, float3 dir)
 }
 
 static __device__
-float3 getSkyColor(const float3 rayDir, PRD& prd)
+float3 getSkyColor(const float3 rayDir, PRD& prd, bool includeStars = true)
 {
     float entireSkyStrength = smoothstep(-0.4f, 0.2f, rayDir.y);
     if (entireSkyStrength == 0.f)
@@ -427,45 +427,48 @@ float3 getSkyColor(const float3 rayDir, PRD& prd)
 
     float sunStrength = smoothstep(-0.5f, -0.2f, params.sunDir.y);
     float sunD = dot(rayDir, params.sunDir);
-    // sun
-    if (sunStrength > 0.f && sunD > 0.98f)
+    if (includeStars)
     {
-        float3 sunTotalColor = make_float3(0.f);
-
-        float sunColorMod = smoothstep(-0.05f, 0.40f, params.sunDir.y);
-        float3 sunColor = make_float3(1.20f, 0.05f + 0.70f * sunColorMod, 0.42f * sunColorMod);
-
-        float haloStrength = smoothstep(0.05f, 0.20f, params.sunDir.y) * 0.4f;
-        sunTotalColor += powf(smoothstep(0.98f, 0.9975f, sunD), 3.f) * (sunColor + make_float3(0.f, 0.1f, 0.1f)) * haloStrength;
-
-        if (sunD > 0.995f)
+        // sun
+        if (sunStrength > 0.f && sunD > 0.98f)
         {
-            sunTotalColor += sunColor * (1.f - 5000.f * (1.f - sunD) * (1.f - sunD)) * (0.3f + 0.7f * sunColorMod) * 45.f;
-            isSunOrMoon = true;
+            float3 sunTotalColor = make_float3(0.f);
+
+            float sunColorMod = smoothstep(-0.05f, 0.40f, params.sunDir.y);
+            float3 sunColor = make_float3(1.20f, 0.05f + 0.70f * sunColorMod, 0.42f * sunColorMod);
+
+            float haloStrength = smoothstep(0.05f, 0.20f, params.sunDir.y) * 0.4f;
+            sunTotalColor += powf(smoothstep(0.98f, 0.9975f, sunD), 3.f) * (sunColor + make_float3(0.f, 0.1f, 0.1f)) * haloStrength;
+
+            if (sunD > 0.995f)
+            {
+                sunTotalColor += sunColor * (1.f - 5000.f * (1.f - sunD) * (1.f - sunD)) * (0.3f + 0.7f * sunColorMod) * 45.f;
+                isSunOrMoon = true;
+            }
+
+            skyColor += sunTotalColor * sunStrength;
         }
 
-        skyColor += sunTotalColor * sunStrength;
-    }
-
-    float moonStrength = smoothstep(-0.5f, -0.2f, params.moonDir.y);
-    float moonD = dot(rayDir, params.moonDir);
-    // moon
-    if (moonStrength > 0.f && moonD > 0.985f)
-    {
-        float3 moonTotalColor = make_float3(0.f);
-
-        float3 moonColor = make_float3(0.6f, 0.7f, 1.f) * 0.3f;
-
-        float haloStrength = smoothstep(0.05f, 0.20f, params.moonDir.y) * 0.2f;
-        moonTotalColor += powf(smoothstep(0.985f, 0.9983f, moonD), 3.f) * (moonColor + make_float3(0.f, 0.f, 0.15f)) * haloStrength;
-
-        if (moonD > 0.997f)
+        float moonStrength = smoothstep(-0.5f, -0.2f, params.moonDir.y);
+        float moonD = dot(rayDir, params.moonDir);
+        // moon
+        if (moonStrength > 0.f && moonD > 0.985f)
         {
-            moonTotalColor += moonColor * 24.f;
-            isSunOrMoon = true;
-        }
+            float3 moonTotalColor = make_float3(0.f);
 
-        skyColor += moonTotalColor * moonStrength;
+            float3 moonColor = make_float3(0.6f, 0.7f, 1.f) * 0.3f;
+
+            float haloStrength = smoothstep(0.05f, 0.20f, params.moonDir.y) * 0.2f;
+            moonTotalColor += powf(smoothstep(0.985f, 0.9983f, moonD), 3.f) * (moonColor + make_float3(0.f, 0.f, 0.15f)) * haloStrength;
+
+            if (moonD > 0.997f)
+            {
+                moonTotalColor += moonColor * 24.f;
+                isSunOrMoon = true;
+            }
+
+            skyColor += moonTotalColor * moonStrength;
+        }
     }
 
     prd.foundLightSource = isSunOrMoon;
@@ -884,7 +887,7 @@ extern "C" __global__ void __closesthit__radiance() {
             prd.pixelAlbedo = diffuseCol;
             prd.pixelNormal = nor;
             prd.fogFactor = calculateFogFactor();
-            prd.fogColor = getSkyColor(rayDir, prd);
+            prd.fogColor = getSkyColor(rayDir, prd, false);
             prd.foundLightSource = false;
             prd.needsFirstHitData = false;
         }
@@ -929,7 +932,7 @@ extern "C" __global__ void __closesthit__radiance() {
                 prd.pixelAlbedo = emissiveCol;
                 prd.pixelNormal = nor;
                 prd.fogFactor = calculateFogFactor();
-                prd.fogColor = getSkyColor(rayDir, prd);
+                prd.fogColor = getSkyColor(rayDir, prd, false);
                 prd.foundLightSource = false;
             }
 
@@ -954,7 +957,7 @@ extern "C" __global__ void __closesthit__radiance() {
         prd.pixelAlbedo = diffuseCol;
         prd.pixelNormal = nor;
         prd.fogFactor = calculateFogFactor();
-        prd.fogColor = getSkyColor(rayDir, prd);
+        prd.fogColor = getSkyColor(rayDir, prd, false);
         prd.foundLightSource = false;
     }
 }
