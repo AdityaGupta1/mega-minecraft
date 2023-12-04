@@ -5,10 +5,11 @@
 // ============================================================
 
 #define USE_D3D11_RENDERER 1
-#define GPU_DEVICE 0
+#define GPU_DEVICE 1
 
 // OptiX
 #define USE_DENOISING 1
+#define USE_UPSCALING 0
 #define RESET_CAMERA_ON_BUILD_IAS 0
 
 // ============================================================

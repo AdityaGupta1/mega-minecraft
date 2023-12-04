@@ -30,21 +30,26 @@ OptixRenderer::OptixRenderer(GLFWwindow* window, uvec2* windowSize, Terrain* ter
     gasBufferPtrs.resize(numMaxDrawableChunks);
     host_hitGroupRecords.resize(numMaxDrawableChunks * numRayTypes);
 
-    createContext();
-
-    setZoomed(false);
+#if USE_UPSCALING
+    const uint32_t inWidth = windowSize->x >> 1;
+    const uint32_t inHeight = windowSize->y >> 1;
+#else
+    const uint32_t inWidth = windowSize->x;
+    const uint32_t inHeight = windowSize->y;
+#endif
 
     launchParamsBuffer.alloc(sizeof(OptixParams));
-    launchParams.windowSize = make_int2(windowSize->x, windowSize->y);
-    pixels.resize(windowSize->x * windowSize->y);
+    launchParams.windowSize = make_int2(inWidth, inHeight);
+    pixels.resize(inWidth * inHeight);
 
     CUDA_CHECK(cudaMalloc((void**)&dev_chunkInstances, numMaxDrawableChunks * sizeof(OptixInstance)));
 
-    size_t imageSizeBytes = windowSize->x * windowSize->y * sizeof(float4);
+    size_t imageSizeBytes = inWidth * inHeight * sizeof(float4);
     CUDA_CHECK(cudaMalloc((void**)&dev_renderBuffer, imageSizeBytes));
     CUDA_CHECK(cudaMalloc((void**)&dev_albedoBuffer, imageSizeBytes));
     CUDA_CHECK(cudaMalloc((void**)&dev_normalBuffer, imageSizeBytes));
-    CUDA_CHECK(cudaMalloc((void**)&dev_denoisedBuffer, imageSizeBytes));
+    CUDA_CHECK(cudaMalloc((void**)&dev_denoisedBuffer, (windowSize->x * windowSize->y) * sizeof(float4)));
+//    CUDA_CHECK(cudaMalloc((void**)&dev_flowBuffer, imageSizeBytes));
 
 #if !USE_D3D11_RENDERER
     glGenVertexArrays(1, &vao);
@@ -57,10 +62,14 @@ OptixRenderer::OptixRenderer(GLFWwindow* window, uvec2* windowSize, Terrain* ter
     initTexture();
 #endif
 
+    setZoomed(false);
+
     sunAxisForward = normalize(vec3(6.0f, -2.0f, 2.0f));
     sunAxisRight = normalize(cross(sunAxisForward, vec3(0, 1, 0)));
     sunAxisUp = normalize(cross(sunAxisRight, sunAxisForward));
     updateTime(0.f);
+
+    createContext();
 }
 
 static void context_log_cb(unsigned int level,
@@ -409,15 +418,22 @@ inline float3 vec3ToFloat3(glm::vec3 v)
 
 void OptixRenderer::setCamera()
 {
+#if USE_UPSCALING
+    const uint32_t inWidth = windowSize->x >> 1;
+    const uint32_t inHeight = windowSize->y >> 1;
+#else
+    const uint32_t inWidth = windowSize->x;
+    const uint32_t inHeight = windowSize->y;
+#endif
     float yscaled = tanFovy;
-    float xscaled = (yscaled * windowSize->x) / windowSize->y;
-    launchParams.camera.pixelLength = make_float2(2 * xscaled / (float)windowSize->x, 2 * yscaled / (float)windowSize->y);
+    float xscaled = (yscaled * inWidth) / inHeight;
+    launchParams.camera.pixelLength = make_float2(2 * xscaled / (float)inWidth, 2 * yscaled / (float)inHeight);
 
     launchParams.camera.forward = vec3ToFloat3(player->getForward());
     launchParams.camera.up = vec3ToFloat3(player->getUp());
     launchParams.camera.right = vec3ToFloat3(player->getRight());
     launchParams.camera.position = vec3ToFloat3(player->getPos());
-    launchParams.windowSize = make_int2(windowSize->x, windowSize->y);
+    launchParams.windowSize = make_int2(inWidth, inHeight);
     launchParams.frame.frameId = 0;
 
     cameraChanged = false;
@@ -696,28 +712,75 @@ void OptixRenderer::createDenoiser()
         OPTIX_CHECK(optixDenoiserDestroy(denoiser));
     };
 
+#if USE_UPSCALING
+    const uint32_t inWidth = windowSize->x >> 1;
+    const uint32_t inHeight = windowSize->y >> 1;
+#else
+    const uint32_t inWidth = windowSize->x;
+    const uint32_t inHeight = windowSize->y;
+#endif
+
     OptixDenoiserOptions denoiserOptions = {};
     denoiserOptions.guideAlbedo = 1;
-    //denoiserOptions.guideNormal = 1;
-    denoiserOptions.denoiseAlpha = OPTIX_DENOISER_ALPHA_MODE_COPY;
+    denoiserOptions.guideNormal = 0;
+    denoiserOptions.denoiseAlpha = (OptixDenoiserAlphaMode)0;
+#if USE_UPSCALING
+    OPTIX_CHECK(optixDenoiserCreate(optixContext, OPTIX_DENOISER_MODEL_KIND_UPSCALE2X, &denoiserOptions, &denoiser));
+#else
     OPTIX_CHECK(optixDenoiserCreate(optixContext, OPTIX_DENOISER_MODEL_KIND_AOV, &denoiserOptions, &denoiser));
+#endif
 
     OptixDenoiserSizes denoiserReturnSizes;
     OPTIX_CHECK(optixDenoiserComputeMemoryResources(denoiser, windowSize->x, windowSize->y, &denoiserReturnSizes));
 
-    denoiserScratch.resize(std::max(denoiserReturnSizes.withOverlapScratchSizeInBytes, denoiserReturnSizes.withoutOverlapScratchSizeInBytes));
+    denoiserScratch.resize(denoiserReturnSizes.withoutOverlapScratchSizeInBytes);
     denoiserState.resize(denoiserReturnSizes.stateSizeInBytes);
-    denoiserIntensity.resize(sizeof(float));
+    denoiserAvgCol.resize(3 * sizeof(float));
+
+    denoiserLayer.input = createOptixImage2D(inWidth, inHeight, (CUdeviceptr)dev_renderBuffer);
+    denoiserLayer.output = createOptixImage2D(windowSize->x, windowSize->y, (CUdeviceptr)dev_denoisedBuffer);
+
+#if 0 // abandoning temporal for now
+    denoiserLayer.previousOutput = createOptixImage2D(windowSize->x, windowSize->y);
+
+    CUDA_CHECK(cudaMemset(dev_flowBuffer, 0, inWidth * inHeight * sizeof(float4)));
+    denoiserGuideLayer.flow = createOptixImage2D(inWidth, inHeight);
+
+    void* internalMemIn = 0;
+    void* internalMemOut = 0;
+    size_t internalSize = windowSize->x * windowSize->y * denoiserReturnSizes.internalGuideLayerPixelSizeInBytes;
+    CUDA_CHECK(cudaMalloc(&internalMemIn, internalSize));
+    CUDA_CHECK(cudaMalloc(&internalMemOut, internalSize));
+    CUDA_CHECK(cudaMemset(internalMemIn, 0, internalSize));
+
+    denoiserGuideLayer.previousOutputInternalGuideLayer.data = (CUdeviceptr)internalMemIn;
+    denoiserGuideLayer.previousOutputInternalGuideLayer.width = windowSize->x;
+    denoiserGuideLayer.previousOutputInternalGuideLayer.height = windowSize->y;
+    denoiserGuideLayer.previousOutputInternalGuideLayer.pixelStrideInBytes = unsigned(denoiserReturnSizes.internalGuideLayerPixelSizeInBytes);
+    denoiserGuideLayer.previousOutputInternalGuideLayer.rowStrideInBytes = denoiserGuideLayer.previousOutputInternalGuideLayer.width * denoiserGuideLayer.previousOutputInternalGuideLayer.pixelStrideInBytes;
+    denoiserGuideLayer.previousOutputInternalGuideLayer.format = OPTIX_PIXEL_FORMAT_INTERNAL_GUIDE_LAYER;
+
+    denoiserGuideLayer.outputInternalGuideLayer = denoiserGuideLayer.previousOutputInternalGuideLayer;
+    denoiserGuideLayer.outputInternalGuideLayer.data = (CUdeviceptr)internalMemOut;
+
+    // flowTrustworthiness?
+#endif
+    denoiserGuideLayer.albedo = createOptixImage2D(inWidth, inHeight, (CUdeviceptr)dev_albedoBuffer);
+    denoiserGuideLayer.normal = createOptixImage2D(inWidth, inHeight, (CUdeviceptr)dev_normalBuffer);
 
     OPTIX_CHECK(optixDenoiserSetup(
         denoiser,
         0, // stream
-        windowSize->x, windowSize->y,
+        inWidth, inHeight,
         denoiserState.dev_ptr(),
         denoiserState.size(),
         denoiserScratch.dev_ptr(),
         denoiserScratch.size()
     ));
+
+    denoiserParams.hdrAverageColor = denoiserAvgCol.dev_ptr();
+    denoiserParams.blendFactor = 0.f;
+    denoiserParams.temporalModeUsePreviousLayers = 0;
 }
 
 void OptixRenderer::render(float deltaTime)
@@ -738,9 +801,29 @@ void OptixRenderer::render(float deltaTime)
 
 void OptixRenderer::onResize()
 {
-    pboResource = *(renderer->getCudaTextureResource());
+#if USE_UPSCALING
+    const uint32_t inWidth = windowSize->x >> 1;
+    const uint32_t inHeight = windowSize->y >> 1;
+#else
+    const uint32_t inWidth = windowSize->x;
+    const uint32_t inHeight = windowSize->y;
+#endif
+
+    launchParams.windowSize = make_int2(inWidth, inHeight);
+    pixels.resize(inWidth * inHeight);
+
+    CUDA_CHECK(cudaFree(dev_renderBuffer));
+    CUDA_CHECK(cudaFree(dev_albedoBuffer));
+    CUDA_CHECK(cudaFree(dev_normalBuffer));
     CUDA_CHECK(cudaFree(dev_denoisedBuffer));
-    CUDA_CHECK(cudaMalloc((void**)&dev_denoisedBuffer, windowSize->x * windowSize->y * sizeof(float4)));
+
+    size_t imageSizeBytes = inWidth * inHeight * sizeof(float4);
+    CUDA_CHECK(cudaMalloc((void**)&dev_renderBuffer, imageSizeBytes));
+    CUDA_CHECK(cudaMalloc((void**)&dev_albedoBuffer, imageSizeBytes));
+    CUDA_CHECK(cudaMalloc((void**)&dev_normalBuffer, imageSizeBytes));
+    CUDA_CHECK(cudaMalloc((void**)&dev_denoisedBuffer, (windowSize->x * windowSize->y) * sizeof(float4)));
+
+    pboResource = *(renderer->getCudaTextureResource());
 }
 
 void OptixRenderer::updateTime(float deltaTime)
@@ -803,49 +886,25 @@ void OptixRenderer::optixRenderFrame()
 #endif
 
 #if USE_DENOISING
-    OptixDenoiserParams denoiserParams = {};
-    denoiserParams.hdrIntensity = denoiserIntensity.dev_ptr();
-    denoiserParams.blendFactor = 0.f; // output only final denoised buffer
+#if 0 // abandoning temporal
+    OptixImage2D temp = denoiserGuideLayer.previousOutputInternalGuideLayer;
+    denoiserGuideLayer.previousOutputInternalGuideLayer = denoiserGuideLayer.outputInternalGuideLayer;
+    denoiserGuideLayer.outputInternalGuideLayer = temp;
 
-    OptixImage2D inputLayers[3];
+    temp = denoiserLayer.previousOutput;
+    denoiserLayer.previousOutput = denoiserLayer.output;
+    denoiserLayer.output = temp;
 
-    inputLayers[0].data = (CUdeviceptr)dev_renderBuffer;
-    inputLayers[1].data = (CUdeviceptr)dev_albedoBuffer;
-    inputLayers[2].data = (CUdeviceptr)dev_normalBuffer;
-
-    for (int i = 0; i < 3; ++i)
-    {
-        inputLayers[i].width = windowSize->x;
-        inputLayers[i].height = windowSize->y;
-        inputLayers[i].rowStrideInBytes = windowSize->x * sizeof(float4);
-        inputLayers[i].pixelStrideInBytes = sizeof(float4);
-        inputLayers[i].format = OPTIX_PIXEL_FORMAT_FLOAT4;
-    }
-
-    OptixImage2D outputLayer = {};
-    outputLayer.data = (CUdeviceptr)dev_denoisedBuffer;
-    outputLayer.width = windowSize->x;
-    outputLayer.height = windowSize->y;
-    outputLayer.rowStrideInBytes = outputLayer.width * sizeof(float4);
-    outputLayer.pixelStrideInBytes = sizeof(float4);
-    outputLayer.format = OPTIX_PIXEL_FORMAT_FLOAT4;
-
-    OPTIX_CHECK(optixDenoiserComputeIntensity(
+    denoiserParams.temporalModeUsePreviousLayers = 1;
+#endif
+    OPTIX_CHECK(optixDenoiserComputeAverageColor(
         denoiser,
         0, // stream
-        &inputLayers[0],
-        denoiserIntensity.dev_ptr(),
+        &denoiserLayer.input,
+        denoiserAvgCol.dev_ptr(),
         denoiserScratch.dev_ptr(),
         denoiserScratch.size()
     ));
-
-    OptixDenoiserGuideLayer denoiserGuideLayer = {};
-    denoiserGuideLayer.albedo = inputLayers[1];
-    denoiserGuideLayer.normal = inputLayers[2];
-
-    OptixDenoiserLayer denoiserLayer = {};
-    denoiserLayer.input = inputLayers[0];
-    denoiserLayer.output = outputLayer;
 
     OPTIX_CHECK(optixDenoiserInvoke(denoiser,
         0, // stream
