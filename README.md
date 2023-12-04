@@ -12,23 +12,46 @@
 	<img src="screenshots/12-3-2023/010.png" />
 </p>
 
-This project aims to create a Minecraft-like experience with two major upgrades: **real-time path tracing** with OptiX and **GPU-accelerated terrain generation** with CUDA.
+This project aims to create a **Minecraft-like experience** with two major upgrades: **real-time path tracing** with OptiX and **GPU-accelerated terrain generation** with CUDA.
 
 Normal Minecraft is rendered by rasterization and a block-based lighting system, which works very well for gameplay. Minecraft shaders take that to the next level by introducing features such as shadow mapping, screen space reflections, and dynamic lighting. This project goes one step further by using the RTX accelerated OptiX framework to perform rendering entirely through path tracing, which gives realistic lighting, shadows, and reflections.
 
 Additionally, GPGPU programming with CUDA allows for fast generation of fantastical terrain constructed from various noise functions and implicit surfaces. This project's terrain consists of several distinct biomes, each with their own characteristics and structures. Players exploring the world can find sights such as giant purple mushrooms, vast expanses of sand dunes, infected underground forests, and many more.
 
-This README gives an overview of the various parts of the project and explains some of the processes and decisions it took to get there.
+This README gives an overview of the various parts of the project as well as more detailed explanations of individual features.
+
+### Controls
+
+When you run the project, there are a number of controls at your disposal.
+
+- `WASD` for horizontal movement
+- `Q` to fly down, `E` or `space` to fly up
+- Mouse to look around
+- `LShift` to fly faster
+- `Z` to toggle arrow key controls, which replace the mouse for looking around
+- Hold `C` to zoom in
+- `P` to pause/unpause time
+- `[` and `]` to step backwards and forwards in time
+- `F` to toggle free cam mode, which disables generation of new chunks and unloading of far chunks
 
 ## CUDA Terrain Generation
 
-TODO: Aditya
+While an infinite procedural world is one of Minecraft's selling point, terrain has to be generated in discrete sections called "chunks". In normal Minecraft and in this project, a chunk consists of 16x384x16 blocks. As the player moves around the world, new chunks are generated while old chunks are removed from view.
 
-briefly explain chunk-based generation
+Chunk generation in this project consists of several steps:
 
-potentially add a diagram explaining the entire chunk kernel/gathering process
+- Heightfields and surface biomes
+- Erosion
+- Caves and cave biomes
+- Terrain feature placement
+  - This includes trees, mushrooms, crystals, etc.
+- Chunk fill
 
-also explain action time system
+Some steps, such as heightfields and surface biomes, can be performed on single chunks without any information about neighboring chunks. However, some steps, such as erosion, require gathering information from neighboring chunks in order to prevent discontinuities along chunk borders. The following diagram explains the requirements for each step:
+
+TODO: diagram goes here
+
+To balance the load over time and prevent lag spikes, we use an "action time" system for scheduling. Every frame, the terrain generator gains action time proportional to the time since the last frame. Action time per frame is capped at a certain amount to ensure that no one frame does too much work. Each action has an associated cost, determined by empirical measurements of the step's average duration, which subtracts from the accumulated action time. For example, we currently accumulate up to 30,000 action time per second and allow up to 500 action time per frame. Generating a chunk's heightfield and surface biomes is relatively inexpensive, so its cost is only 3 per chunk. However, erosion is run over a 24x24 area of chunks at once and is relatively expensive, so its cost is a full 500 per 24x24 area.
 
 Unless otherwise specified, all terrain generation steps other than gathering neighboring chunks are performed on the GPU using CUDA kernels.
 
@@ -59,7 +82,7 @@ After heights and surface biomes are decided, the next step is to generate terra
 The top layers are "loose" and consist of materials like dirt, sand, and gravel. Loose layers' heights are determined in part by the terrain's slope, which requires gathering the 8 surrounding chunks of each chunk in order to determine the slope of the chunk's edges. Once all layers are placed, erosion proceeds starting from the lowest loose layer and going up to the highest. Rather than a traditional erosion simulation, which moves material from a column to its surrounding columns, we use Machado's proposed "slope method", which removes material from a column if it has too high of a difference in layer heights from its surrounding columns.
 
 <p align="center">
-  <img src="screenshots/readme/slope_method.png" width="30%" />
+  <img src="screenshots/readme/slope_method.png" width="40%" />
   <br>
   <em>Illustration of the slope method, where</em> α <em>is the maximum angle between neighboring layers (defined per material).</em>
 </p>
@@ -99,7 +122,7 @@ Flattening the 3D information into layers allows for easily querying the start, 
   <em>Side view of some caves.</em>
 </p>
 
-### Terrain features
+### Terrain feature placement
 
 At this point, the surface height, each cave layer's start and end height, and all biomes have been decided. The next step is to place terrain features, which is done on the CPU due to the inability to predetermine how many features a chunk will contain. 
 
@@ -129,7 +152,7 @@ The only thing left now is to actually fill the chunk's blocks. This step takes 
 
 If a block is below its column's height, it is filled in with a block depending its corresponding terrain layer. If the block is in a cave layer, it will instead be filled with air. After the layers are filled out, some biomes also apply special post-processing functions. For example, the frozen wasteland biome turns water into ice while the mesa biome places layers of colorful terracotta. As with all other biome-related processes, these too are interpolated across biome boundaries using biome weights.
 
-After the base terrain has been constructed, terrain features are filled in. Each thread loops over all gathered features and places the first one found at the current position. Feature placement makes use of many early exit conditions to ensure that a thread does not performing intensive calculations for features which are nowhere near its position.
+After the base terrain has been constructed, terrain features are filled in. Each thread loops over all gathered features and places the first one found at the current position. Feature placement generally consists of constructing implicit surfaces and checking whether the current position lies inside any of them. These surfaces range from spheres to hexagonal prisms to splines, and many are distorted by noise and randomness to give a more natural feel. Feature placement also makes use of many early exit conditions to ensure that a thread does not performing intensive calculations for features which are nowhere near its position. Much of this logic was inspired by the approach of the Minecraft mod [BetterEnd](https://www.curseforge.com/minecraft/mc-mods/betterend), which uses signed distance functions for its terrain features.
 
 <p align="center">
   <img src="screenshots/readme/various_features.png" width="50%" />
@@ -156,7 +179,7 @@ To efficiently render the terrain in a reaslistic fashion, this project uses a h
 <p align="center">
   <img src="screenshots/readme/app_pipeline.png" width="30%" />
   <br>
-  <em>Flowchart outlining Application Process and API segmentation</em>
+  <em>Flowchart outlining application process and API segmentation.</em>
 </p>
 
 As shown in the flowchart above, a typical cycle or frame of this application starts from processing any application messages. If an application message is received, it will trigger a corresponding scene state update, which may be a player movement, window resize, zoom adjustment, or camera rotation. All of these events may result in an update in the visible region, in which case the terrain generation process for the newly visible chunks are dispatched. Once chunk generation is complete, it would then trigger an update to the acceleration structures that the OptiX Ray Tracer checks for objects to trace. Regardless of whether new chunks are generated, the Path Tracing procedure would then be launched to determine what is currently visible to the camera, and send the accumulated noisy image to the denoiser with other guiding information. The final denoised output is then transferred to DirectX 11 for access through a fullscreen texture, which is then render as a textured rectangle that covers the entire application screen.
@@ -183,7 +206,7 @@ TODO: Alan
 
 ### Sky
 
-TODO: Aditya
+The sky includes a full day and night cycle, complete with a sun, moon, clouds, and stars. During sunrise and sunset, the sky becomes a bright orange near the sun. Additionally, since they are the main sources of light on the surface, the sun and moon are also sampled for direct lighting to reduce noise.
 
 <p align="center">
   <img src="screenshots/12-3-2023/002.png" width="50%" />
@@ -200,6 +223,7 @@ TODO: Aditya
 ### Denoising
 
 TODO: Alan
+
 There are three denoisers supported in this program. The OptiX AOV Denoiser offers most detailed static output and is compatible with both OpenGL and DirectX 11 renderer. The OptiX 2X Upscaling Denoiser is the least resource intensive and compatible with both renders, but suffers from lower output quality. The Nivdia Real-time Denoiser offers the best dynamic outcome, but is only compatible with the DirectX 11 renderer and performs worth than OptiX AOV when static. This section will provide a brief overview of how each denoiser works and the render outcomes. For more details on the denoisers, please refer to the official API documentations, linked below in the reference section.
 
 #### OptiX AOV
@@ -247,13 +271,14 @@ Sections are organized in chronological order.
 ## References
 
 - [Procedural Generation of Volumetric Data for Terrain](https://www.diva-portal.org/smash/get/diva2:1355216/FULLTEXT01.pdf) (Machado 2019)
-- [Worley's Caves](https://www.curseforge.com/minecraft/mc-mods/worleys-caves)
 - [<em>Physically Based Rendering: From Theory to Implementation</em>](https://pbrt.org/)
 - [Ingo Wald's OptiX 7 course](https://github.com/ingowald/optix7course)
+- [Worley's Caves](https://www.curseforge.com/minecraft/mc-mods/worleys-caves)
+- [BetterEnd](https://www.curseforge.com/minecraft/mc-mods/betterend)
 
 ## Special Thanks
 
-- [Detlef Roettger](https://forums.developer.nvidia.com/u/droettger/) for giving invaluable OptiX advice and looking through our codebase
+- [Detlef Roettger](https://forums.developer.nvidia.com/u/droettger/) for giving us invaluable OptiX advice and looking through our codebase
 - [Eric Haines](https://erich.realtimerendering.com/) for putting us in contact with Detlef
 - [Henrique Furtado Machado](https://www.linkedin.com/in/henriquefur/) for discussing the details of his paper with us
 - [Wayne Wu](https://www.wuwayne.com/), [Shehzan Mohammed](https://www.linkedin.com/in/shehzan-mohammed/), and the TAs for teaching CIS 5650
