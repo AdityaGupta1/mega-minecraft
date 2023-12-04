@@ -5,7 +5,7 @@
 // ============================================================
 
 #define USE_D3D11_RENDERER 1
-#define GPU_DEVICE 1
+#define GPU_DEVICE 0
 
 // OptiX
 #define USE_DENOISING 1

@@ -1086,7 +1086,7 @@ void BiomeUtils::init()
         DecoratorGen(Block::FIRE_CORAL, 0.030f, coralReefBottomBlocks).setWater(),
         DecoratorGen(Block::HORN_CORAL, 0.030f, coralReefBottomBlocks).setWater(),
         DecoratorGen(Block::TUBE_CORAL, 0.030f, coralReefBottomBlocks).setWater(),
-        DecoratorGen(Block::SEA_LANTERN, 0.005f, {}).setWater()
+        //DecoratorGen(Block::SEA_LANTERN, 0.005f, {}).setWater()
     };
 
     host_biomeDecoratorGens[(int)Biome::ARCHIPELAGO] = {

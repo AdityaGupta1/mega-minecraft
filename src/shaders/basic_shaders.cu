@@ -20,12 +20,12 @@
       optixLaunch) */
 extern "C" __constant__ OptixParams params;
 
-__constant__ struct Mat diffuse = { 0.f, 0.f, false, false, false };
-__constant__ struct Mat water = { 1.33f, 0.f, true, true, true };
-__constant__ struct Mat crystal = { 2.3f, 0.f, true, true, false };
-__constant__ struct Mat smooth = { 0.f, 0.4f, false, false, false };
-__constant__ struct Mat micro = { 0.f, 0.6f, false, false, false };
-__constant__ struct Mat rough = { 0.f, 0.9f, false, false, false };
+__constant__ Mat diffuse = { 0.f, 0.f, false, false, false };
+__constant__ Mat water = { 1.33f, 0.f, true, true, true };
+__constant__ Mat crystal = { 2.3f, 0.f, true, true, false };
+__constant__ Mat smooth = { 0.f, 0.4f, false, false, false };
+__constant__ Mat micro = { 0.f, 0.6f, false, false, false };
+__constant__ Mat rough = { 0.f, 0.9f, false, false, false };
 
 
 static __forceinline__ __device__
@@ -515,6 +515,8 @@ float3 getSkyColor(float3 rayDir, PRD& prd)
             cloudColor = lerp(cloudColor, make_float3(1.20f, 0.30f, 0.10f), orangeStrength * 0.9f);
             skyColor = lerp(skyColor, cloudColor, fminf(0.92f, cloudCoverage));
         }
+
+        prd.fogFactor = 0.f;
     }
 
     return skyColor * entireSkyStrength;
@@ -633,7 +635,6 @@ extern "C" __global__ void __raygen__render() {
                 }
             }
             
-
 #if DO_RUSSIAN_ROULETTE
             if (depth > 2)
             {
@@ -675,8 +676,6 @@ extern "C" __global__ void __raygen__render() {
     params.frame.albedoBuffer[fbIndex] = make_float4(finalAlbedo, 1.f);
     params.frame.normalBuffer[fbIndex] = make_float4(finalNormal, 1.f);
 }
-
-
 
 extern "C" __global__ void __miss__radiance()
 {
