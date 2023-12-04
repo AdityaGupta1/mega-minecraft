@@ -64,11 +64,10 @@ OptixRenderer::OptixRenderer(GLFWwindow* window, uvec2* windowSize, Terrain* ter
 
     setZoomed(false);
 
-    const glm::vec3 sunAxisForward = normalize(vec3(6.0f, -2.0f, 2.0f));
-    const glm::vec3 sunAxisRight = normalize(cross(sunAxisForward, vec3(0, 1, 0)));
-    const glm::vec3 sunAxisUp = normalize(cross(sunAxisRight, sunAxisForward));
-    sunRotateMat = glm::mat3(sunAxisRight, sunAxisForward, sunAxisUp);
-    updateSunDirection();
+    sunAxisForward = normalize(vec3(6.0f, -2.0f, 2.0f));
+    sunAxisRight = normalize(cross(sunAxisForward, vec3(0, 1, 0)));
+    sunAxisUp = normalize(cross(sunAxisRight, sunAxisForward));
+    updateTime(0.f);
 
     createContext();
 }
@@ -331,6 +330,11 @@ void OptixRenderer::buildChunkAccel(const Chunk* chunkPtr)
 
 void OptixRenderer::buildRootAccel()
 {
+    if (chunkInstances.empty())
+    {
+        return;
+    }
+
     std::vector<OptixInstance> chunkInstancesVector;
     chunkInstancesVector.reserve(chunkInstances.size());
     for (const auto& elem : chunkInstances)
@@ -400,6 +404,11 @@ void OptixRenderer::setZoomed(bool zoomed)
 void OptixRenderer::toggleTimePaused()
 {
     this->isTimePaused = !this->isTimePaused;
+}
+
+void OptixRenderer::addTime(float deltaTime)
+{
+    updateTime(deltaTime);
 }
 
 inline float3 vec3ToFloat3(glm::vec3 v)
@@ -713,7 +722,7 @@ void OptixRenderer::createDenoiser()
 
     OptixDenoiserOptions denoiserOptions = {};
     denoiserOptions.guideAlbedo = 1;
-    denoiserOptions.guideNormal = 1;
+    denoiserOptions.guideNormal = 0;
     denoiserOptions.denoiseAlpha = (OptixDenoiserAlphaMode)0;
 #if USE_UPSCALING
     OPTIX_CHECK(optixDenoiserCreate(optixContext, OPTIX_DENOISER_MODEL_KIND_UPSCALE2X, &denoiserOptions, &denoiser));
@@ -778,8 +787,7 @@ void OptixRenderer::render(float deltaTime)
 {
     if (!isTimePaused)
     {
-        time += deltaTime;
-        updateSunDirection();
+        updateTime(deltaTime);
     }
 
     if (cameraChanged)
@@ -818,16 +826,34 @@ void OptixRenderer::onResize()
     pboResource = *(renderer->getCudaTextureResource());
 }
 
-void OptixRenderer::updateSunDirection()
+void OptixRenderer::updateTime(float deltaTime)
 {
-    const float sunTime = time * 0.2f + 0.4f;
-    launchParams.sunDir = vec3ToFloat3(glm::normalize(sunRotateMat * glm::vec3(cosf(sunTime), 0.15f, sinf(sunTime))));
+    time += deltaTime;
+    launchParams.time = time;
+
+    sunTime += deltaTime * -0.025f;
+    const glm::vec3 rotatedAxisRight = cosf(sunTime) * sunAxisRight + sinf(sunTime) * sunAxisUp;
+    const glm::vec3 rotatedAxisUp = normalize(cross(rotatedAxisRight, sunAxisForward));
+
+    mat3 sunRotateMat = glm::mat3(rotatedAxisRight, sunAxisForward, rotatedAxisUp);
+
+    launchParams.sunDir = vec3ToFloat3(glm::normalize(sunRotateMat * glm::vec3(1.f, 0.15f, 0.f)));
+    launchParams.moonDir = vec3ToFloat3(glm::normalize(sunRotateMat * glm::vec3(-1.f, 0.50f, 0.f)));
+
+    // store rows of sunRotateMat as columns of starsRotateMat to do transpose (for inverting sunRotateMat)
+    launchParams.starsRotateMatX = make_float3(sunRotateMat[0][0], sunRotateMat[1][0], sunRotateMat[2][0]);
+    launchParams.starsRotateMatY = make_float3(sunRotateMat[0][1], sunRotateMat[1][1], sunRotateMat[2][1]);
+    launchParams.starsRotateMatZ = make_float3(sunRotateMat[0][2], sunRotateMat[1][2], sunRotateMat[2][2]);
+
     cameraChanged = true;
 }
 
 void OptixRenderer::optixRenderFrame()
 {
-    if (launchParams.windowSize.x == 0) return;
+    if (launchParams.windowSize.x == 0/* || chunkInstances.empty()*/)
+    {
+        return;
+    }
 
     launchParams.frame.colorBuffer = dev_renderBuffer;
     launchParams.frame.albedoBuffer = dev_albedoBuffer;

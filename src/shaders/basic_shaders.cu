@@ -87,9 +87,14 @@ __device__ float3 calculateRandomDirectionInHemisphere(float3 normal, float2 sam
         + sin(around) * over * perpendicularDirection2;
 }
 
-__device__ float3 sampleSun(float2 sample)
+__device__ float3 sampleStar(float2 sample, bool isSun)
 {
-    const float3 normal = normalize(params.sunDir);
+    const float3 starDir = isSun ? params.sunDir : params.moonDir;
+    // 0.1000 is the max radius to sample within the sun at dot = 0.995
+    // 0.0775 for moon at dot = 0.997
+    const float radius = isSun ? 0.1000f : 0.0775f;
+
+    const float3 normal = normalize(starDir);
 
     const float3 perpendicularDirection1 = normalize(cross(normal, calculateDirectionNotNormal(normal)));
     const float3 perpendicularDirection2 = normalize(cross(normal, perpendicularDirection1));
@@ -98,8 +103,21 @@ __device__ float3 sampleSun(float2 sample)
 
     float3 dir = normalize(cos(around) * perpendicularDirection1 + sin(around) * perpendicularDirection2);
 
-    // 0.14 is the max radius to sample within the sun at dot = 0.99
-    return normalize(normal + sample.x * 0.14f * dir);
+    return normalize(normal + sample.x * radius * dir);
+}
+
+// like smoothstep but not smooth
+static __forceinline__ __device__
+float linearstep(float edge0, float edge1, float x)
+{
+    return clamp((x - edge0) / (edge1 - edge0), 0.f, 1.f);
+}
+
+static __forceinline__ __device__
+float smoothstep(float edge0, float edge1, float x)
+{
+    x = linearstep(edge0, edge1, x);
+    return x * x * (3.f - 2.f * x);
 }
 
 extern "C" __global__ void __raygen__render() {
@@ -170,10 +188,12 @@ extern "C" __global__ void __raygen__render() {
             if (!prd.specularHit) {
                 float2 xi = rng2(prd.seed);
 
-                float3 random_d = sampleSun(xi);
+                float sunChance = linearstep(-0.1f, 0.1f, params.sunDir.y);
+                bool isSun = rng(prd.seed) < sunChance;
+                float3 random_d = sampleStar(xi, isSun);
 
                 // 3. test sun intersection
-                prd.foundLightSource = true;
+                prd.foundLightSource = false;
 
                 optixTrace(params.rootHandle,
                     prd.isect.pos,
@@ -205,15 +225,21 @@ extern "C" __global__ void __raygen__render() {
                         u0, u1);
                 }
 
+                if (prd.foundLightSource)
+                {
+                    prd.pixelColor *= isSun ? 0.05f : 0.02f; // compensate for directly sampling such a small area of the sky
+                                                             // probably not physically accurate but oh well
+                }
+
                 // TODO: later, find pdf for each material, using default for now
                 // heuristics uses next direction & sun direction pdfs
 
-                if (prd.foundLightSource) {
-                    float pdf_material = INV_PI * dot(random_d, prd.isect.newDir);
-                    float3 col = powerHeuristics(1, 1.f, 1, pdf_material) * prd.rayColor;
-                    prd.foundLightSource = false;
-                    prd.pixelColor += col * prd.rayColor;
-                }
+                //if (prd.foundLightSource) {
+                    //float pdf_material = INV_PI * dot(random_d, prd.isect.newDir);
+                    //float3 col = powerHeuristics(1, 1.f, 1, pdf_material) * prd.rayColor;
+                    //prd.foundLightSource = false;
+                    //prd.pixelColor += col * prd.rayColor;
+                //}
             }
             
 
@@ -292,65 +318,6 @@ float3 refract(float3 wo, float3 n, float eta) {
     }
 }
 
-static __forceinline__ __device__ 
-float smoothstep(float edge0, float edge1, float x)
-{
-    x = clamp((x - edge0) / (edge1 - edge0), 0.0, 1.0);
-    return x * x * (3 - 2 * x);
-}
-
-__device__ float3 getSkyColor(float3 rayDir, bool& foundLightSource)
-{
-    float d = dot(rayDir, params.sunDir);
-    float3 skyColor = make_float3(0.f);
-    if (d > 0.99f)
-    {
-        float hue = dot(params.sunDir, make_float3(0.f, 1.f, 0.f));
-        skyColor += make_float3(1.0f, 0.5f + 0.15f * hue, 0.3f + 0.15f * hue) * (1.f - 5000.f * (1.f - d) * (1.f - d));
-        foundLightSource = true;
-    }
-    else
-    {
-        skyColor += make_float3(0.5f, 0.8f, 1.0f) * 0.2f;
-    }
-
-    if (d > 0.96f)
-    {
-        skyColor += powf(smoothstep(0.96f, 0.995f, d), 3.f) * make_float3(1.0f, 0.7f, 0.5f) * 0.3f;
-    }
-
-    return skyColor;
-}
-
-extern "C" __global__ void __miss__radiance()
-{
-    const float3 rayDir = optixGetWorldRayDirection();
-    PRD& prd = *getPRD<PRD>();
-
-    float3 skyColor = getSkyColor(rayDir, prd.foundLightSource);
-
-    prd.pixelColor += skyColor * prd.rayColor;
-    if (prd.specularHit && prd.foundLightSource) {
-        prd.pixelColor += skyColor * prd.rayColor * 2;
-    }
-    prd.isDone = true;
-
-    if (prd.needsFirstHitData)
-    {
-        prd.needsFirstHitData = false;
-        prd.pixelAlbedo = skyColor;
-        prd.pixelNormal = -rayDir;
-    }
-}
-
-static __device__ float schlickFresnel(const float3& V, const float3& N, const float ior)
-{
-    float cosTheta = fabsf(dot(V, N));
-    float R0 = (1 - ior) / (1 + ior);
-    R0 = R0 * R0;
-    return R0 + (1 - R0) * pow(1.f - cosTheta, 5.f);
-}
-
 // noise code from here: https://forum.pjrc.com/index.php?threads/im-looking-for-a-performant-perlin-or-open-simplex-noise-implementation.72409/post-322480
 __constant__ unsigned char permutation[] = {
      151, 160, 137, 91, 90, 15, 131, 13, 201, 95, 96, 53, 194, 233, 7, 225, 140, 36, 103,
@@ -376,7 +343,7 @@ __device__ float grad(int hash, float x, float y, float z)
     // convert lower 4 bits of hash code into 12 gradient directions
     int    h = hash & 15;
     float  u = h < 8 ? x : y,
-           v = h < 4 ? y : h == 12 || h == 14 ? x : z;
+        v = h < 4 ? y : h == 12 || h == 14 ? x : z;
     return ((h & 1) == 0 ? u : -u) + ((h & 2) == 0 ? v : -v);
 }
 
@@ -396,14 +363,14 @@ __device__ float pnoise(float3 p)
 
     // compute fade curves for each of x, y, z
     float u = fade(p.x),
-          v = fade(p.y),
-          w = fade(p.z);
+        v = fade(p.y),
+        w = fade(p.z);
 
     // hash coordinates of 8 cube corners
-    int A  = P(X) + Y,
+    int A = P(X) + Y,
         AA = P(A) + Z,
         AB = P(A + 1) + Z,
-        B  = P(X + 1) + Y,
+        B = P(X + 1) + Y,
         BA = P(B) + Z,
         BB = P(B + 1) + Z;
 
@@ -431,12 +398,14 @@ __device__ float pnoise(float3 p)
 
 #undef P
 
-float __device__ fbm(float3 p)
+template<int octaves = 5>
+__device__
+float fbm(float3 p)
 {
     float fbm = 0.f;
     float amplitude = 1.f;
     #pragma unroll
-    for (int i = 0; i < 4; ++i)
+    for (int i = 0; i < octaves; ++i)
     {
         amplitude *= 0.5f;
         fbm += amplitude * pnoise(p);
@@ -445,13 +414,281 @@ float __device__ fbm(float3 p)
     return fbm;
 }
 
-__device__ void applyWaveNoise(const float3& pos, float3& nor)
+static __forceinline__ __device__
+float3 sinf(float3 p)
 {
-    float3 noisePos = pos * 0.45f;
-    noisePos.x *= 2.2f;
+    return make_float3(__sinf(p.x), __sinf(p.y), __sinf(p.z));
+}
 
-    float perlinX = fbm(noisePos);
-    float perlinZ = fbm(noisePos + make_float3(74159.21f, 21982.43f, 18923.34f));
+static __forceinline__ __device__
+float fract(float p)
+{
+    return p - floorf(p);
+}
+
+static __forceinline__ __device__
+float3 fract(float3 p)
+{
+    return p - floor(p);
+}
+
+static __forceinline__ __device__
+float rand1From3(float3 p)
+{
+    return fract(__sinf(dot(p, make_float3(185.3f, 563.9f, 887.2f))) * 58293.492f);
+}
+
+static __forceinline__ __device__
+float3 rand3From3(float3 p)
+{
+    return fract(sinf(make_float3(
+        dot(p, make_float3(185.3f, 563.9f, 887.2f)),
+        dot(p, make_float3(593.1f, 591.2f, 402.1f)),
+        dot(p, make_float3(938.2f, 723.4f, 768.9f))
+    )) * 58293.492f);
+}
+
+struct WorleyInfo
+{
+    float dist;
+    float rand;
+};
+
+static __device__
+WorleyInfo starsWorley(float3 uv)
+{
+    float3 uvInt = floor(uv);
+    float3 uvFract = uv - uvInt;
+    float3 point = 0.1f + 0.9f * rand3From3(uvInt);
+    float dist = length(point - uvFract);
+    float rand = rand1From3(point);
+    return { dist, rand };
+}
+
+// assumes val is between 0 and 1
+static __device__
+float3 getStarPaletteColor(float rand)
+{
+    if (rand < 0.35f)
+    {
+        return make_float3(1.000f, 0.863f, 0.333f);
+    }
+    else if (rand < 0.70f)
+    {
+        return make_float3(0.929f, 0.984f, 1.000f);
+    }
+    else if (rand < 0.82f)
+    {
+        return make_float3(0.482f, 0.816f, 1.000f);
+    }
+    else if (rand < 0.94f)
+    {
+        return make_float3(1.000f, 0.663f, 0.271f);
+    }
+    else
+    {
+        return make_float3(1.000f, 0.455f, 0.282f);
+    }
+}
+
+static __device__ 
+float3 getStarsColor(float3 dir)
+{
+    WorleyInfo worley = starsWorley(dir * 30.f);
+    float starBrightness = smoothstep(0.08f, 0.05f, worley.dist);
+
+    if (starBrightness > 0.f)
+    {
+        return getStarPaletteColor(worley.rand) * starBrightness * 3.f;
+    }
+    else
+    {
+        return make_float3(0.f);
+    }
+}
+
+static __forceinline__ __device__
+float sampleCloudsNoise(float3 cloudsPos)
+{
+    float2 noiseOffset = make_float2(pnoise(cloudsPos - 962.43f), pnoise(cloudsPos * 254.32f)) * 0.01f;
+    float cloudsNoise = (fbm<3>(make_float3(cloudsPos.x * 0.05f + noiseOffset.x, cloudsPos.z * 0.05f + noiseOffset.y, params.time * 0.015f)) + 1.f) * 0.5f;
+    cloudsNoise += fbm<3>(make_float3(cloudsPos.x * 0.15f - 325.32f, cloudsPos.z * 0.15f + 613.58f, params.time * 0.040f)) * 0.3f;
+    cloudsNoise *= (pnoise(make_float3(cloudsPos.x * 0.03f + 821.23f, cloudsPos.z * 0.03f - 721.33f, params.time * 0.003f + 276.21f)) + 1.f) * 0.9f;
+    return smoothstep(0.35f, 0.75f, cloudsNoise - 0.01 * cloudsPos.y);
+}
+
+static __device__
+float getCloudCoverage(float3 pos, float3 dir)
+{
+    // assumes camera is below clouds
+    if (dir.y < 0.04f)
+    {
+        return 0.f;
+    }
+
+    float t = 20.f / dir.y;
+    float3 cloudsPos = dir * t;
+    cloudsPos.x += (pos.x * 0.01f) + (0.3f * params.time);
+    cloudsPos.y = 0.f;
+    cloudsPos.z += (pos.z * 0.01f) + (0.6f * params.time);
+
+    float coverage = 0.f;
+    for (int i = 0; i < 12; ++i)
+    {
+        float stepDist = 0.2f * i;
+        cloudsPos += dir * stepDist;
+
+        coverage += sampleCloudsNoise(cloudsPos) * stepDist;
+    }
+
+    return fminf(1.f, coverage * 0.1f);
+}
+
+static __device__ 
+float3 getSkyColor(float3 rayDir, PRD& prd)
+{
+    float entireSkyStrength = smoothstep(-0.4f, 0.2f, rayDir.y);
+    if (entireSkyStrength == 0.f)
+    {
+        return make_float3(0.f);
+    }
+
+    float3 skyColor = make_float3(0.f);
+
+    bool isSunOrMoon = false;
+
+    float sunStrength = smoothstep(-0.5f, -0.2f, params.sunDir.y);
+    float sunD = dot(rayDir, params.sunDir);
+    // sun
+    if (sunStrength > 0.f && sunD > 0.98f)
+    {
+        float3 sunTotalColor = make_float3(0.f);
+
+        float sunColorMod = smoothstep(-0.05f, 0.40f, params.sunDir.y);
+        float3 sunColor = make_float3(1.20f, 0.05f + 0.70f * sunColorMod, 0.42f * sunColorMod);
+
+        float haloStrength = smoothstep(0.05f, 0.20f, params.sunDir.y) * 0.4f;
+        sunTotalColor += powf(smoothstep(0.98f, 0.9975f, sunD), 3.f) * (sunColor + make_float3(0.f, 0.1f, 0.1f)) * haloStrength;
+
+        if (sunD > 0.995f)
+        {
+            sunTotalColor += sunColor * (1.f - 5000.f * (1.f - sunD) * (1.f - sunD)) * (0.3f + 0.7f * sunColorMod) * 34.f;
+            isSunOrMoon = true;
+        }
+
+        skyColor += sunTotalColor * sunStrength;
+    }
+
+    float moonStrength = smoothstep(-0.5f, -0.2f, params.moonDir.y);
+    float moonD = dot(rayDir, params.moonDir);
+    // moon
+    if (moonStrength > 0.f && moonD > 0.985f)
+    {
+        float3 moonTotalColor = make_float3(0.f);
+
+        float3 moonColor = make_float3(0.6f, 0.7f, 1.f) * 0.3f;
+
+        float haloStrength = smoothstep(0.05f, 0.20f, params.moonDir.y) * 0.2f;
+        moonTotalColor += powf(smoothstep(0.985f, 0.9983f, moonD), 3.f) * (moonColor + make_float3(0.f, 0.f, 0.15f)) * haloStrength;
+
+        if (moonD > 0.997f)
+        {
+            moonTotalColor += moonColor * 20.f;
+            isSunOrMoon = true;
+        }
+
+        skyColor += moonTotalColor * moonStrength;
+    }
+
+    prd.foundLightSource = isSunOrMoon;
+
+    // base color and stars
+    float skyBaseStrength = 0.08f + 0.92f * smoothstep(-0.25f, 0.10f, params.sunDir.y);
+    if (!isSunOrMoon)
+    {
+        float3 skyBaseColor = make_float3(0.10f, 0.16f, 0.2f);
+        skyBaseColor = lerp(skyBaseColor, make_float3(0.8f, 0.8f, 1.f), smoothstep(0.15f, -0.15f, rayDir.y) * 0.14f);
+        skyColor += skyBaseColor * skyBaseStrength;
+
+        float starsStrength = smoothstep(0.03f, -0.22f, params.sunDir.y);
+        if (starsStrength > 0.f)
+        {
+            float3 starsDir = params.starsRotateMatX * rayDir.x
+                + params.starsRotateMatY * rayDir.y
+                + params.starsRotateMatZ * rayDir.z;
+
+            float3 starsColor = getStarsColor(starsDir);
+            
+            skyColor += starsColor * starsStrength;
+        }
+    }
+
+    // sunrise/sunset
+    float orangeStrength = 0.f;
+    if (sunStrength > 0.f && !isSunOrMoon)
+    {
+        float horizontalDist = acosf(dot(make_float2(rayDir.x, rayDir.z), make_float2(params.sunDir.x, params.sunDir.z)));
+        orangeStrength = smoothstep(-0.13f, -0.02f, params.sunDir.y) * smoothstep(0.25f, 0.05f, params.sunDir.y) 
+            * smoothstep(-2.5f, 0.65f, sunD)
+            * smoothstep(1.05f, 0.18f, rayDir.y + (smoothstep(0.f, PI, horizontalDist) * 0.6f));
+        if (orangeStrength > 0.f)
+        {
+            skyColor = lerp(skyColor, make_float3(1.40f, 0.35f, 0.f), orangeStrength);
+        }
+    }
+
+    // clouds (only for camera rays)
+    if (prd.needsFirstHitData)
+    {
+        float cloudCoverage = getCloudCoverage(optixGetWorldRayOrigin(), rayDir);
+        if (cloudCoverage > 0.f)
+        {
+            float3 cloudColor = make_float3(0.9f * powf(skyBaseStrength, 1.35f));
+            cloudColor = lerp(cloudColor, make_float3(1.20f, 0.30f, 0.10f), orangeStrength * 0.9f);
+            skyColor = lerp(skyColor, cloudColor, fminf(0.92f, cloudCoverage));
+        }
+    }
+
+    return skyColor * entireSkyStrength;
+}
+
+extern "C" __global__ void __miss__radiance()
+{
+    const float3 rayDir = optixGetWorldRayDirection();
+    PRD& prd = *getPRD<PRD>();
+
+    float3 skyColor = getSkyColor(rayDir, prd);
+
+    prd.pixelColor += skyColor * prd.rayColor;
+    //if (prd.specularHit && prd.foundLightSource) {
+    //    prd.pixelColor += skyColor * prd.rayColor * 2.f;
+    //}
+    prd.isDone = true;
+
+    if (prd.needsFirstHitData)
+    {
+        prd.needsFirstHitData = false;
+        prd.pixelAlbedo = skyColor;
+        prd.pixelNormal = -rayDir;
+    }
+}
+
+static __device__ float schlickFresnel(const float3& V, const float3& N, const float ior)
+{
+    float cosTheta = fabsf(dot(V, N));
+    float R0 = (1.f - ior) / (1.f + ior);
+    R0 = R0 * R0;
+    return R0 + (1.f - R0) * pow(1.f - cosTheta, 5.f);
+}
+
+__device__
+void applyWaveNoise(const float3& pos, float3& nor)
+{
+    float3 noisePos = make_float3(pos.x + pos.y, pos.z + pos.y, params.time * 0.3f);
+    noisePos.x *= 0.45f;
+
+    float perlinX = fbm<4>(noisePos);
+    float perlinZ = fbm<4>(noisePos + make_float3(74159.21f, 21982.43f, 18923.34f));
 
     nor.x += perlinX * 0.3f;
     nor.z += perlinZ * 0.3f;

@@ -881,6 +881,7 @@ void BiomeUtils::init()
 
     setBiomeMaterialWeight(CORAL_REEF, DIRT, 0.0f);
     setBiomeMaterialWeight(CORAL_REEF, SAND, 0.7f);
+    setBiomeMaterialWeight(CORAL_REEF, SMOOTH_SAND, 0.8f);
 
     setBiomeMaterialWeight(ARCHIPELAGO, GRAVEL, 0.3f);
     setBiomeMaterialWeight(ARCHIPELAGO, DIRT, 0.0f);
@@ -971,6 +972,11 @@ void BiomeUtils::init()
 #define setFeatureHeightBounds(feature, yMin, yMax) host_featureHeightBounds[(int)Feature::feature] = ivec2(yMin, yMax)
 
     // feature, gridCellSize, gridCellPadding, chancePerGridCell, possibleTopLayers
+    host_biomeFeatureGens[(int)Biome::CORAL_REEF] = {
+        FeatureGen(Feature::CORAL, 5, 0, 0.65f, { {Material::SMOOTH_SAND, 0.3f}, {Material::SAND, 0.3f} }),
+        FeatureGen(Feature::KELP, 8, 0, 0.50f, { {Material::SMOOTH_SAND, 0.3f}, {Material::SAND, 0.3f} })
+    };
+
     host_biomeFeatureGens[(int)Biome::ICEBERGS] = {
         FeatureGen(Feature::ICEBERG, 112, 6, 0.70f, {})
     };
@@ -1036,6 +1042,9 @@ void BiomeUtils::init()
     setFeatureHeightBounds(NONE, 0, 0);
     setFeatureHeightBounds(SPHERE, -6, 6);
 
+    setFeatureHeightBounds(CORAL, -3, 12);
+    setFeatureHeightBounds(KELP, 0, 20);
+
     setFeatureHeightBounds(ICEBERG, 0, 110); // placed at sea level
 
     setFeatureHeightBounds(ACACIA_TREE, 0, 15);
@@ -1066,7 +1075,25 @@ void BiomeUtils::init()
 
     cudaMemcpyToSymbol(dev_featureHeightBounds, host_featureHeightBounds.data(), numFeatures * sizeof(ivec2));
 
+    const auto coralReefBottomBlocks = { Block::SAND, Block::SMOOTH_SAND };
+
     // decoratorBlock, chance, possibleUnderBlocks
+    host_biomeDecoratorGens[(int)Biome::CORAL_REEF] = {
+        DecoratorGen(Block::SEAGRASS, 0.200f, coralReefBottomBlocks).setWater(),
+        DecoratorGen(Block::TALL_SEAGRASS_BOTTOM, 0.040f, coralReefBottomBlocks).setSecondDecoratorBlock(Block::TALL_SEAGRASS_TOP).setWater(),
+        DecoratorGen(Block::BRAIN_CORAL, 0.030f, coralReefBottomBlocks).setWater(),
+        DecoratorGen(Block::BUBBLE_CORAL, 0.030f, coralReefBottomBlocks).setWater(),
+        DecoratorGen(Block::FIRE_CORAL, 0.030f, coralReefBottomBlocks).setWater(),
+        DecoratorGen(Block::HORN_CORAL, 0.030f, coralReefBottomBlocks).setWater(),
+        DecoratorGen(Block::TUBE_CORAL, 0.030f, coralReefBottomBlocks).setWater(),
+        DecoratorGen(Block::SEA_LANTERN, 0.005f, {}).setWater()
+    };
+
+    host_biomeDecoratorGens[(int)Biome::ARCHIPELAGO] = {
+        DecoratorGen(Block::GRASS, 0.200f, { Block::GRASS_BLOCK }),
+        DecoratorGen(Block::LILY_OF_THE_VALLEY, 0.025f, { Block::GRASS_BLOCK })
+    };
+
     host_biomeDecoratorGens[(int)Biome::TROPICAL_BEACH] = {
         DecoratorGen(Block::JUNGLE_GRASS, 0.1f, { Block::JUNGLE_GRASS_BLOCK })
     };
