@@ -12,9 +12,13 @@
 	<img src="screenshots/12-3-2023/010.png" />
 </p>
 
-This project aims to create a Minecraft-like experience with two major upgrades: **GPU-accelerated terrain generation** with CUDA and **real-time path tracing** with OptiX.
+This project aims to create a Minecraft-like experience with two major upgrades: **real-time path tracing** with OptiX and **GPU-accelerated terrain generation** with CUDA.
 
-TODO: expand on this
+Normal Minecraft is rendered by rasterization and a block-based lighting system, which works very well for gameplay. Minecraft shaders take that to the next level by introducing features such as shadow mapping, screen space reflections, and dynamic lighting. This project goes one step further by using the RTX accelerated OptiX framework to perform rendering entirely through path tracing, which gives realistic lighting, shadows, and reflections.
+
+Additionally, GPGPU programming with CUDA allows for fast generation of fantastical terrain constructed from various noise functions and implicit surfaces. This project's terrain consists of several distinct biomes, each with their own characteristics and structures. Players exploring the world can find sights such as giant purple mushrooms, vast expanses of sand dunes, infected underground forests, and many more.
+
+This README gives an overview of the various parts of the project and explains some of the processes and decisions it took to get there.
 
 ## CUDA Terrain Generation
 
@@ -242,16 +246,12 @@ Sections are organized in chronological order.
 
 ## References
 
-TODO
-
 - [Procedural Generation of Volumetric Data for Terrain](https://www.diva-portal.org/smash/get/diva2:1355216/FULLTEXT01.pdf) (Machado 2019)
 - [Worley's Caves](https://www.curseforge.com/minecraft/mc-mods/worleys-caves)
 - [<em>Physically Based Rendering: From Theory to Implementation</em>](https://pbrt.org/)
 - [Ingo Wald's OptiX 7 course](https://github.com/ingowald/optix7course)
 
 ## Special Thanks
-
-TODO
 
 - [Detlef Roettger](https://forums.developer.nvidia.com/u/droettger/) for giving invaluable OptiX advice and looking through our codebase
 - [Eric Haines](https://erich.realtimerendering.com/) for putting us in contact with Detlef
