@@ -34,6 +34,18 @@ TODO: Alan
 
 TODO: Aditya
 
+<p align="center">
+  <img src="screenshots/12-3-2023/002.png" width="50%" />
+  <br>
+  <em>The sun sets over an oasis.</em>
+</p>
+
+<p align="center">
+  <img src="screenshots/12-3-2023/006.png" width="50%" />
+  <br>
+  <em>Shadowy fungi against a starry night sky.</em>
+</p>
+
 ### Denoising
 
 TODO: Alan
@@ -123,13 +135,45 @@ At this point, the surface height, each cave layer's start and end height, and a
 
 Each feature type has its own uniform grid with varying cell size and cell padding. For example, large purple mushrooms have a cell size of 10 and a padding of 2, meaning that each mushroom is placed at a random point in the center 6x6 area of a 10x10 grid cell. Each cell also has a certain chance of actually containing the feature, which helps give a more random appearance to the placements. For large purple mushrooms, the chance is 50%.
 
-Each biome has its own set of feature generations. To place surface features, for each column of terrain, we first pick a random surface biome at random based on that column's biome weights. Then, for each of that biome's feature generations, we check whether any of them would generate a feature at exactly the current column's position, and if so, we place the feature on the current column with the chance set by the feature generation. Cave features are placed in a similar manner, except some of them generate from the ceiling as well. Cave feature generation uses the randomly predetermined cave biome of each cave layer instead of calculating a new random cave biome.
+<p align="center">
+  <img src="screenshots/readme/feature_placement.png" width="25%" />
+  <br>
+  <em>Continuing the purple mushrooms example, each grid cell (outlined by black borders) represents 10x10 blocks. Gray areas are padding and purple dots are feature placements.</em>
+</p>
+
+Feature generators also contain lists of acceptable top layers so that, for example, trees are not placed on stone. For purple mushrooms, the only acceptable top layer is dirt at a thickness of at least 0.3. Even though the final top block in the biome is mycelium, the actual terrain layer is dirt and the mycelium is placed in the postprocessing step, meaning mushrooms will end up being placed on mycelium.
+
+Each biome has its own set of feature generators. To place surface features, for each column of terrain, we first pick a random surface biome at random based on that column's biome weights. Then, for each of that biome's feature generators, we check whether any of them would generate a feature at exactly the current column's position, and if so, we place the feature on the current column with the chance set by the feature generation. Cave features are placed in a similar manner, except some of them generate from the ceiling as well. Cave feature generation uses the randomly predetermined cave biome of each cave layer instead of calculating a new random cave biome.
 
 Since features can cross chunk boundaries, the last step is to gather the features of this chunk and surrounding chunks into one list to send to the final chunk fill kernel. Currently, the radius is set to 3 chunks, so features should be no more than 48 blocks wide.
 
 ### Chunk fill
 
-TODO: Aditya
+The only thing left now is to actually fill the chunk's blocks. This step takes in various inputs:
+
+- Heightfield
+- Biome weights
+- Terrain layers
+- Cave layers
+- Feature placements
+
+If a block is below its column's height, it is filled in with a block depending its corresponding terrain layer. If the block is in a cave layer, it will instead be filled with air. After the layers are filled out, some biomes also apply special post-processing functions. For example, the frozen wasteland biome turns water into ice while the mesa biome places layers of colorful terracotta. As with all other biome-related processes, these too are interpolated across biome boundaries using biome weights.
+
+After the base terrain has been constructed, terrain features are filled in. Each thread loops over all gathered features and places the first one found at the current position. Feature placement makes use of many early exit conditions to ensure that a thread does not performing intensive calculations for features which are nowhere near its position.
+
+<p align="center">
+  <img src="screenshots/readme/various_features.png" width="50%" />
+  <br>
+  <em>Various features placed across multiple different biomes.</em>
+</p>
+
+Once all features are placed, the blocks are copied from the GPU to the CPU. Then, the last step is placing "decorators", which are blocks like flowers and small mushrooms. This is done on the CPU due to the potentially different number of positions to check for decorator placement in each column. Each biome has a set of decorator generators, each containing a chance per block, allowed bottom blocks (e.g. grass for flowers), allowed blocks to replace (usually air but can be water for ocean decorators), and optionally a second block for decorators that are two blocks tall. Some decorators, like crystals in the crystal caves, can even generate hanging from the ceiling.
+
+<p align="center">
+  <img src="screenshots/readme/birch_forest_decorators.png" width="50%" />
+  <br>
+  <em>Decorators in the lush birch forest biome, including grass, dandelions, peonies, and lilacs.</em>
+</p>
 
 ## Gallery
 
