@@ -15,6 +15,9 @@
 #define NUM_SAMPLES 1
 #define MAX_RAY_DEPTH 4
 
+#define FOG_DENSITY -0.01f
+#define FOG_SCATTER -0.006f // STRENGTH
+
 /*! launch parameters in constant memory, filled in by optix upon
       optixLaunch (this gets filled in from the buffer we pass to
       optixLaunch) */
@@ -118,14 +121,18 @@ __device__ float3 calculateRandomDirectionInHemisphere(float3 normal, float2 sam
         + sin(around) * over * perpendicularDirection2;
 }
 
-__device__ float3 sampleStar(float2 sample, bool isSun)
+__device__ float3 sampleStar(float2 sample, bool isSun, bool scattering)
 {
     const float3 starDir = isSun ? params.sunDir : params.moonDir;
+    const float3 normal = normalize(starDir);
     // 0.1000 is the max radius to sample within the sun at dot = 0.995
     // 0.0775 for moon at dot = 0.997
-    const float radius = isSun ? 0.1000f : 0.0775f;
+    
+    if (scattering) {
+        return normal;
+    }
 
-    const float3 normal = normalize(starDir);
+    const float radius = isSun ? 0.1000f : 0.0775f;
 
     const float3 perpendicularDirection1 = normalize(cross(normal, calculateDirectionNotNormal(normal)));
     const float3 perpendicularDirection2 = normalize(cross(normal, perpendicularDirection1));
@@ -558,6 +565,9 @@ extern "C" __global__ void __raygen__render() {
         prd.isect.newDir = rayDir;
         prd.specularHit = false;
         prd.fogFactor = 0.f;
+        prd.fogColor = make_float3(0.f);
+        prd.scatterFactor = 1.f;
+        prd.scattered = false;
 
         #pragma unroll
         for (int depth = 0; depth < MAX_RAY_DEPTH; ++depth)
@@ -579,8 +589,7 @@ extern "C" __global__ void __raygen__render() {
                 0,  // missSBTIndex
                 u0, u1);
 
-            if (prd.isDone)
-            {
+            if (!prd.scattered && prd.isDone) {
                 break;
             }
 
@@ -596,13 +605,18 @@ extern "C" __global__ void __raygen__render() {
 
                 float sunChance = linearstep(-0.1f, 0.1f, params.sunDir.y);
                 bool isSun = rng(prd.seed) < sunChance;
-                float3 random_d = sampleStar(xi, isSun);
+                float3 random_d = sampleStar(xi, isSun, prd.scattered);
 
                 // 3. test sun intersection
                 prd.foundLightSource = false;
+                float3 pos = prd.isect.pos;
+
+                if (prd.scattered) {
+                    pos = prd.scatterPosition;
+                }
 
                 optixTrace(params.rootHandle,
-                    prd.isect.pos,
+                    pos,
                     random_d,
                     0.f,    // tmin
                     1e20f,  // tmax
@@ -616,27 +630,20 @@ extern "C" __global__ void __raygen__render() {
 
                 // if specular material is hit and entered - see if we exit it 
 
-                if (prd.specularHit) {
-                    optixTrace(params.rootHandle,
-                        prd.isect.pos,
-                        prd.isect.newDir,
-                        0.f,    // tmin
-                        1e20f,  // tmax
-                        0.0f,   // rayTime
-                        OptixVisibilityMask(255),
-                        OPTIX_RAY_FLAG_DISABLE_CLOSESTHIT,
-                        1,  // SBT offset
-                        1,  // SBT stride
-                        0,  // missSBTIndex
-                        u0, u1);
-                }
-
                 if (prd.foundLightSource)
                 {
                     prd.pixelColor *= isSun ? 0.05f : 0.02f; // compensate for directly sampling such a small area of the sky
                                                              // probably not physically accurate but oh well
                 }
+                else if (prd.scattered) {
+                    prd.pixelColor = make_float3(0.f);
+                }
             }
+
+            if (prd.isDone || prd.scattered) {
+                break;
+            }
+
             
 #if DO_RUSSIAN_ROULETTE
             if (depth > 2)
@@ -644,7 +651,7 @@ extern "C" __global__ void __raygen__render() {
                 float q = fmax(0.05f, 1.f - luminance(prd.pixelColor));
                 if (rng(prd.seed) < q)
                 {
-                    prd.pixelColor = make_float3(0);
+                    prd.pixelColor = make_float3(0.f);
                     break;
                 }
 
@@ -652,7 +659,6 @@ extern "C" __global__ void __raygen__render() {
             }
 #endif
         }
-
         prd.pixelColor = lerp(prd.pixelColor, prd.fogColor, prd.fogFactor);
 
         finalColor += prd.pixelColor;
@@ -680,22 +686,34 @@ extern "C" __global__ void __raygen__render() {
     params.frame.normalBuffer[fbIndex] = make_float4(finalNormal, 1.f);
 }
 
+static __device__
+float volumetricScattering(float t, float r) {
+    if (r < 1.f - expf(FOG_SCATTER * t)) {
+        return logf(r) / FOG_SCATTER;
+    }
+    return 0.f;
+}
+
 extern "C" __global__ void __miss__radiance()
 {
     const float3 rayDir = optixGetWorldRayDirection();
+    const float3 rayOrigin = optixGetWorldRayOrigin();
     PRD& prd = *getPRD<PRD>();
-
     float3 skyColor = getSkyColor(rayDir, prd);
 
-    prd.pixelColor += skyColor * prd.rayColor;
-    prd.isDone = true;
-
-    if (prd.needsFirstHitData)
-    {
+    float scatter = volumetricScattering(50.f, rng(prd.seed));
+    if (prd.needsFirstHitData && scatter > 0.f) {
         prd.needsFirstHitData = false;
         prd.pixelAlbedo = skyColor;
         prd.pixelNormal = -rayDir;
+        if (scatter > 0.f) {
+            prd.scatterPosition = rayOrigin + rayDir * scatter;
+            prd.scattered = true;
+            prd.scatterFactor = fmax(expf(FOG_DENSITY * scatter), 0.f);
+        }
     }
+    prd.pixelColor += skyColor * prd.rayColor * prd.scatterFactor;
+    prd.isDone = true;
 }
 
 static __device__ float schlickFresnel(const float3& V, const float3& N, const float ior)
@@ -822,6 +840,17 @@ extern "C" __global__ void __closesthit__radiance() {
 
     const float3 rayOrigin = optixGetWorldRayOrigin();
     const float3 isectPos = rayOrigin + rayDir * t;
+
+    float scatter = volumetricScattering(t, rng(prd.seed));
+    if (prd.needsFirstHitData && scatter > 0.f) {
+        prd.scatterPosition = rayOrigin + rayDir * scatter;
+        prd.scattered = true;
+        prd.needsFirstHitData = false;
+        prd.scatterFactor = fmax(expf(FOG_DENSITY * scatter), 0.f);
+        prd.fogColor = getSkyColor(rayDir, prd);
+        prd.fogFactor = calculateFogFactor();
+        return;
+    }
 
     // REFL REFR
 
