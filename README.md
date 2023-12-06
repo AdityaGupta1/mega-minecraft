@@ -314,6 +314,15 @@ Sections are organized in chronological order.
 <img src="screenshots/12-3-2023/001.png" />
 </details>
 
+<details>
+<summary>Cool terrain areas</summary>
+<br>
+<img src="screenshots/12-6-2023/001.png" />
+<img src="screenshots/12-6-2023/003.png" />
+<img src="screenshots/12-6-2023/006.png" />
+<img src="screenshots/12-6-2023/009.png" />
+</details>
+
 ## References
 
 - [Procedural Generation of Volumetric Data for Terrain](https://www.diva-portal.org/smash/get/diva2:1355216/FULLTEXT01.pdf) (Machado 2019)
