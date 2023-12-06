@@ -41,13 +41,13 @@ While an infinite procedural world is one of Minecraft's selling point, terrain 
 Chunk generation in this project consists of several steps:
 
 - Heightfields and surface biomes
-- Erosion
+- Terrain layers and erosion
 - Caves and cave biomes
 - Terrain feature placement
   - This includes trees, mushrooms, crystals, etc.
 - Chunk fill
 
-Some steps, such as heightfields and surface biomes, can be performed on single chunks without any information about neighboring chunks. However, some steps, such as erosion, require gathering information from neighboring chunks in order to prevent discontinuities along chunk borders. The following diagram explains the requirements for each step:
+Some steps, such as heightfields and surface biomes, can be performed on single chunks without any information about neighboring chunks. However, some steps, such as terrain layers and erosion, require gathering information from neighboring chunks in order to prevent discontinuities along chunk borders. The following diagram explains the requirements for each step:
 
 TODO: diagram goes here
 
@@ -69,7 +69,7 @@ Biomes determine not only which blocks are placed, but also the terrain's height
 
 The height and biome weights of each column are stored for later use.
 
-### Erosion
+### Terrain layers and erosion
 
 After heights and surface biomes are decided, the next step is to generate terrain layers and perform an erosion simulation. Our technique is based on [Procedural Generation of Volumetric Data for Terrain](https://www.diva-portal.org/smash/get/diva2:1355216/FULLTEXT01.pdf) (Machado 2019). First, layers of various materials (stone, dirt, sand, etc.) are generated using fBm noise functions. Each layer has parameters for base height and variation, and different biomes can also assign more or less weight to different layers. Layer heights are also smoothly interpolated between surface biomes based on the biomes' weights.
 
