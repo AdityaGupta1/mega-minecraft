@@ -628,17 +628,15 @@ extern "C" __global__ void __raygen__render() {
                     OPTIX_RAY_FLAG_DISABLE_CLOSESTHIT,
                     1,  // SBT offset
                     1,  // SBT stride
-                    0,  // missSBTIndex
+                    1,  // missSBTIndex
                     u0, u1);
-
-                // if specular material is hit and entered - see if we exit it 
 
                 if (prd.foundLightSource)
                 {
                     prd.pixelColor *= isSun ? 0.05f : 0.02f; // compensate for directly sampling such a small area of the sky
                                                              // probably not physically accurate but oh well
                 }
-                else if (prd.scattered) {
+                else {
                     prd.pixelColor = make_float3(0.f);
                 }
             }
@@ -1029,7 +1027,11 @@ extern "C" __global__ void __anyhit__radiance()
 
 extern "C" __global__ void __anyhit__shadow()
 {
+    const float3 rayDir = optixGetWorldRayDirection();
     PRD& prd = *getPRD<PRD>();
+
+    float3 skyColor = getSkyColor(rayDir, prd);
+    prd.pixelColor += skyColor * prd.rayColor;
 
     if (anyhitAlphaTest())
     {
@@ -1039,6 +1041,15 @@ extern "C" __global__ void __anyhit__shadow()
 
     prd.foundLightSource = false;
     optixTerminateRay();
+}
+
+extern "C" __global__ void __miss__shadow()
+{
+    const float3 rayDir = optixGetWorldRayDirection();
+    PRD& prd = *getPRD<PRD>();
+
+    float3 skyColor = getSkyColor(rayDir, prd);
+    prd.pixelColor += skyColor * prd.rayColor;
 }
 
 extern "C" __global__ void __exception__all()

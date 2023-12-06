@@ -512,7 +512,7 @@ void OptixRenderer::createProgramGroups()
 
     // change depending on # materials
     raygenProgramGroups.resize(1);
-    missProgramGroups.resize(1);
+    missProgramGroups.resize(2);
     hitProgramGroups.resize(2);
     exceptionProgramGroups.resize(1);
      
@@ -547,6 +547,16 @@ void OptixRenderer::createProgramGroups()
         &pgOptions,
         log, &sizeof_log,
         &missProgramGroups[0]
+    ));
+
+    missDesc.miss.entryFunctionName = "__miss__shadow";
+
+    OPTIX_CHECK(optixProgramGroupCreate(
+        optixContext, &missDesc,
+        1,  // num program groups
+        &pgOptions,
+        log, &sizeof_log,
+        &missProgramGroups[1]
     ));
 
     if (sizeof_log > 1) std::cout << "Miss PG: " << log << std::endl;
