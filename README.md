@@ -12,9 +12,9 @@
 	<img src="screenshots/12-3-2023/010.png" />
 </p>
 
-This project aims to create a **Minecraft-like experience** with two major upgrades: **real-time path tracing** with OptiX and **GPU-accelerated terrain generation** with CUDA.
+This project aims to recreate Minecraft with two major upgrades: <ins>real-time path tracing</ins> with OptiX and <ins>GPU-accelerated terrain generation</ins> with CUDA.
 
-Normal Minecraft is rendered by rasterization and a block-based lighting system, which works very well for gameplay. Minecraft shaders take that to the next level by introducing features such as shadow mapping, screen space reflections, and dynamic lighting. This project goes one step further by using the RTX accelerated OptiX framework to perform rendering entirely through path tracing, which gives realistic lighting, shadows, and reflections.
+Minecraft is rendered by rasterization and a block-based lighting system, which works very well for gameplay. Minecraft shaders take that to the next level by introducing features such as shadow mapping, screen space reflections, and dynamic lighting. This project goes one step further by using the RTX accelerated OptiX framework to perform rendering entirely through path tracing, which gives realistic lighting, shadows, and reflections.
 
 Additionally, GPGPU programming with CUDA allows for fast generation of fantastical terrain constructed from various noise functions and implicit surfaces. This project's terrain consists of several distinct biomes, each with their own characteristics and structures. Players exploring the world can find sights such as giant purple mushrooms, vast expanses of sand dunes, infected underground forests, and many more.
 
