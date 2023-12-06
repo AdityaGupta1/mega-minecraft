@@ -611,30 +611,16 @@ extern "C" __global__ void __raygen__render() {
                     OPTIX_RAY_FLAG_DISABLE_CLOSESTHIT,
                     1,  // SBT offset
                     1,  // SBT stride
-                    0,  // missSBTIndex
+                    1,  // missSBTIndex
                     u0, u1);
-
-                // if specular material is hit and entered - see if we exit it 
-
-                if (prd.specularHit) {
-                    optixTrace(params.rootHandle,
-                        prd.isect.pos,
-                        prd.isect.newDir,
-                        0.f,    // tmin
-                        1e20f,  // tmax
-                        0.0f,   // rayTime
-                        OptixVisibilityMask(255),
-                        OPTIX_RAY_FLAG_DISABLE_CLOSESTHIT,
-                        1,  // SBT offset
-                        1,  // SBT stride
-                        0,  // missSBTIndex
-                        u0, u1);
-                }
 
                 if (prd.foundLightSource)
                 {
                     prd.pixelColor *= isSun ? 0.05f : 0.02f; // compensate for directly sampling such a small area of the sky
                                                              // probably not physically accurate but oh well
+                }
+                else {
+                    prd.pixelColor = make_float3(0.f);
                 }
             }
             
@@ -996,7 +982,11 @@ extern "C" __global__ void __anyhit__radiance()
 
 extern "C" __global__ void __anyhit__shadow()
 {
+    const float3 rayDir = optixGetWorldRayDirection();
     PRD& prd = *getPRD<PRD>();
+
+    float3 skyColor = getSkyColor(rayDir, prd);
+    prd.pixelColor += skyColor * prd.rayColor;
 
     if (anyhitAlphaTest())
     {
@@ -1006,6 +996,15 @@ extern "C" __global__ void __anyhit__shadow()
 
     prd.foundLightSource = false;
     optixTerminateRay();
+}
+
+extern "C" __global__ void __miss__shadow()
+{
+    const float3 rayDir = optixGetWorldRayDirection();
+    PRD& prd = *getPRD<PRD>();
+
+    float3 skyColor = getSkyColor(rayDir, prd);
+    prd.pixelColor += skyColor * prd.rayColor;
 }
 
 extern "C" __global__ void __exception__all()
