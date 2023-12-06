@@ -130,7 +130,7 @@ The top layers are "loose" and consist of materials like dirt, sand, and gravel.
 <p align="center">
   <img src="screenshots/readme/slope_method.png" width="40%" />
   <br>
-  <em>Illustration of the slope method, where</em> α <em>is the maximum angle between neighboring layers (defined per material).</em>
+  <em>Illustration from the paper of the slope method, where</em> α <em>is the maximum angle between neighboring layers (defined per material).</em>
 </p>
 
 The process is repeated until the terrain no longer changes. However, since erosion of a specified area relies on surrounding terrain data as well, performing this process on a chunk-by-chunk basis would lead to discontinuities. For that reason, we gather an entire 12x12 "zone" of chunks, as well as a further 6 chunks of padding on each side, before performing erosion on the entire 24x24 chunk area. Afterwards, we keep the eroded data for the center zone while discarding that of the padding chunks.
