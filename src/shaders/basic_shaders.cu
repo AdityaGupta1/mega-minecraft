@@ -15,8 +15,11 @@
 #define NUM_SAMPLES 1
 #define MAX_RAY_DEPTH 4
 
-#define FOG_DENSITY -0.01f
-#define FOG_SCATTER -0.006f // STRENGTH
+#define FOG_DENSITY -0.2f  // Ignoring the negative sign,
+                            // the higher the number, the less volumetric influence on farther objects
+#define FOG_SCATTER -0.015f  // Ignoring the negative sign,
+                            // the higher the number, the higher intensity of volumetric fog
+                            // this number changes things drastically
 
 /*! launch parameters in constant memory, filled in by optix upon
       optixLaunch (this gets filled in from the buffer we pass to
@@ -701,7 +704,8 @@ extern "C" __global__ void __miss__radiance()
     PRD& prd = *getPRD<PRD>();
     float3 skyColor = getSkyColor(rayDir, prd);
 
-    float scatter = volumetricScattering(50.f, rng(prd.seed));
+    // since miss doesn't have a collision time, the first factor influences fog influence on sky
+    float scatter = volumetricScattering(25.f, rng(prd.seed));
     if (prd.needsFirstHitData && scatter > 0.f) {
         prd.needsFirstHitData = false;
         prd.pixelAlbedo = skyColor;
