@@ -47,13 +47,59 @@ Chunk generation in this project consists of several steps:
   - This includes trees, mushrooms, crystals, etc.
 - Chunk fill
 
-Some steps, such as heightfields and surface biomes, can be performed on single chunks without any information about neighboring chunks. However, some steps, such as terrain layers and erosion, require gathering information from neighboring chunks in order to prevent discontinuities along chunk borders. The following diagram explains the requirements for each step:
+Some steps, such as heightfields and surface biomes, can be performed on single chunks without any information about neighboring chunks. However, some steps, such as terrain layers and erosion, require gathering information from neighboring chunks in order to prevent discontinuities along chunk borders. The following sections explain the requirements for each step:
 
-TODO: diagram goes here
+<details>
+<summary>Heightfields and surface biomes</summary>
+<img src="screenshots/readme/chunk_gen/single_chunk.png" width="20%" />
+<br>
+<em>Generating heightfields and surface biomes considers only a single 16x16 chunk (blue).</em>
+<br>&nbsp;
+</details>
+
+<details>
+<summary>Terrain layers</summary>
+<img src="screenshots/readme/chunk_gen/single_chunk_1_block_border.png" width="20%" />
+<br>
+<em>Generating terrain layers requires gathering some padding data (orange) from surrounding chunks to calculate the slope of this chunk's heightfield (blue).</em>
+<br>&nbsp;
+</details>
+
+<details>
+<summary>Erosion</summary>
+<img src="screenshots/readme/chunk_gen/erosion.png" width="20%" />
+<br>
+<em>Erosion considers a 12x12 zone of chunks (green) with 6 chunks of padding on each side (purple).</em>
+<br>&nbsp;
+</details>
+
+<details>
+<summary>Caves and cave biomes</summary>
+<img src="screenshots/readme/chunk_gen/single_chunk.png" width="20%" />
+<br>
+<em>Like for heightfields and surface biomes, generating caves and cave biomes considers only a single chunk (blue).</em>
+<br>&nbsp;
+</details>
+
+<details>
+<summary>Terrain feature placement</summary>
+<img src="screenshots/readme/chunk_gen/features.png" width="20%" />
+<br>
+<em>For generating terrain features, each chunk considers itself (green) and all chunks up to 3 chunks away (purple).</em>
+<br>&nbsp;
+</details>
+
+<details>
+<summary>Chunk fill</summary>
+<img src="screenshots/readme/chunk_gen/single_chunk.png" width="20%" />
+<br>
+<em>Once all data has been gathered, this step fills an entire chunk (blue) with one kernel call.</em>
+</details>
+<br>
 
 To balance the load over time and prevent lag spikes, we use an "action time" system for scheduling. Every frame, the terrain generator gains action time proportional to the time since the last frame. Action time per frame is capped at a certain amount to ensure that no one frame does too much work. Each action has an associated cost, determined by empirical measurements of the step's average duration, which subtracts from the accumulated action time. For example, we currently accumulate up to 30,000 action time per second and allow up to 500 action time per frame. Generating a chunk's heightfield and surface biomes is relatively inexpensive, so its cost is only 3 per chunk. However, erosion is run over a 24x24 area of chunks at once and is relatively expensive, so its cost is a full 500 per 24x24 area.
 
-Unless otherwise specified, all terrain generation steps other than gathering neighboring chunks are performed on the GPU using CUDA kernels.
+Unless otherwise specified, all terrain generation steps other than gathering data from neighboring chunks are performed on the GPU using CUDA kernels.
 
 ### Heightfields and surface biomes
 

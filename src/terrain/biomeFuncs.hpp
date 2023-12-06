@@ -1080,12 +1080,12 @@ void BiomeUtils::init()
     // decoratorBlock, chance, possibleUnderBlocks
     host_biomeDecoratorGens[(int)Biome::CORAL_REEF] = {
         DecoratorGen(Block::SEAGRASS, 0.200f, coralReefBottomBlocks).setWater(),
-        DecoratorGen(Block::TALL_SEAGRASS_BOTTOM, 0.040f, coralReefBottomBlocks).setSecondDecoratorBlock(Block::TALL_SEAGRASS_TOP).setWater(),
-        DecoratorGen(Block::BRAIN_CORAL, 0.030f, coralReefBottomBlocks).setWater(),
-        DecoratorGen(Block::BUBBLE_CORAL, 0.030f, coralReefBottomBlocks).setWater(),
-        DecoratorGen(Block::FIRE_CORAL, 0.030f, coralReefBottomBlocks).setWater(),
-        DecoratorGen(Block::HORN_CORAL, 0.030f, coralReefBottomBlocks).setWater(),
-        DecoratorGen(Block::TUBE_CORAL, 0.030f, coralReefBottomBlocks).setWater(),
+        DecoratorGen(Block::TALL_SEAGRASS_BOTTOM, 0.040f, coralReefBottomBlocks).setWater().setSecondDecoratorBlock(Block::TALL_SEAGRASS_TOP),
+        DecoratorGen(Block::BRAIN_CORAL, 0.030f, coralReefBottomBlocks).setWater().setSecondDecoratorBlock(Block::WATER), // second block ensures coral generates fully underwater
+        DecoratorGen(Block::BUBBLE_CORAL, 0.030f, coralReefBottomBlocks).setWater().setSecondDecoratorBlock(Block::WATER),
+        DecoratorGen(Block::FIRE_CORAL, 0.030f, coralReefBottomBlocks).setWater().setSecondDecoratorBlock(Block::WATER),
+        DecoratorGen(Block::HORN_CORAL, 0.030f, coralReefBottomBlocks).setWater().setSecondDecoratorBlock(Block::WATER),
+        DecoratorGen(Block::TUBE_CORAL, 0.030f, coralReefBottomBlocks).setWater().setSecondDecoratorBlock(Block::WATER),
         //DecoratorGen(Block::SEA_LANTERN, 0.005f, {}).setWater()
     };
 
