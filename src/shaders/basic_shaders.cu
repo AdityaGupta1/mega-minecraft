@@ -716,7 +716,7 @@ extern "C" __global__ void __miss__radiance()
         skyTime = (logf(1.f - r) / FOG_SCATTER);
         prd.scatterPosition = rayOrigin + rayDir * skyTime;
         prd.scattered = true;
-        prd.scatterFactor = smoothstep(0.f, 4.f, r);
+        prd.scatterFactor = smoothstep(0.f, 3.5f, r);
         prd.fogColor = skyColor;
         prd.fogFactor = 1.f - prd.scatterFactor;
     }
@@ -848,7 +848,7 @@ extern "C" __global__ void __closesthit__radiance() {
         prd.scatterPosition = rayOrigin + rayDir * ((logf(1.f - r) / FOG_SCATTER));
         prd.scattered = true;
         prd.needsFirstHitData = false;
-        prd.scatterFactor = smoothstep(0.f, 3.f, 1.f - r);
+        prd.scatterFactor = smoothstep(0.f, 3.5f, 1.f - r);
         prd.fogColor = getSkyColor(rayDir, prd, false);
         prd.fogFactor = calculateFogFactor();
         return;
@@ -1037,6 +1037,9 @@ extern "C" __global__ void __anyhit__shadow()
     {
         if (prd.scattered) {
             prd.scatterFactor *= 1.f - smoothstep(0.f, 1.f, clamp(rayOrigin.y - 125.f, 0.f, 175.f) / 175.f);
+            if (prd.foundLightSource && params.sunDir.y > 0.f) {
+                prd.scatterFactor *= smoothstep(0.f, 3.f, 1.f - params.sunDir.y);
+            }
             
         }
         prd.pixelColor += skyColor * prd.rayColor * prd.scatterFactor;
@@ -1056,7 +1059,12 @@ extern "C" __global__ void __miss__shadow()
 
     float3 skyColor = getSkyColor(rayDir, prd);
     if (prd.scattered && prd.isDone) {
-        prd.scatterFactor *= 1.f - smoothstep(0.f, 1.f, clamp(rayOrigin.y - 125.f, 0.f, 175.f) / 175.f);
+        if (prd.isDone) {
+            prd.scatterFactor *= 1.f - smoothstep(0.f, 1.f, clamp(rayOrigin.y - 125.f, 0.f, 175.f) / 175.f);
+        }
+        if (prd.foundLightSource && params.sunDir.y > 0.f) {
+            prd.scatterFactor *= smoothstep(0.f, 3.f, 1.f - params.sunDir.y);
+        }
     }
     prd.pixelColor += skyColor * prd.rayColor * prd.scatterFactor;
 }
