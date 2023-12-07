@@ -15,9 +15,7 @@
 #define NUM_SAMPLES 1
 #define MAX_RAY_DEPTH 4
 
-#define FOG_DENSITY -0.2f  // Ignoring the negative sign,
-                            // the higher the number, the less volumetric influence on farther objects
-#define FOG_SCATTER -0.015f  // Ignoring the negative sign,
+#define FOG_SCATTER -0.0075f  // Ignoring the negative sign,
                             // the higher the number, the higher intensity of volumetric fog
                             // this number changes things drastically
 
@@ -392,7 +390,7 @@ float sampleCloudsNoise(float3 cloudsPos)
     float cloudsNoise = (fbm<3>(make_float3(cloudsPos.x * 0.05f + noiseOffset.x, cloudsPos.z * 0.05f + noiseOffset.y, params.time * 0.015f)) + 1.f) * 0.5f;
     cloudsNoise += fbm<3>(make_float3(cloudsPos.x * 0.15f - 325.32f, cloudsPos.z * 0.15f + 613.58f, params.time * 0.040f)) * 0.3f;
     cloudsNoise *= (pnoise(make_float3(cloudsPos.x * 0.03f + 821.23f, cloudsPos.z * 0.03f - 721.33f, params.time * 0.003f + 276.21f)) + 1.f) * 0.9f;
-    return smoothstep(0.35f, 0.75f, cloudsNoise - 0.01 * cloudsPos.y);
+    return smoothstep(0.35f, 0.75f, cloudsNoise - 0.01f * cloudsPos.y);
 }
 
 static __device__
@@ -631,12 +629,12 @@ extern "C" __global__ void __raygen__render() {
                     1,  // missSBTIndex
                     u0, u1);
 
-                if (prd.foundLightSource)
+                if (prd.foundLightSource && !prd.isDone)
                 {
                     prd.pixelColor *= isSun ? 0.05f : 0.02f; // compensate for directly sampling such a small area of the sky
                                                              // probably not physically accurate but oh well
                 }
-                else {
+                else if (!prd.foundLightSource){
                     prd.pixelColor = make_float3(0.f);
                 }
             }
@@ -688,11 +686,16 @@ extern "C" __global__ void __raygen__render() {
 }
 
 static __device__
-float volumetricScattering(float t, float r) {
-    if (r < 1.f - expf(FOG_SCATTER * t)) {
-        return logf(r) / FOG_SCATTER;
-    }
-    return 0.f;
+float calculateFogFactor()
+{
+    const float3 rayDir = optixGetWorldRayDirection();
+    const float horizontalDist = length(make_float2(rayDir.x, rayDir.z)) * optixGetRayTmax();
+    return smoothstep(160.f, 240.f, horizontalDist);
+}
+
+static __device__
+float volumetricScattering(float t) {
+    return 1.f - expf(FOG_SCATTER * t);
 }
 
 extern "C" __global__ void __miss__radiance()
@@ -703,19 +706,21 @@ extern "C" __global__ void __miss__radiance()
     float3 skyColor = getSkyColor(rayDir, prd);
 
     // since miss doesn't have a collision time, the first factor influences fog influence on sky
-    float scatter = volumetricScattering(25.f, rng(prd.seed));
-    if (prd.needsFirstHitData && scatter > 0.f) {
+    float skyTime = 240.f;
+    float r = rng(prd.seed);
+    prd.isDone = true;
+    if (prd.needsFirstHitData) {
         prd.needsFirstHitData = false;
         prd.pixelAlbedo = skyColor;
         prd.pixelNormal = -rayDir;
-        if (scatter > 0.f) {
-            prd.scatterPosition = rayOrigin + rayDir * scatter;
-            prd.scattered = true;
-            prd.scatterFactor = fmax(expf(FOG_DENSITY * scatter), 0.f);
-        }
+        skyTime = (logf(1.f - r) / FOG_SCATTER);
+        prd.scatterPosition = rayOrigin + rayDir * skyTime;
+        prd.scattered = true;
+        prd.scatterFactor = smoothstep(0.f, 4.f, r);
+        prd.fogColor = skyColor;
+        prd.fogFactor = 1.f - prd.scatterFactor;
     }
-    prd.pixelColor += skyColor * prd.rayColor * prd.scatterFactor;
-    prd.isDone = true;
+    prd.pixelColor += skyColor * prd.rayColor;
 }
 
 static __device__ float schlickFresnel(const float3& V, const float3& N, const float ior)
@@ -816,14 +821,6 @@ float __device__ sparkling(float2 in, float r) {
     return 1.f;
 }
 
-static __device__
-float calculateFogFactor()
-{
-    const float3 rayDir = optixGetWorldRayDirection();
-    const float horizontalDist = length(make_float2(rayDir.x, rayDir.z)) * optixGetRayTmax();
-    return smoothstep(160.f, 240.f, horizontalDist);
-}
-
 extern "C" __global__ void __closesthit__radiance() {
     PRD& prd = *getPRD<PRD>();
 
@@ -843,13 +840,16 @@ extern "C" __global__ void __closesthit__radiance() {
     const float3 rayOrigin = optixGetWorldRayOrigin();
     const float3 isectPos = rayOrigin + rayDir * t;
 
-    float scatter = volumetricScattering(t, rng(prd.seed));
-    if (prd.needsFirstHitData && scatter > 0.f) {
-        prd.scatterPosition = rayOrigin + rayDir * scatter;
+    float scatter = volumetricScattering(t);
+    float r = rng(prd.seed);
+    if (prd.needsFirstHitData && scatter > r) {
+        prd.pixelAlbedo = diffuseCol;
+        prd.pixelNormal = nor;
+        prd.scatterPosition = rayOrigin + rayDir * ((logf(1.f - r) / FOG_SCATTER));
         prd.scattered = true;
         prd.needsFirstHitData = false;
-        prd.scatterFactor = fmax(expf(FOG_DENSITY * scatter), 0.f);
-        prd.fogColor = getSkyColor(rayDir, prd);
+        prd.scatterFactor = smoothstep(0.f, 3.f, 1.f - r);
+        prd.fogColor = getSkyColor(rayDir, prd, false);
         prd.fogFactor = calculateFogFactor();
         return;
     }
@@ -1027,14 +1027,19 @@ extern "C" __global__ void __anyhit__radiance()
 
 extern "C" __global__ void __anyhit__shadow()
 {
+    const float3 rayOrigin = optixGetWorldRayOrigin();
     const float3 rayDir = optixGetWorldRayDirection();
     PRD& prd = *getPRD<PRD>();
 
     float3 skyColor = getSkyColor(rayDir, prd);
-    prd.pixelColor += skyColor * prd.rayColor;
 
     if (anyhitAlphaTest())
     {
+        if (prd.scattered) {
+            prd.scatterFactor *= 1.f - smoothstep(0.f, 1.f, clamp(rayOrigin.y - 125.f, 0.f, 175.f) / 175.f);
+            
+        }
+        prd.pixelColor += skyColor * prd.rayColor * prd.scatterFactor;
         optixIgnoreIntersection();
         return;
     }
@@ -1046,10 +1051,14 @@ extern "C" __global__ void __anyhit__shadow()
 extern "C" __global__ void __miss__shadow()
 {
     const float3 rayDir = optixGetWorldRayDirection();
+    const float3 rayOrigin = optixGetWorldRayOrigin();
     PRD& prd = *getPRD<PRD>();
 
     float3 skyColor = getSkyColor(rayDir, prd);
-    prd.pixelColor += skyColor * prd.rayColor;
+    if (prd.scattered && prd.isDone) {
+        prd.scatterFactor *= 1.f - smoothstep(0.f, 1.f, clamp(rayOrigin.y - 125.f, 0.f, 175.f) / 175.f);
+    }
+    prd.pixelColor += skyColor * prd.rayColor * prd.scatterFactor;
 }
 
 extern "C" __global__ void __exception__all()
