@@ -17,7 +17,7 @@
 // ============================================================
 
 #define DEBUG_USE_GL_RENDERER 0
-#define DEBUG_START_IN_FREE_CAM_MODE 1
+#define DEBUG_START_IN_FREE_CAM_MODE 0
 
 // ============================================================
 // MATH CONSTANTS
