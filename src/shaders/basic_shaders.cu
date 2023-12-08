@@ -1,3 +1,26 @@
+// DISCLAIMER: some of this code is very much not physically accurate
+//             read at your own risk
+//             you have been warned
+
+/*
+                       ______
+                    .-"      "-.
+                   /            \
+       _          |              |          _
+      ( \         |,  .-.  .-.  ,|         / )
+       > "=._     | )(__/  \__)( |     _.=" <
+      (_/"=._"=._ |/     /\     \| _.="_.="\_)
+             "=._ (_     ^^     _)"_.="
+                 "=\__|IIIIII|__/="
+                _.="| \IIIIII/ |"=._
+      _     _.="_.="\          /"=._"=._     _
+     ( \_.="_.="     `--------`     "=._"=._/ )
+      > _.="                            "=._ <
+     (_/                                    \_)
+
+     skull emoji
+*/
+
 #include <optix.h>
 #include "shader_commons.h"
 #include "random_number_generators.h"
@@ -14,6 +37,10 @@
 
 #define NUM_SAMPLES 1
 #define MAX_RAY_DEPTH 4
+
+#define FOG_SCATTER -0.005f  // Ignoring the negative sign,
+                             // the higher the number, the higher intensity of volumetric fog
+                             // this number changes things drastically
 
 /*! launch parameters in constant memory, filled in by optix upon
       optixLaunch (this gets filled in from the buffer we pass to
@@ -118,14 +145,18 @@ __device__ float3 calculateRandomDirectionInHemisphere(float3 normal, float2 sam
         + sin(around) * over * perpendicularDirection2;
 }
 
-__device__ float3 sampleStar(float2 sample, bool isSun)
+__device__ float3 sampleStar(float2 sample, bool isSun, bool scattering)
 {
     const float3 starDir = isSun ? params.sunDir : params.moonDir;
+    const float3 normal = normalize(starDir);
     // 0.1000 is the max radius to sample within the sun at dot = 0.995
     // 0.0775 for moon at dot = 0.997
-    const float radius = isSun ? 0.1000f : 0.0775f;
+    
+    if (scattering) {
+        return normal;
+    }
 
-    const float3 normal = normalize(starDir);
+    const float radius = isSun ? 0.1000f : 0.0775f;
 
     const float3 perpendicularDirection1 = normalize(cross(normal, calculateDirectionNotNormal(normal)));
     const float3 perpendicularDirection2 = normalize(cross(normal, perpendicularDirection1));
@@ -382,7 +413,7 @@ float sampleCloudsNoise(float3 cloudsPos)
     float cloudsNoise = (fbm<3>(make_float3(cloudsPos.x * 0.05f + noiseOffset.x, cloudsPos.z * 0.05f + noiseOffset.y, params.time * 0.015f)) + 1.f) * 0.5f;
     cloudsNoise += fbm<3>(make_float3(cloudsPos.x * 0.15f - 325.32f, cloudsPos.z * 0.15f + 613.58f, params.time * 0.040f)) * 0.3f;
     cloudsNoise *= (pnoise(make_float3(cloudsPos.x * 0.03f + 821.23f, cloudsPos.z * 0.03f - 721.33f, params.time * 0.003f + 276.21f)) + 1.f) * 0.9f;
-    return smoothstep(0.35f, 0.75f, cloudsNoise - 0.01 * cloudsPos.y);
+    return smoothstep(0.35f, 0.75f, cloudsNoise - 0.01f * cloudsPos.y);
 }
 
 static __device__
@@ -415,10 +446,12 @@ float getCloudCoverage(float3 pos, float3 dir)
 static __device__
 float3 getSkyColor(const float3 rayDir, PRD& prd, bool includeStars = true)
 {
-    float entireSkyStrength = smoothstep(-0.4f, 0.2f, rayDir.y);
+    const float entireSkyStrength = smoothstep(-0.4f, 0.2f, rayDir.y);
+    float skyBaseStrength = 0.04f + 0.96f * smoothstep(-0.25f, 0.10f, params.sunDir.y);
+    const float3 groundColor = make_float3(1.f, 0.8f, 0.65f) * (0.5f * skyBaseStrength);
     if (entireSkyStrength == 0.f)
     {
-        return make_float3(0.f);
+        return groundColor;
     }
 
     float3 skyColor = make_float3(0.f);
@@ -474,7 +507,6 @@ float3 getSkyColor(const float3 rayDir, PRD& prd, bool includeStars = true)
     prd.foundLightSource = isSunOrMoon;
 
     // base color and stars
-    float skyBaseStrength = 0.08f + 0.92f * smoothstep(-0.25f, 0.10f, params.sunDir.y);
     if (!isSunOrMoon)
     {
         float3 skyBaseColor = make_float3(0.10f, 0.16f, 0.2f);
@@ -514,13 +546,13 @@ float3 getSkyColor(const float3 rayDir, PRD& prd, bool includeStars = true)
         float cloudCoverage = getCloudCoverage(optixGetWorldRayOrigin(), rayDir);
         if (cloudCoverage > 0.f)
         {
-            float3 cloudColor = make_float3(0.9f * powf(skyBaseStrength, 1.35f));
+            float3 cloudColor = make_float3(0.9f * powf(skyBaseStrength, 1.15f));
             cloudColor = lerp(cloudColor, make_float3(1.20f, 0.30f, 0.10f), orangeStrength * 0.9f);
             skyColor = lerp(skyColor, cloudColor, fminf(0.92f, cloudCoverage));
         }
     }
 
-    return skyColor * entireSkyStrength;
+    return lerp(groundColor, skyColor, entireSkyStrength);
 }
 
 extern "C" __global__ void __raygen__render() {
@@ -558,6 +590,9 @@ extern "C" __global__ void __raygen__render() {
         prd.isect.newDir = rayDir;
         prd.specularHit = false;
         prd.fogFactor = 0.f;
+        prd.fogColor = make_float3(0.f);
+        prd.scatterFactor = 1.f;
+        prd.scattered = false;
 
         #pragma unroll
         for (int depth = 0; depth < MAX_RAY_DEPTH; ++depth)
@@ -579,8 +614,7 @@ extern "C" __global__ void __raygen__render() {
                 0,  // missSBTIndex
                 u0, u1);
 
-            if (prd.isDone)
-            {
+            if (!prd.scattered && prd.isDone) {
                 break;
             }
 
@@ -596,13 +630,18 @@ extern "C" __global__ void __raygen__render() {
 
                 float sunChance = linearstep(-0.1f, 0.1f, params.sunDir.y);
                 bool isSun = rng(prd.seed) < sunChance;
-                float3 random_d = sampleStar(xi, isSun);
+                float3 random_d = sampleStar(xi, isSun, prd.scattered);
 
                 // 3. test sun intersection
                 prd.foundLightSource = false;
+                float3 pos = prd.isect.pos;
+
+                if (prd.scattered) {
+                    pos = prd.scatterPosition;
+                }
 
                 optixTrace(params.rootHandle,
-                    prd.isect.pos,
+                    pos,
                     random_d,
                     0.f,    // tmin
                     1e20f,  // tmax
@@ -611,32 +650,23 @@ extern "C" __global__ void __raygen__render() {
                     OPTIX_RAY_FLAG_DISABLE_CLOSESTHIT,
                     1,  // SBT offset
                     1,  // SBT stride
-                    0,  // missSBTIndex
+                    1,  // missSBTIndex
                     u0, u1);
 
-                // if specular material is hit and entered - see if we exit it 
-
-                if (prd.specularHit) {
-                    optixTrace(params.rootHandle,
-                        prd.isect.pos,
-                        prd.isect.newDir,
-                        0.f,    // tmin
-                        1e20f,  // tmax
-                        0.0f,   // rayTime
-                        OptixVisibilityMask(255),
-                        OPTIX_RAY_FLAG_DISABLE_CLOSESTHIT,
-                        1,  // SBT offset
-                        1,  // SBT stride
-                        0,  // missSBTIndex
-                        u0, u1);
-                }
-
-                if (prd.foundLightSource)
+                if (prd.foundLightSource && !prd.isDone)
                 {
                     prd.pixelColor *= isSun ? 0.05f : 0.02f; // compensate for directly sampling such a small area of the sky
                                                              // probably not physically accurate but oh well
                 }
+                else if (!prd.foundLightSource){
+                    prd.pixelColor = make_float3(0.f);
+                }
             }
+
+            if (prd.isDone || prd.scattered) {
+                break;
+            }
+
             
 #if DO_RUSSIAN_ROULETTE
             if (depth > 2)
@@ -644,7 +674,7 @@ extern "C" __global__ void __raygen__render() {
                 float q = fmax(0.05f, 1.f - luminance(prd.pixelColor));
                 if (rng(prd.seed) < q)
                 {
-                    prd.pixelColor = make_float3(0);
+                    prd.pixelColor = make_float3(0.f);
                     break;
                 }
 
@@ -652,7 +682,6 @@ extern "C" __global__ void __raygen__render() {
             }
 #endif
         }
-
         prd.pixelColor = lerp(prd.pixelColor, prd.fogColor, prd.fogFactor);
 
         finalColor += prd.pixelColor;
@@ -680,22 +709,44 @@ extern "C" __global__ void __raygen__render() {
     params.frame.normalBuffer[fbIndex] = make_float4(finalNormal, 1.f);
 }
 
+static __device__
+float calculateFogFactor()
+{
+    const float3 rayDir = optixGetWorldRayDirection();
+    const float horizontalDist = length(make_float2(rayDir.x, rayDir.z)) * optixGetRayTmax();
+    return smoothstep(220.f, 300.f, horizontalDist);
+}
+
+static __device__
+float volumetricScattering(float t) {
+    float chance = 1.f - expf(FOG_SCATTER * t);
+    chance *= smoothstep(0.55f, 0.35f, params.sunDir.y);
+    return chance;
+}
+
 extern "C" __global__ void __miss__radiance()
 {
     const float3 rayDir = optixGetWorldRayDirection();
+    const float3 rayOrigin = optixGetWorldRayOrigin();
     PRD& prd = *getPRD<PRD>();
-
     float3 skyColor = getSkyColor(rayDir, prd);
 
-    prd.pixelColor += skyColor * prd.rayColor;
+    // since miss doesn't have a collision time, the first factor influences fog influence on sky
+    float skyTime = 240.f;
+    float r = rng(prd.seed);
     prd.isDone = true;
-
-    if (prd.needsFirstHitData)
-    {
+    if (prd.needsFirstHitData) {
         prd.needsFirstHitData = false;
         prd.pixelAlbedo = skyColor;
         prd.pixelNormal = -rayDir;
+        skyTime = (logf(1.f - r) / FOG_SCATTER);
+        prd.scatterPosition = rayOrigin + rayDir * skyTime;
+        prd.scattered = true;
+        prd.scatterFactor = smoothstep(0.f, 3.5f, r);
+        prd.fogColor = skyColor;
+        prd.fogFactor = 1.f - prd.scatterFactor;
     }
+    prd.pixelColor += skyColor * prd.rayColor;
 }
 
 static __device__ float schlickFresnel(const float3& V, const float3& N, const float ior)
@@ -796,14 +847,6 @@ float __device__ sparkling(float2 in, float r) {
     return 1.f;
 }
 
-static __device__
-float calculateFogFactor()
-{
-    const float3 rayDir = optixGetWorldRayDirection();
-    const float horizontalDist = length(make_float2(rayDir.x, rayDir.z)) * optixGetRayTmax();
-    return smoothstep(160.f, 240.f, horizontalDist);
-}
-
 extern "C" __global__ void __closesthit__radiance() {
     PRD& prd = *getPRD<PRD>();
 
@@ -822,6 +865,20 @@ extern "C" __global__ void __closesthit__radiance() {
 
     const float3 rayOrigin = optixGetWorldRayOrigin();
     const float3 isectPos = rayOrigin + rayDir * t;
+
+    float scatter = volumetricScattering(t);
+    float r = rng(prd.seed);
+    if (prd.needsFirstHitData && scatter > r) {
+        prd.pixelAlbedo = diffuseCol;
+        prd.pixelNormal = nor;
+        prd.scatterPosition = rayOrigin + rayDir * ((logf(1.f - r) / FOG_SCATTER));
+        prd.scattered = true;
+        prd.needsFirstHitData = false;
+        prd.scatterFactor = smoothstep(0.f, 3.5f, 1.f - r);
+        prd.fogColor = getSkyColor(rayDir, prd, false);
+        prd.fogFactor = calculateFogFactor();
+        return;
+    }
 
     // REFL REFR
 
@@ -994,18 +1051,42 @@ extern "C" __global__ void __anyhit__radiance()
     }
 }
 
+__device__ void doFog(PRD& prd)
+{
+    const float3 rayDir = optixGetWorldRayDirection();
+    const float3 rayOrigin = optixGetWorldRayOrigin();
+
+    float3 skyColor = getSkyColor(rayDir, prd);
+    if (prd.scattered && prd.isDone)
+    {
+        if (prd.isDone)
+        {
+            prd.scatterFactor *= 1.f - smoothstep(0.f, 1.f, clamp(rayOrigin.y - 125.f, 0.f, 175.f) / 175.f);
+        }
+    }
+    prd.pixelColor += skyColor * prd.rayColor * prd.scatterFactor;
+}
+
 extern "C" __global__ void __anyhit__shadow()
 {
     PRD& prd = *getPRD<PRD>();
 
     if (anyhitAlphaTest())
     {
+        doFog(prd);
         optixIgnoreIntersection();
         return;
     }
 
     prd.foundLightSource = false;
     optixTerminateRay();
+}
+
+extern "C" __global__ void __miss__shadow()
+{
+    PRD& prd = *getPRD<PRD>();
+
+    doFog(prd);
 }
 
 extern "C" __global__ void __exception__all()

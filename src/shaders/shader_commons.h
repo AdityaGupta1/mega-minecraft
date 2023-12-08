@@ -90,6 +90,7 @@ struct PRD {
     bool specularHit;
 
     bool foundLightSource;
+    bool scattered;
 
     struct
     {
@@ -102,5 +103,7 @@ struct PRD {
     float3  pixelAlbedo;
     float3  pixelNormal;
     float3 fogColor;
+    float3 scatterPosition;
     float fogFactor;
+    float scatterFactor;
 };
