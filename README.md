@@ -246,6 +246,16 @@ TODO: miss program
 
 TODO: path tracing iteration overview
 
+### Path tracer features
+
+TODO: Multiple importance sampling 
+
+TODO: Global Illum.
+
+TODO: Material Properties
+
+TODO: Volumetric Scattering
+
 ### Optimizations
 
 TODO: Alan
