@@ -12,9 +12,9 @@
 	<img src="screenshots/12-3-2023/010.png" />
 </p>
 
-This project aims to create a **Minecraft-like experience** with two major upgrades: **real-time path tracing** with OptiX and **GPU-accelerated terrain generation** with CUDA.
+This project aims to recreate Minecraft with two major upgrades: <ins>real-time path tracing</ins> with OptiX and <ins>GPU-accelerated terrain generation</ins> with CUDA.
 
-Normal Minecraft is rendered by rasterization and a block-based lighting system, which works very well for gameplay. Minecraft shaders take that to the next level by introducing features such as shadow mapping, screen space reflections, and dynamic lighting. This project goes one step further by using the RTX accelerated OptiX framework to perform rendering entirely through path tracing, which gives realistic lighting, shadows, and reflections.
+Minecraft is rendered by rasterization and a block-based lighting system, which works very well for gameplay. Minecraft shaders take that to the next level by introducing features such as shadow mapping, screen space reflections, and dynamic lighting. This project goes one step further by using the RTX accelerated OptiX framework to perform rendering entirely through path tracing, which gives realistic lighting, shadows, and reflections.
 
 Additionally, GPGPU programming with CUDA allows for fast generation of fantastical terrain constructed from various noise functions and implicit surfaces. This project's terrain consists of several distinct biomes, each with their own characteristics and structures. Players exploring the world can find sights such as giant purple mushrooms, vast expanses of sand dunes, infected underground forests, and many more.
 
@@ -47,13 +47,59 @@ Chunk generation in this project consists of several steps:
   - This includes trees, mushrooms, crystals, etc.
 - Chunk fill
 
-Some steps, such as heightfields and surface biomes, can be performed on single chunks without any information about neighboring chunks. However, some steps, such as terrain layers and erosion, require gathering information from neighboring chunks in order to prevent discontinuities along chunk borders. The following diagram explains the requirements for each step:
+Some steps, such as heightfields and surface biomes, can be performed on single chunks without any information about neighboring chunks. However, some steps, such as terrain layers and erosion, require gathering information from neighboring chunks in order to prevent discontinuities along chunk borders. The following sections explain the requirements for each step:
 
-TODO: diagram goes here
+<details>
+<summary>Heightfields and surface biomes</summary>
+<img src="screenshots/readme/chunk_gen/single_chunk.png" width="20%" />
+<br>
+<em>Generating heightfields and surface biomes considers only a single 16x16 chunk (blue).</em>
+<br>&nbsp;
+</details>
+
+<details>
+<summary>Terrain layers</summary>
+<img src="screenshots/readme/chunk_gen/single_chunk_1_block_border.png" width="20%" />
+<br>
+<em>Generating terrain layers requires gathering some padding data (orange) from surrounding chunks to calculate the slope of this chunk's heightfield (blue).</em>
+<br>&nbsp;
+</details>
+
+<details>
+<summary>Erosion</summary>
+<img src="screenshots/readme/chunk_gen/erosion.png" width="20%" />
+<br>
+<em>Erosion considers a 12x12 zone of chunks (green) with 6 chunks of padding on each side (purple).</em>
+<br>&nbsp;
+</details>
+
+<details>
+<summary>Caves and cave biomes</summary>
+<img src="screenshots/readme/chunk_gen/single_chunk.png" width="20%" />
+<br>
+<em>Like for heightfields and surface biomes, generating caves and cave biomes considers only a single chunk (blue).</em>
+<br>&nbsp;
+</details>
+
+<details>
+<summary>Terrain feature placement</summary>
+<img src="screenshots/readme/chunk_gen/features.png" width="20%" />
+<br>
+<em>For generating terrain features, each chunk considers itself (green) and all chunks up to 3 chunks away (purple).</em>
+<br>&nbsp;
+</details>
+
+<details>
+<summary>Chunk fill</summary>
+<img src="screenshots/readme/chunk_gen/single_chunk.png" width="20%" />
+<br>
+<em>Once all data has been gathered, this step fills an entire chunk (blue) with one kernel call.</em>
+</details>
+<br>
 
 To balance the load over time and prevent lag spikes, we use an "action time" system for scheduling. Every frame, the terrain generator gains action time proportional to the time since the last frame. Action time per frame is capped at a certain amount to ensure that no one frame does too much work. Each action has an associated cost, determined by empirical measurements of the step's average duration, which subtracts from the accumulated action time. For example, we currently accumulate up to 30,000 action time per second and allow up to 500 action time per frame. Generating a chunk's heightfield and surface biomes is relatively inexpensive, so its cost is only 3 per chunk. However, erosion is run over a 24x24 area of chunks at once and is relatively expensive, so its cost is a full 500 per 24x24 area.
 
-Unless otherwise specified, all terrain generation steps other than gathering neighboring chunks are performed on the GPU using CUDA kernels.
+Unless otherwise specified, all terrain generation steps other than gathering data from neighboring chunks are performed on the GPU using CUDA kernels.
 
 ### Heightfields and surface biomes
 
@@ -84,7 +130,7 @@ The top layers are "loose" and consist of materials like dirt, sand, and gravel.
 <p align="center">
   <img src="screenshots/readme/slope_method.png" width="40%" />
   <br>
-  <em>Illustration of the slope method, where</em> α <em>is the maximum angle between neighboring layers (defined per material).</em>
+  <em>Illustration from the paper of the slope method, where</em> α <em>is the maximum angle between neighboring layers (defined per material).</em>
 </p>
 
 The process is repeated until the terrain no longer changes. However, since erosion of a specified area relies on surrounding terrain data as well, performing this process on a chunk-by-chunk basis would lead to discontinuities. For that reason, we gather an entire 12x12 "zone" of chunks, as well as a further 6 chunks of padding on each side, before performing erosion on the entire 24x24 chunk area. Afterwards, we keep the eroded data for the center zone while discarding that of the padding chunks.
@@ -266,6 +312,15 @@ Sections are organized in chronological order.
 <img src="screenshots/12-3-2023/003.png" />
 <img src="screenshots/12-3-2023/005.png" />
 <img src="screenshots/12-3-2023/001.png" />
+</details>
+
+<details>
+<summary>Cool terrain areas</summary>
+<br>
+<img src="screenshots/12-6-2023/001.png" />
+<img src="screenshots/12-6-2023/003.png" />
+<img src="screenshots/12-6-2023/006.png" />
+<img src="screenshots/12-6-2023/009.png" />
 </details>
 
 ## References
