@@ -1073,7 +1073,7 @@ extern "C" __global__ void __anyhit__shadow()
 
     if (anyhitAlphaTest())
     {
-        doFog(prd);
+        //doFog(prd);
         optixIgnoreIntersection();
         return;
     }
