@@ -1,3 +1,26 @@
+// DISCLAIMER: some of this code is very much not physically accurate
+//             read at your own risk
+//             you have been warned
+
+/*
+                       ______
+                    .-"      "-.
+                   /            \
+       _          |              |          _
+      ( \         |,  .-.  .-.  ,|         / )
+       > "=._     | )(__/  \__)( |     _.=" <
+      (_/"=._"=._ |/     /\     \| _.="_.="\_)
+             "=._ (_     ^^     _)"_.="
+                 "=\__|IIIIII|__/="
+                _.="| \IIIIII/ |"=._
+      _     _.="_.="\          /"=._"=._     _
+     ( \_.="_.="     `--------`     "=._"=._/ )
+      > _.="                            "=._ <
+     (_/                                    \_)
+
+     skull emoji
+*/
+
 #include <optix.h>
 #include "shader_commons.h"
 #include "random_number_generators.h"
@@ -15,9 +38,9 @@
 #define NUM_SAMPLES 1
 #define MAX_RAY_DEPTH 4
 
-#define FOG_SCATTER -0.0075f  // Ignoring the negative sign,
-                            // the higher the number, the higher intensity of volumetric fog
-                            // this number changes things drastically
+#define FOG_SCATTER -0.005f  // Ignoring the negative sign,
+                             // the higher the number, the higher intensity of volumetric fog
+                             // this number changes things drastically
 
 /*! launch parameters in constant memory, filled in by optix upon
       optixLaunch (this gets filled in from the buffer we pass to
@@ -423,10 +446,12 @@ float getCloudCoverage(float3 pos, float3 dir)
 static __device__
 float3 getSkyColor(const float3 rayDir, PRD& prd, bool includeStars = true)
 {
-    float entireSkyStrength = smoothstep(-0.4f, 0.2f, rayDir.y);
+    const float entireSkyStrength = smoothstep(-0.4f, 0.2f, rayDir.y);
+    float skyBaseStrength = 0.04f + 0.96f * smoothstep(-0.25f, 0.10f, params.sunDir.y);
+    const float3 groundColor = make_float3(1.f, 0.8f, 0.65f) * (0.5f * skyBaseStrength);
     if (entireSkyStrength == 0.f)
     {
-        return make_float3(0.f);
+        return groundColor;
     }
 
     float3 skyColor = make_float3(0.f);
@@ -482,7 +507,6 @@ float3 getSkyColor(const float3 rayDir, PRD& prd, bool includeStars = true)
     prd.foundLightSource = isSunOrMoon;
 
     // base color and stars
-    float skyBaseStrength = 0.08f + 0.92f * smoothstep(-0.25f, 0.10f, params.sunDir.y);
     if (!isSunOrMoon)
     {
         float3 skyBaseColor = make_float3(0.10f, 0.16f, 0.2f);
@@ -522,13 +546,13 @@ float3 getSkyColor(const float3 rayDir, PRD& prd, bool includeStars = true)
         float cloudCoverage = getCloudCoverage(optixGetWorldRayOrigin(), rayDir);
         if (cloudCoverage > 0.f)
         {
-            float3 cloudColor = make_float3(0.9f * powf(skyBaseStrength, 1.35f));
+            float3 cloudColor = make_float3(0.9f * powf(skyBaseStrength, 1.15f));
             cloudColor = lerp(cloudColor, make_float3(1.20f, 0.30f, 0.10f), orangeStrength * 0.9f);
             skyColor = lerp(skyColor, cloudColor, fminf(0.92f, cloudCoverage));
         }
     }
 
-    return skyColor * entireSkyStrength;
+    return lerp(groundColor, skyColor, entireSkyStrength);
 }
 
 extern "C" __global__ void __raygen__render() {
@@ -690,12 +714,14 @@ float calculateFogFactor()
 {
     const float3 rayDir = optixGetWorldRayDirection();
     const float horizontalDist = length(make_float2(rayDir.x, rayDir.z)) * optixGetRayTmax();
-    return smoothstep(160.f, 240.f, horizontalDist);
+    return smoothstep(220.f, 300.f, horizontalDist);
 }
 
 static __device__
 float volumetricScattering(float t) {
-    return 1.f - expf(FOG_SCATTER * t);
+    float chance = 1.f - expf(FOG_SCATTER * t);
+    chance *= smoothstep(0.55f, 0.35f, params.sunDir.y);
+    return chance;
 }
 
 extern "C" __global__ void __miss__radiance()
@@ -1025,24 +1051,29 @@ extern "C" __global__ void __anyhit__radiance()
     }
 }
 
-extern "C" __global__ void __anyhit__shadow()
+__device__ void doFog(PRD& prd)
 {
-    const float3 rayOrigin = optixGetWorldRayOrigin();
     const float3 rayDir = optixGetWorldRayDirection();
-    PRD& prd = *getPRD<PRD>();
+    const float3 rayOrigin = optixGetWorldRayOrigin();
 
     float3 skyColor = getSkyColor(rayDir, prd);
+    if (prd.scattered && prd.isDone)
+    {
+        if (prd.isDone)
+        {
+            prd.scatterFactor *= 1.f - smoothstep(0.f, 1.f, clamp(rayOrigin.y - 125.f, 0.f, 175.f) / 175.f);
+        }
+    }
+    prd.pixelColor += skyColor * prd.rayColor * prd.scatterFactor;
+}
+
+extern "C" __global__ void __anyhit__shadow()
+{
+    PRD& prd = *getPRD<PRD>();
 
     if (anyhitAlphaTest())
     {
-        if (prd.scattered) {
-            prd.scatterFactor *= 1.f - smoothstep(0.f, 1.f, clamp(rayOrigin.y - 125.f, 0.f, 175.f) / 175.f);
-            if (prd.foundLightSource && params.sunDir.y > 0.f) {
-                prd.scatterFactor *= smoothstep(0.f, 3.f, 1.f - params.sunDir.y);
-            }
-            
-        }
-        prd.pixelColor += skyColor * prd.rayColor * prd.scatterFactor;
+        doFog(prd);
         optixIgnoreIntersection();
         return;
     }
@@ -1053,20 +1084,9 @@ extern "C" __global__ void __anyhit__shadow()
 
 extern "C" __global__ void __miss__shadow()
 {
-    const float3 rayDir = optixGetWorldRayDirection();
-    const float3 rayOrigin = optixGetWorldRayOrigin();
     PRD& prd = *getPRD<PRD>();
 
-    float3 skyColor = getSkyColor(rayDir, prd);
-    if (prd.scattered && prd.isDone) {
-        if (prd.isDone) {
-            prd.scatterFactor *= 1.f - smoothstep(0.f, 1.f, clamp(rayOrigin.y - 125.f, 0.f, 175.f) / 175.f);
-        }
-        if (prd.foundLightSource && params.sunDir.y > 0.f) {
-            prd.scatterFactor *= smoothstep(0.f, 3.f, 1.f - params.sunDir.y);
-        }
-    }
-    prd.pixelColor += skyColor * prd.rayColor * prd.scatterFactor;
+    doFog(prd);
 }
 
 extern "C" __global__ void __exception__all()
