@@ -176,8 +176,8 @@ std::unique_ptr<D3D11Renderer> d3dRenderer;
 //====================================
 // Pick your Ray Tracing Resolution -> set USE_UPSCALE = 1 to RayTrace at half resolution then 2x upscale
 //glm::uvec2 renderSize = uvec2(3840, 2160);
-glm::uvec2 renderSize = uvec2(2560, 1440);
-//glm::uvec2 renderSize = uvec2(1920, 1080);
+//glm::uvec2 renderSize = uvec2(2560, 1440);
+glm::uvec2 renderSize = uvec2(1920, 1080);
 
 glm::uvec2 windowSize = uvec2(1920, 1080);
 //glm::ivec2 windowSize = ivec2(1920 / 2, 1080 / 2);
