@@ -1061,7 +1061,7 @@ __device__ void doFog(PRD& prd)
     {
         if (prd.isDone)
         {
-            prd.scatterFactor *= 1.f - smoothstep(0.f, 1.f, clamp(rayOrigin.y - 125.f, 0.f, 175.f) / 175.f);
+            prd.scatterFactor *= smoothstep(256.f, 128.f, rayOrigin.y);
         }
     }
     prd.pixelColor += skyColor * prd.rayColor * prd.scatterFactor;
