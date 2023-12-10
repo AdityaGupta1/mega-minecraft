@@ -74,7 +74,7 @@ OptixRenderer::OptixRenderer(GLFWwindow* window, uvec2* windowSize, Terrain* ter
     const uint32_t inWidth = windowSize->x;
     const uint32_t inHeight = windowSize->y;
 #endif
-
+    fprintf(stdout, "Rendering at resolution %ux%u\n", inWidth, inHeight);
     launchParamsBuffer.alloc(sizeof(OptixParams));
     launchParams.windowSize = make_int2(inWidth, inHeight);
     pixels.resize(inWidth * inHeight);

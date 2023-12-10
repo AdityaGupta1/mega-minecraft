@@ -1,19 +1,18 @@
 #include "d3d11Renderer.h"
 
 static const char g_simpleShaders[] =
-"cbuffer cbuf \n"
-"{ \n"
-"  float4 g_vQuadRect; \n"
-"} \n"
-"Texture2D g_Texture2D; \n"
+//"cbuffer cbuf \n"
+//"{ \n"
+//"  float4 g_vQuadRect; \n"
+//"} \n"
+"Texture2D g_Texture2D: register(t0); \n"
 "\n"
-"SamplerState samLinear{ \n"
-"    Filter = MIN_MAG_LINEAR_MIP_POINT; \n"
-"};\n"
+"SamplerState samLinear: register(s0);\n"
 "\n"
 "struct Fragment{ \n"
 "    float4 Pos : SV_POSITION;\n"
-"    float3 Tex : TEXCOORD0; };\n"
+"    float2 Tex : TEXCOORD0;\n"
+"};\n"
 "\n"
 "float3 ACESFilm(float3 x) {\n"
 "    float a = 2.51f;\n"
@@ -24,28 +23,31 @@ static const char g_simpleShaders[] =
 "    return clamp((x * (a * x + b)) / (x * (c * x + d) + e), 0.f, 1.f);\n"
 "}\n"
 "\n"
-"Fragment VS( uint vertexId : SV_VertexID )\n"
+"Fragment VS( uint vertexID : SV_VertexID )\n"
 "{\n"
 "    Fragment f;\n"
-"    f.Tex = float3( 0.f, 0.f, 0.f); \n"
-"    if (vertexId == 1) f.Tex.x = 1.f; \n"
-"    else if (vertexId == 2) f.Tex.y = 1.f; \n"
-"    else if (vertexId == 3) f.Tex.xy = float2(1.f, 1.f); \n"
-"    \n"
-"    f.Pos = float4( g_vQuadRect.xy + f.Tex * g_vQuadRect.zw, 0, 1);\n"
+//"    f.Tex = float3( 0.f, 0.f, 0.f); \n"
+//"    if (vertexID == 1) f.Tex.x = 1.f; \n"
+//"    else if (vertexID == 2) f.Tex.y = 1.f; \n"
+//"    else if (vertexID == 3) f.Tex.xy = float2(1.f, 1.f); \n"
+//"    \n"
+//"    f.Pos = float4( g_vQuadRect.xy + f.Tex * g_vQuadRect.zw, 0, 1);\n"
+"    f.Tex = float2((vertexID << 1) & 2, vertexID & 2);\n"
+"    f.Pos = float4(f.Tex * 2.f - 1.f, 0.0f, 1.0f);\n"
 "    \n"
 "    return f;\n"
 "}\n"
 "\n"
 "float4 PS( Fragment f ) : SV_Target\n"
 "{\n"
-"    float3 out_col = g_Texture2D.Sample( samLinear, f.Tex.xy ).rgb;\n"
+//"    float3 out_col = g_Texture2D.Sample( samLinear, f.Tex.xy ).rgb;\n"
+"    float3 out_col = g_Texture2D.Sample( samLinear, f.Tex ).rgb;\n"
 "    return float4(pow(ACESFilm(out_col), float3(0.45454545454545454545454545455f, 0.45454545454545454545454545455f, 0.45454545454545454545454545455f)), 1.f);\n"
 "}\n"
 "\n";
 
-D3D11Renderer::D3D11Renderer(HWND& hWnd, uint32_t* width, uint32_t* height)
-    : g_hWnd(hWnd), g_WindowWidth(width), g_WindowHeight(height) 
+D3D11Renderer::D3D11Renderer(HWND& hWnd, glm::uvec2* windowSize, glm::uvec2* renderSize)
+    : g_hWnd(hWnd), g_WindowSize(windowSize), g_RenderSize(renderSize) 
 {
     if (FAILED(initDevice()) || FAILED(initTexture())) {
         exit(1);
@@ -96,25 +98,6 @@ HRESULT D3D11Renderer::initDevice()
     D3D_FEATURE_LEVEL tour_fl[] = { D3D_FEATURE_LEVEL_11_0, 
         D3D_FEATURE_LEVEL_10_1, D3D_FEATURE_LEVEL_10_0 };
     D3D_FEATURE_LEVEL flRes;
-    // Create device and swapchain
-    //hr = D3D11CreateDeviceAndSwapChain(
-    //    g_pCudaCapableAdapter,
-    //    D3D_DRIVER_TYPE_UNKNOWN,  // D3D_DRIVER_TYPE_HARDWARE,
-    //    NULL,  // HMODULE Software
-    //    0,  // UINT Flags
-    //    tour_fl,  // D3D_FEATURE_LEVEL* pFeatureLevels
-    //    3,  // FeatureLevels
-    //    D3D11_SDK_VERSION,  // UINT SDKVersion
-    //    &sd,  // DXGI_SWAP_CHAIN_DESC* pSwapChainDesc
-    //    &g_pSwapChain,  // IDXGISwapChain** ppSwapChain
-    //    &g_pd3dDevice,  // ID3D11Device** ppDevice
-    //    &flRes,  // D3D_FEATURE_LEVEL* pFeatureLevel
-    //    &g_pd3dDeviceContext  // ID3D11DeviceContext** ppImmediateContext
-    //);
-    //if (FAILED(hr)) {
-    //    fprintf(stderr, "Initializing Device and SwapChain failed with 0x%X\n", hr);
-    //    return E_FAIL;
-    //}
 
     hr = D3D11CreateDevice(g_pCudaCapableAdapter, D3D_DRIVER_TYPE_UNKNOWN, nullptr, 0, tour_fl, 3, D3D11_SDK_VERSION, &g_pd3dDevice, &flRes, &g_pd3dDeviceContext);
     if (FAILED(hr)) {
@@ -164,8 +147,8 @@ HRESULT D3D11Renderer::initDevice()
         }
 
         DXGI_SWAP_CHAIN_DESC1 sd = {};
-        sd.Width = *g_WindowWidth;
-        sd.Height = *g_WindowHeight;
+        sd.Width = g_WindowSize->x;
+        sd.Height = g_WindowSize->y;
         sd.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
         sd.SampleDesc.Count = 1;
         sd.SampleDesc.Quality = 0;
@@ -188,8 +171,8 @@ HRESULT D3D11Renderer::initDevice()
         // DirectX 11.0 systems
         DXGI_SWAP_CHAIN_DESC sd = {};
         sd.BufferCount = 1;
-        sd.BufferDesc.Width = *g_WindowWidth;
-        sd.BufferDesc.Height = *g_WindowHeight;
+        sd.BufferDesc.Width = g_WindowSize->x;
+        sd.BufferDesc.Height = g_WindowSize->y;
         sd.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
         sd.BufferDesc.RefreshRate.Numerator = 60;
         sd.BufferDesc.RefreshRate.Denominator = 1;
@@ -202,7 +185,7 @@ HRESULT D3D11Renderer::initDevice()
         hr = dxgiFactory->CreateSwapChain(g_pd3dDevice, &sd, &g_pSwapChain);
     }
     if (FAILED(hr)) {
-        fprintf(stdout, "%u %u", *g_WindowWidth, *g_WindowHeight);
+        fprintf(stdout, "%u %u", g_WindowSize->x, g_WindowSize->y);
         fprintf(stderr, "Creating Swap Chain failed with 0x%X\n", hr);
         return E_FAIL;
     }
@@ -234,8 +217,8 @@ HRESULT D3D11Renderer::initDevice()
 
     // Setup the viewport
     D3D11_VIEWPORT vp;
-    vp.Width = *g_WindowWidth;
-    vp.Height = *g_WindowHeight;
+    vp.Width = (FLOAT)g_WindowSize->x;
+    vp.Height = (FLOAT)g_WindowSize->y;
     vp.MinDepth = 0.0f;
     vp.MaxDepth = 1.0f;
     vp.TopLeftX = 0;
@@ -290,6 +273,7 @@ HRESULT D3D11Renderer::initDevice()
         // Bind Pixel Shader
         g_pd3dDeviceContext->PSSetShader(g_pPixelShader, NULL, 0);
     }
+#if 0 // deprecated for oversized triangle to draw fullscreen texture
     // Create the constant buffer
     {
         D3D11_BUFFER_DESC cbDesc;
@@ -319,25 +303,19 @@ HRESULT D3D11Renderer::initDevice()
         }
         g_pd3dDeviceContext->Unmap(g_pConstantBuffer, 0);
 
-        /*ConstantBuffer cb;
-        cb.vQuadRect[0] = -1.f;
-        cb.vQuadRect[1] = -1.f;
-        cb.vQuadRect[2] = 1.f;
-        cb.vQuadRect[3] = 1.f;
-        g_pd3dDeviceContext->UpdateSubresource(g_pConstantBuffer, 0, nullptr, &cb, 0, 0);*/
-
         g_pd3dDeviceContext->VSSetConstantBuffers(0, 1, &g_pConstantBuffer);
         g_pd3dDeviceContext->PSSetConstantBuffers(0, 1, &g_pConstantBuffer);
     }
+#endif
     // SamplerState
     {
         D3D11_SAMPLER_DESC sDesc;
         sDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
-        sDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
-        sDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
-        sDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
+        sDesc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
+        sDesc.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
+        sDesc.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
         sDesc.MinLOD = 0;
-        sDesc.MaxLOD = 8;
+        sDesc.MaxLOD = D3D11_FLOAT32_MAX;
         sDesc.MipLODBias = 0;
         sDesc.MaxAnisotropy = 1;
         hr = g_pd3dDevice->CreateSamplerState(&sDesc, &g_pSamplerState);
@@ -348,24 +326,26 @@ HRESULT D3D11Renderer::initDevice()
         g_pd3dDeviceContext->PSSetSamplers(0, 1, &g_pSamplerState);
     }
     
-    // Setup  no Input Layout
-    g_pd3dDeviceContext->IASetInputLayout(0);
+    // Setup no Input Layout
+    g_pd3dDeviceContext->IASetInputLayout(nullptr);
     g_pd3dDeviceContext->IASetPrimitiveTopology(
         D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
 
-    D3D11_RASTERIZER_DESC rasterizerState;
-    rasterizerState.FillMode = D3D11_FILL_SOLID;
-    rasterizerState.CullMode = D3D11_CULL_FRONT;
-    rasterizerState.FrontCounterClockwise = false;
-    rasterizerState.DepthBias = false;
-    rasterizerState.DepthBiasClamp = 0;
-    rasterizerState.SlopeScaledDepthBias = 0;
-    rasterizerState.DepthClipEnable = false;
-    rasterizerState.ScissorEnable = false;
-    rasterizerState.MultisampleEnable = false;
-    rasterizerState.AntialiasedLineEnable = false;
-    g_pd3dDevice->CreateRasterizerState(&rasterizerState, &g_pRasterState);
-    g_pd3dDeviceContext->RSSetState(g_pRasterState);
+   {
+        D3D11_RASTERIZER_DESC rasterizerState;
+        rasterizerState.FillMode = D3D11_FILL_SOLID;
+        rasterizerState.CullMode = D3D11_CULL_BACK;
+        rasterizerState.FrontCounterClockwise = true;
+        rasterizerState.DepthBias = false;
+        rasterizerState.DepthBiasClamp = 0;
+        rasterizerState.SlopeScaledDepthBias = 0;
+        rasterizerState.DepthClipEnable = false;
+        rasterizerState.ScissorEnable = false;
+        rasterizerState.MultisampleEnable = false;
+        rasterizerState.AntialiasedLineEnable = false;
+        g_pd3dDevice->CreateRasterizerState(&rasterizerState, &g_pRasterState);
+        g_pd3dDeviceContext->RSSetState(g_pRasterState);
+    }
 
     return S_OK;
 }
@@ -408,8 +388,8 @@ HRESULT D3D11Renderer::initTexture() {
 
     D3D11_TEXTURE2D_DESC desc;
     ZeroMemory(&desc, sizeof(D3D11_TEXTURE2D_DESC));
-    desc.Width = *g_WindowWidth;
-    desc.Height = *g_WindowHeight;
+    desc.Width = g_RenderSize->x;
+    desc.Height = g_RenderSize->y;
     desc.MipLevels = 1;
     desc.ArraySize = 1;
     desc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
@@ -446,7 +426,7 @@ void D3D11Renderer::onResize()
     }
 
     // Resize Swapchain
-    hr = g_pSwapChain->ResizeBuffers(0, *g_WindowWidth, *g_WindowHeight, DXGI_FORMAT_UNKNOWN, 0);
+    hr = g_pSwapChain->ResizeBuffers(0, g_WindowSize->x, g_WindowSize->y, DXGI_FORMAT_UNKNOWN, 0);
     if (FAILED(hr)) {
         fprintf(stderr, "Resizing Swap Chain failed with 0x%X\n", hr);
         return;
@@ -472,21 +452,25 @@ void D3D11Renderer::onResize()
 
     // Setup the viewport
     D3D11_VIEWPORT vp;
-    vp.Width = *g_WindowWidth;
-    vp.Height = *g_WindowHeight;
+    vp.Width = g_WindowSize->x;
+    vp.Height = g_WindowSize->y;
     vp.MinDepth = 0.0f;
     vp.MaxDepth = 1.0f;
     vp.TopLeftX = 0;
     vp.TopLeftY = 0;
     g_pd3dDeviceContext->RSSetViewports(1, &vp);
+}
 
+void D3D11Renderer::onRenderResize()
+{
     // Recreate Texture
     CUDA_CHECK(cudaGraphicsUnregisterResource(g_texture_2d.cudaResource));
     g_texture_2d.pSRView->Release();
     g_texture_2d.pTexture->Release();
 
-    hr = initTexture();
+    HRESULT hr = initTexture();
     if (FAILED(hr)) {
+        fprintf(stderr, "Releasing texture failed 0x%X\n", hr);
         return;
     }
 
@@ -499,7 +483,7 @@ void D3D11Renderer::Draw()
     float ClearColor[4] = { 0.5f, 0.5f, 0.6f, 1.0f };
     g_pd3dDeviceContext->ClearRenderTargetView(g_pSwapChainRTV, ClearColor);
 
-    g_pd3dDeviceContext->Draw(4, 0);
+    g_pd3dDeviceContext->Draw(3, 0);
 
     // Present the backbuffer contents to the display
     g_pSwapChain->Present(0, 0);

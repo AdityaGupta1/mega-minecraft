@@ -9,7 +9,7 @@
 
 // OptiX
 #define USE_DENOISING 1
-#define USE_UPSCALING 0
+#define USE_UPSCALING 1
 #define RESET_CAMERA_ON_BUILD_IAS 1
 
 // ============================================================

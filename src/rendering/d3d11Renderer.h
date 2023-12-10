@@ -10,6 +10,7 @@
 #include <dxgi1_5.h>
 #endif
 #include <cuda_d3d11_interop.h>
+#include <glm/glm.hpp>
 #include <vector>
 #include "util/common.h"
 #include "defines.hpp"
@@ -17,7 +18,7 @@
 class D3D11Renderer 
 {
 public:
-    D3D11Renderer(HWND& hwnd, uint32_t* width, uint32_t* height);
+    D3D11Renderer(HWND& hwnd, glm::uvec2* windowSize, glm::uvec2* renderSize);
     ~D3D11Renderer();
 
     HRESULT initDevice();
@@ -26,12 +27,13 @@ public:
 
     void Draw();
     void onResize();
+    void onRenderResize();
     cudaGraphicsResource_t* getCudaTextureResource();
 
 private:
     HWND& g_hWnd;
-    uint32_t* g_WindowWidth;
-    uint32_t* g_WindowHeight;
+    glm::uvec2* g_WindowSize;
+    glm::uvec2* g_RenderSize;
 
     IDXGIAdapter* g_pCudaCapableAdapter = NULL;  // Adapter to use
     ID3D11Device* g_pd3dDevice = NULL;           // Our rendering device

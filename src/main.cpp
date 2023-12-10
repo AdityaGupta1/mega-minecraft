@@ -89,8 +89,8 @@ bool init(int argc, char **argv) {
         return false;
     }
 #elif USE_D3D11_RENDERER
-    d3dRenderer = std::make_unique<D3D11Renderer>(g_hWnd, &windowSize.x, &windowSize.y);
-    optixRenderer = std::make_unique<OptixRenderer>(d3dRenderer.get(), &windowSize, terrain.get(), player.get());
+    d3dRenderer = std::make_unique<D3D11Renderer>(g_hWnd, &windowSize, &renderSize);
+    optixRenderer = std::make_unique<OptixRenderer>(d3dRenderer.get(), &renderSize, terrain.get(), player.get());
 #else
     optixRenderer = std::make_unique<OptixRenderer>(window, &windowSize, terrain.get(), player.get());
 #endif
@@ -226,6 +226,11 @@ LRESULT CALLBACK MsgProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             SetCapture(g_hWnd);
             ShowCursor(FALSE);
             trackInput = true;
+            float centerX = windowSize.x / 2.f;
+            float centerY = windowSize.y / 2.f;
+            POINT centerPoint = { centerX, centerY };
+            ClientToScreen(g_hWnd, &centerPoint);
+            SetCursorPos(centerPoint.x, centerPoint.y);
         }
         else {
             ReleaseCapture();
@@ -248,8 +253,8 @@ LRESULT CALLBACK MsgProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             windowSize.y = newHeight;
             if (d3dRenderer)
                 d3dRenderer->onResize();
-            if (optixRenderer)
-                optixRenderer->onResize();
+            /*if (optixRenderer)
+                optixRenderer->onResize();*/
         }
         break;
 
