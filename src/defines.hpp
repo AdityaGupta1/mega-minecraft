@@ -10,7 +10,7 @@
 // OptiX
 #define USE_DENOISING 1
 #define USE_UPSCALING 0
-#define RESET_CAMERA_ON_BUILD_IAS 0
+#define RESET_CAMERA_ON_BUILD_IAS 1
 
 // ============================================================
 // DEBUG FLAGS

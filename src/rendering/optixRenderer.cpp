@@ -771,7 +771,7 @@ void OptixRenderer::createDenoiser()
 
     OptixDenoiserOptions denoiserOptions = {};
     denoiserOptions.guideAlbedo = 1;
-    denoiserOptions.guideNormal = 0;
+    denoiserOptions.guideNormal = 1;
     denoiserOptions.denoiseAlpha = (OptixDenoiserAlphaMode)0;
 #if USE_UPSCALING
     OPTIX_CHECK(optixDenoiserCreate(optixContext, OPTIX_DENOISER_MODEL_KIND_UPSCALE2X, &denoiserOptions, &denoiser));
@@ -877,6 +877,8 @@ void OptixRenderer::onResize()
 
 void OptixRenderer::updateTime(float deltaTime)
 {
+    //deltaTime *= 8.f;
+
     time += deltaTime;
     launchParams.time = time;
 
