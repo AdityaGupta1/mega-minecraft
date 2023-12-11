@@ -113,7 +113,7 @@ The first step for a chunk is generating heightfields and surface biomes. Surfac
 Biomes determine not only which blocks are placed, but also the terrain's height and which terrain features are created. For example, while the redwood forest biome has grass and redwood trees, the rocky beach biome has gravel and no notable terrain features. Both biomes also have relatively similar heightfields. These characteristics are blended in boundary areas using each biome's respective weight.
 
 <p align="center">
-  <img src="screenshots/readme/biome_blend.png" width="50%" />
+  <img src="screenshots/readme/biome_blend.png" width="65%" />
   <br>
   <em>As the two biomes blend, their blocks also mix.</em>
 </p>
@@ -143,7 +143,7 @@ The process is repeated until the terrain no longer changes. However, since eros
 Erosion leads to more natural looking terrain, especially in steep areas. For example, in the jungle biome, erosion exposes subterranean stone in hilly areas while mostly ignoring relatively flat areas.
 
 <p align="center">
-  <img src="screenshots/readme/jungle_erosion.png" width="50%" />
+  <img src="screenshots/readme/jungle_erosion.png" width="65%" />
   <br>
   <em>Notice how the relatively flat left side is mostly grassy while the steeper right side has much more exposed stone.</em>
 </p>
@@ -153,12 +153,12 @@ Erosion leads to more natural looking terrain, especially in steep areas. For ex
 Once terrain erosion has completed, caves are carved out of the terrain. The main caves are heavily inspired by a Minecraft mod called [Worley's Caves](https://www.curseforge.com/minecraft/mc-mods/worleys-caves). True to their name, these caves use a modified version of Worley noise to generate infinite branching tunnels and large open areas. Most of the caves are hidden fully underground, but ravines located throughout the terrain provide access to the subterranean world.
 
 <p align="center">
-  <img src="screenshots/readme/ravine.png" width="50%" />
+  <img src="screenshots/readme/ravine.png" width="65%" />
   <br>
   <em>A relatively small opening...</em>
 </p>
 <p align="center">
-  <img src="screenshots/readme/ravine_cave.png" width="50%" />
+  <img src="screenshots/readme/ravine_cave.png" width="65%" />
   <br>
   <em>...can lead to a huge cave!</em>
 </p>
@@ -168,7 +168,7 @@ The cave generation kernel first determines whether each block is in a cave, the
 Flattening the 3D information into layers allows for easily querying the start, end, height, and biomes of any layer, which is essential for placing cave features (described in the next section).
 
 <p align="center">
-  <img src="screenshots/readme/cave_side_view.png" width="50%" />
+  <img src="screenshots/readme/cave_side_view.png" width="65%" />
   <br>
   <em>Side view of some caves.</em>
 </p>
@@ -208,7 +208,7 @@ After the base terrain has been constructed, terrain features are filled in. Eac
 Feature placement also makes use of many early exit conditions to ensure that a thread does not perform intensive calculations for features which are nowhere near its position. Each feature type also comes with height bounds, which specify the upper and lower bounds of the feature type when compared to its placement point. This allows for determining the minimum and maximum height of all gathered features in a chunk, which in turn lets many threads safely exit without considering any feature placements.
 
 <p align="center">
-  <img src="screenshots/readme/various_features.png" width="50%" />
+  <img src="screenshots/readme/various_features.png" width="65%" />
   <br>
   <em>Various features placed across multiple different biomes.</em>
 </p>
@@ -216,7 +216,7 @@ Feature placement also makes use of many early exit conditions to ensure that a 
 Once all features are placed, the blocks are copied from the GPU to the CPU. Then, the last step is placing "decorators", which are blocks like flowers and small mushrooms. This is done on the CPU due to the potentially different number of positions to check for decorator placement in each column. Each biome has a set of decorator generators, each containing a chance per block, allowed bottom blocks (e.g. grass for flowers), allowed blocks to replace (usually air but can be water for ocean decorators), and optionally a second block for decorators that are two blocks tall. Some decorators, like crystals in the crystal caves, can even generate hanging from the ceiling.
 
 <p align="center">
-  <img src="screenshots/readme/birch_forest_decorators.png" width="50%" />
+  <img src="screenshots/readme/birch_forest_decorators.png" width="65%" />
   <br>
   <em>Decorators in the lush birch forest biome, including grass, dandelions, peonies, and lilacs.</em>
 </p>
@@ -262,7 +262,7 @@ The OptiX path tracer uses several physically based shading techniques to shade 
 Additionally, the path tracer uses direct lighting to add light influence on a ray's pixel when a light source (the sun) is visible from the ray's intersection point and is not occluded by any geometry. This technique adds strong, visible shadows that converge much faster than they would through just random hemisphere sampling. Soft shadows can also be simulated by sampling the entire surface of a light source, such as the circular area covered by the sun. Since direct lighting cares only about whether it hits anything and not what the closest hit is, it uses a different ray type than normal path tracing to more efficiently check for intersections without any unnecessary steps.
 
 <p align="center">
-  <img src="screenshots/12-3-2023/008.png" width="50%" />
+  <img src="screenshots/12-3-2023/008.png" width="65%" />
   <br>
   <em>Objects block sunlight and cast shadows on surfaces.</em>
 </p>
@@ -270,7 +270,7 @@ Additionally, the path tracer uses direct lighting to add light influence on a r
 Different materials in the scene also reflect light differently. Most notably, water and crystals exhibit specular reflection and refraction. When a ray hits that type of geometry, the ray either reflects away from the surface or refracts into the surface based on random chance determined by the materials' index of refraction. Some other materials with reflective properties, such as sand and gravel, have microfacet roughness reflectivity that makes them appear slightly reflective without being transparent. 
 
 <p align="center">
-  <img src="screenshots/12-6-2023/009.png" width="50%" />
+  <img src="screenshots/12-6-2023/009.png" width="65%" />
   <br>
   <em>Water is reflective and also see-through.</em>
 </p>
@@ -278,7 +278,7 @@ Different materials in the scene also reflect light differently. Most notably, w
 Finally, rays may experience volumetric scattering in the scene during certain times of day, most notably at dawn and dusk. If a ray is scattered, it does not reach its intended destination and instead bounces around a volume. However, it is inefficient to simulate multiple cases of scattering of a ray in a random direction, especially in real-time applications, so the path tracer checks for direct lighting at a ray's first scattering occurrence. If the scattered ray is not directly illuminated by a light source, the ray is considered "absorbed" by the volumetric particle. This technique creates volumetric fog, which is best represented by light rays traveling through gaps in the terrain. 
 
 <p align="center">
-  <img src="screenshots/readme/mushroom_rays.png" width="50%" />
+  <img src="screenshots/readme/mushroom_rays.png" width="65%" />
   <br>
   <em>Rays of sunlight going through gaps between mushroom stems.</em>
 </p>
@@ -298,13 +298,13 @@ Additionally, each frame's final denoised output is rendered directly into a D3D
 The sky includes a full day and night cycle, complete with a sun, moon, clouds, and stars. During sunrise and sunset, the sky becomes a bright orange near the sun. Additionally, since they are the main sources of light on the surface, the sun and moon are also sampled for direct lighting to reduce noise.
 
 <p align="center">
-  <img src="screenshots/12-3-2023/002.png" width="50%" />
+  <img src="screenshots/12-3-2023/002.png" width="65%" />
   <br>
   <em>The sun sets over an oasis.</em>
 </p>
 
 <p align="center">
-  <img src="screenshots/12-3-2023/006.png" width="50%" />
+  <img src="screenshots/12-3-2023/006.png" width="65%" />
   <br>
   <em>Shadowy fungi against a starry night sky.</em>
 </p>
@@ -330,7 +330,7 @@ This comes with the obvious advantage of greatly increasing performance. We saw 
 However, this denoiser of course comes with some disadvantages. The main disadvantage is that areas with high frequency detail tend to become blurry. For example, tree leaves generally have high frequency detail because leaf textures have many transparent pixels mixed in among opaque pixels.
 
 <p align="center">
-  <img src="screenshots/readme/trees_regular.png" width="25%" />&nbsp;&nbsp;<img src="screenshots/readme/trees_upscaled.png" width="25%" />
+  <img src="screenshots/readme/trees_regular.png" width="35%" />&nbsp;&nbsp;<img src="screenshots/readme/trees_upscaled.png" width="35%" />
   <br>
   <em>The same two trees, rendered at full resolution (left) and half resolution with upscaling (right). Notice that the leaves are much blurrier with upscaling.</em>
 </p>
@@ -385,10 +385,14 @@ Sections are organized in chronological order.
 <details>
 <summary>More cool terrain areas</summary>
 <br>
-<img src="screenshots/12-6-2023/001.png" />
-<img src="screenshots/12-6-2023/003.png" />
-<img src="screenshots/12-6-2023/006.png" />
-<img src="screenshots/12-6-2023/009.png" />
+<img src="screenshots/12-10-2023/001.png" />
+<img src="screenshots/12-10-2023/002.png" />
+<img src="screenshots/12-10-2023/005.png" />
+<img src="screenshots/12-10-2023/006.png" />
+<img src="screenshots/12-10-2023/007.png" />
+<img src="screenshots/12-10-2023/008.png" />
+<img src="screenshots/12-10-2023/009.png" />
+<img src="screenshots/12-10-2023/010.png" />
 </details>
 
 ## References
