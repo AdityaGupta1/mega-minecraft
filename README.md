@@ -267,7 +267,7 @@ TODO: Volumetric Scattering
  - since number of chunks to render fixed, pushes memory allocation as much as possible to initialization (i.e. leaving enough space for building acceleration structures of all chunks to trace) to avoid slow down from device syncing for memory modification
  - Uses a single level hierarchical acceleration structure where root AS points to list of chunks, which are each an instance AS that specifies a transformation for the chunk to its world space position and a geometry AS containing actual geometry of chunk to render
  - This ways allows quick iteration through list to find closest chunk before searching for specific intersections
- - chunks are built slightly prebuilt beyond visual zone and destroyed after certain distance for smoother loading
+ - chunks are built prebuilt but not rendered beyond visual zone for smoother loading
  - denoised pixel data buffer is directly copied to D3D11 texture in device using CUDA-D3D11 Interop for fast memory transfer
  - D3D11 renderer using oversized fullscreen triangle to minimize rasterization overhead
  - vertex shader generates vertex positions directly to minimize memory footprint
