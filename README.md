@@ -103,7 +103,9 @@ Some steps, such as heightfields and surface biomes, can be performed on single 
 
 To balance the load over time and prevent lag spikes, we use an "action time" system for scheduling. Every frame, the terrain generator gains action time proportional to the time since the last frame. Action time per frame is capped at a certain amount to ensure that no one frame does too much work. Each action has an associated cost, determined by empirical measurements of the step's average duration, which subtracts from the accumulated action time. For example, we currently accumulate up to 30,000 action time per second and allow up to 500 action time per frame. Generating a chunk's heightfield and surface biomes is relatively inexpensive, so its cost is only 3 per chunk. However, erosion is run over a 24x24 area of chunks at once and is relatively expensive, so its cost is a full 500 per 24x24 area.
 
-Unless otherwise specified, all terrain generation steps other than gathering data from neighboring chunks are performed on the GPU using CUDA kernels.
+Unless otherwise specified, all terrain generation steps other than gathering data from neighboring chunks are performed on the GPU using CUDA kernels. Additionally, we combined small kernels into mega-kernels to reduce launch overhead. For example, if we want to generate 100 chunks' heightfields, rather than launching one kernel for each one, we combine all the data into one long section of memory and launch a single kernel to do all the processing. This, combined with CUDA streams and asynchronous launches, allows us to generate terrain at a remarkably fast pace.
+
+Lastly, we actually generate more terrain than is visible to the user at any given time. This extra padding not only ensures that large gather steps (e.g. terrain erosion) don't get stuck where the player can see them, which would result in missing sections of terrain. Additionally, prebuilding far chunks allows for smooth loading of chunks as a player moves across the terrain.
 
 ### Heightfields and surface biomes
 
@@ -286,16 +288,13 @@ Finally, rays may experience volumetric scattering in the scene during certain t
 
 ### Optimizations
 
- - compile flags that turns on additional buffers and compiles code to a less optimized level for debug tracing
- - release code removed most error checks and packs OptiX code more compactly for faster execution with less instructions
- - since number of chunks to render fixed, pushes memory allocation as much as possible to initialization (i.e. leaving enough space for building acceleration structures of all chunks to trace) to avoid slow down from device syncing for memory modification
- - Uses a single level hierarchical acceleration structure where root AS points to list of chunks, which are each an instance AS that specifies a transformation for the chunk to its world space position and a geometry AS containing actual geometry of chunk to render
- - This ways allows quick iteration through list to find closest chunk before searching for specific intersections
- - chunks are built prebuilt but not rendered beyond visual zone for smoother loading
- - denoised pixel data buffer is directly copied to D3D11 texture in device using CUDA-D3D11 Interop for fast memory transfer
- - D3D11 renderer using oversized fullscreen triangle to minimize rasterization overhead
- - vertex shader generates vertex positions directly to minimize memory footprint
- - texture mapping uses linear interpolation for fastest output, may be useful to switch to anisotropic for better results with 2x upscaling.
+We made various optimizations to our OptiX pipeline to improve path tracing performance. Special thanks goes to [Detlef Roettger](https://forums.developer.nvidia.com/u/droettger/) for advising us on this topic.
+
+First, we choose debug logging and error checking levels based on whether we are launching the project in debug or release mode. Debug messages provide invaluable information for solving issues with the project, but enabling them can severely degrade performance. In release mode, we remove most logging and error checking to allow for much higher performance.
+
+Next, since the maximum number of renderable chunks at once is known ahead of time as a function of the maximum render distance, we can preallocate memory for certain structs to avoid having to allocate memory on the fly. We also store an array of chunk data with a fixed maximum size along with a pool of chunk IDs that is drawn from whenever a new chunk is created. These methods allow for easily updating GASes and the IAS each frame if necessary. The structure of the GASes and IAS is also important; we use the previously mentioned hierarchy with many GASes under one IAS along with the scene hierarchy flag `OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_SINGLE_LEVEL_INSTANCING` to take full advantage of RTX cores.
+
+Additionally, each frame's final denoised output is rendered directly into a D3D11 texture using CUDA-D3D11 interop, which removes the need for costly transfers between host and device. The D3D11 renderer itself uses an oversized fullscreen triangle to render to the screen, which avoids the [possible redraws](https://wallisc.github.io/rendering/2021/04/18/Fullscreen-Pass.html) that can come with a fullscreen quad. The vertex shader also generates vertex positions and UVs directly to minimize its memory footprint.
 
 ### Sky
 
@@ -379,6 +378,15 @@ Sections are organized in chronological order.
 
 <details>
 <summary>Cool terrain areas</summary>
+<br>
+<img src="screenshots/12-6-2023/001.png" />
+<img src="screenshots/12-6-2023/003.png" />
+<img src="screenshots/12-6-2023/006.png" />
+<img src="screenshots/12-6-2023/009.png" />
+</details>
+
+<details>
+<summary>More cool terrain areas</summary>
 <br>
 <img src="screenshots/12-6-2023/001.png" />
 <img src="screenshots/12-6-2023/003.png" />
