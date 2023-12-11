@@ -256,13 +256,33 @@ Combining the OptiX programs and acceleration structures results in a full path 
 
 ### Path tracer features
 
-TODO: Multiple importance sampling 
+The OptiX path tracer uses several physically based shading techniques to shade the terrain in a realistic manner. Due to the complexity of the terrain with various emissive objects, an accurate light simulation is necessary to correcty simulate the light interaction at any location in the scene. The path tracer achieves this with global illumination; this technique multiplies the intersection's color with the color of the ray and adds this color accumulation to the pixel of initial interaction. As a ray bounces through the scene, the pixel represented by this ray accumulates the colors from all the ray intersections, lights, and the sky.
 
-TODO: Global Illum.
+Next, the path tracer uses direct lighting to add light influence on the pixel when an intersection is not obscured by another object to a light source by adding the light's emission with the ray color. This technique adds strong, visible shadows to surfaces that can only be reached through indirect lighting. Soft shadows can also be simulated by sampling the entire surface of a light source. Direct lighting utilizes different types of rays and shader programs that are defined when OptiX is initialized by using a closest hit shader to calculate color accumulation and any hit shader to find obstructions to a light source. 
 
-TODO: Material Properties
+<p align="center">
+  <img src="screenshots/12-3-2023/008.png" width="50%" />
+  <br>
+  <em>Objects block sunlight and cast shadows on surfaces</em>
+</p>
 
-TODO: Volumetric Scattering
+
+Different materials in the scene would reflect light differently. Most notably, water and crystals have specular reflective and refractive properties. When a ray hits such an object, the ray has a chance of being refracted if its Index of Refraction allows, and the following ray bounce would bend slightly according to the IoR and transmit the light through the object. Otherwise, the light will be reflected according to the direction of the surface normal. Some other materials with reflective properties, such as sand and gravel, have microfacet roughness reflexivity that makes them appear slightly reflective without being transparent. 
+
+<p align="center">
+  <img src="screenshots/12-6-2023/009.png" width="50%" />
+  <br>
+  <em>Water is reflective, and also see-through.</em>
+</p>
+
+
+Finally, rays may experience volumetric scattering in the scene during certain times of the day in the scene. In the case of scattering, the ray would not reach its intended intersection point. However, it is also inefficient to simulate multiple cases of scattering of a ray in a random direction, so the path tracer checks for direct lighting at a ray's first scattering occurrence. If the scattered ray is not directly illuminated by a light source, the ray is considered "absorbed" by the volumetric particle. This technique creates volumetric fog, which is best represented by light rays traveling in between gaps in the terrain. 
+
+<p align="center">
+  <img src="screenshots/readme/mushroom_rays.png" width="50%" />
+  <br>
+  <em>Rays of sunlight going through gaps between mushroom stems.</em>
+</p>
 
 ### Optimizations
 
