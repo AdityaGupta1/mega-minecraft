@@ -290,7 +290,17 @@ The sky includes a full day and night cycle, complete with a sun, moon, clouds, 
 
 ### Denoising
 The denoiser implemented in this program is the AOV denoiser packaged with NVIDIA OptiX 8. The denoiser can optionally be set to 2X Upscaling mode, which renders at half the preset render resolution and uses the denoiser to upscale back to the original size, reducing the raytracing workload. At the same render resolution, upscaling results in blurrier output for non-solid blocks such as leaves, but otherwise approximately doubles the frame rate. This section will provide a brief overview of how each denoiser works and the render outcomes. For more details on the denoisers, please refer to the official API documentations, linked below in the reference section.
+<p align="center">
+    <img src="screenshots/readme/pseudo2k_overworld.png" width="50%" /><img src="screenshots/readme/pseudo2k_cave.png" width="50%" />
+  <br>
+  <em>Raytraced at 1080p and upscaled during denoising to 2k resolution, then rendered at 1080p using linear interpolation.</em>
+</p>
 
+<p align="center">
+  <img src="screenshots/readme/2k_overworld.png" width="50%" /><img src="screenshots/readme/2k_cave.png" width="50%" />
+  <br>
+  <em>Raytraced and denoised at 2k resolution, rendered at 1080p using linear interpolation.</em>
+</p>
 #### OptiX AOV
  - pre-trained deep learning general denoiser that denoises a beauty image by interpolating which pixels should have what color based on the surrounding content
  - multi-pass denoiser that takes arbitrary output values (AOV) as additional inputs for better outcome
