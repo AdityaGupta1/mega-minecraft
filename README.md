@@ -400,7 +400,7 @@ Sections are organized in chronological order.
 - [Procedural Generation of Volumetric Data for Terrain](https://www.diva-portal.org/smash/get/diva2:1355216/FULLTEXT01.pdf) (Machado 2019)
 - [<em>Physically Based Rendering: From Theory to Implementation</em>](https://pbrt.org/)
 - [Ingo Wald's OptiX 7 course](https://github.com/ingowald/optix7course)
-- OptiX [Programming Guide](https://raytracing-docs.nvidia.com/optix8/guide/index.html#preface#) and [API documentation](https://raytracing-docs.nvidia.com/optix8/api/index.html)
+- OptiX [Programming Guide](https://raytracing-docs.nvidia.com/optix8/guide/index.html#preface#) and [API documentation](https://raytracing-docs.nvidia.com/optix8/api/index.html) and [OptiX Applications](https://github.com/NVIDIA/OptiX_Apps/tree/master)
 - [CUDA Programming Guide](https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html)
 - [Worley's Caves](https://www.curseforge.com/minecraft/mc-mods/worleys-caves)
 - [BetterEnd](https://www.curseforge.com/minecraft/mc-mods/betterend)
