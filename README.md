@@ -3,7 +3,7 @@
 **University of Pennsylvania, CIS 565: GPU Programming and Architecture, Final Project**
 
 - [Aditya Gupta](https://adityag1.com/)
-- [Helena Zhang](https://TODO.com/)
+- [Helena Zhang](https://github.com/helenazzzzz)
 - [Alan Qiao](https://github.com/alan-qiao)
 
 ## Overview
