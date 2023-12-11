@@ -40,7 +40,7 @@ When you run the project, there are a number of controls at your disposal.
 
 ## CUDA Terrain Generation
 
-While an infinite procedural world is one of Minecraft's selling point, terrain has to be generated in discrete sections called "chunks". In normal Minecraft and in this project, a chunk consists of 16x384x16 blocks. As the player moves around the world, new chunks are generated while old chunks are removed from view.
+While an infinite procedural world is one of Minecraft's selling points, terrain has to be generated in discrete sections called "chunks". In normal Minecraft and in this project, a chunk consists of 16x384x16 blocks. As the player moves around the world, new chunks are generated while old chunks are removed from view.
 
 Chunk generation in this project consists of several steps:
 
@@ -99,13 +99,12 @@ Some steps, such as heightfields and surface biomes, can be performed on single 
 <br>
 <em>Once all data has been gathered, this step fills an entire chunk (blue) with one kernel call.</em>
 </details>
-<br>
 
 To balance the load over time and prevent lag spikes, we use an "action time" system for scheduling. Every frame, the terrain generator gains action time proportional to the time since the last frame. Action time per frame is capped at a certain amount to ensure that no one frame does too much work. Each action has an associated cost, determined by empirical measurements of the step's average duration, which subtracts from the accumulated action time. For example, we currently accumulate up to 30,000 action time per second and allow up to 500 action time per frame. Generating a chunk's heightfield and surface biomes is relatively inexpensive, so its cost is only 3 per chunk. However, erosion is run over a 24x24 area of chunks at once and is relatively expensive, so its cost is a full 500 per 24x24 area.
 
 Unless otherwise specified, all terrain generation steps other than gathering data from neighboring chunks are performed on the GPU using CUDA kernels. Additionally, we combined small kernels into mega-kernels to reduce launch overhead. For example, if we want to generate 100 chunks' heightfields, rather than launching one kernel for each one, we combine all the data into one long section of memory and launch a single kernel to do all the processing. This, combined with CUDA streams and asynchronous launches, allows us to generate terrain at a remarkably fast pace.
 
-Lastly, we actually generate more terrain than is visible to the user at any given time. This extra padding not only ensures that large gather steps (e.g. terrain erosion) don't get stuck where the player can see them, which would result in missing sections of terrain. Additionally, prebuilding far chunks allows for smooth loading of chunks as a player moves across the terrain.
+Lastly, we actually generate more terrain than is visible to the user at any given time. This extra padding not only ensures that large gathering steps (e.g. terrain erosion) don't get stuck where the player can see them, which would result in missing sections of terrain. Additionally, prebuilding far chunks allows for smooth loading of chunks as a player moves across the terrain.
 
 ### Heightfields and surface biomes
 
@@ -164,7 +163,7 @@ Once terrain erosion has completed, caves are carved out of the terrain. The mai
   <em>...can lead to a huge cave!</em>
 </p>
 
-The cave generation kernel first determines whether each block is in a cave, then it flattens that information into "cave layers". A cave layer describes a contiguous vertical section of air in a single terrain column. Each layer has a start and and an end, as well as a start cave biome and an end cave biome. Cave biomes are determined in a similar fashion to surface biomes, except some cave biome attributes also take Y position into account. Each cave layer's biome is chosen at random, with each biome's weight serving as its chance of being chosen.
+The cave generation kernel first determines whether each block is in a cave, then it flattens that information into "cave layers". A cave layer describes a contiguous vertical section of air in a single terrain column. Each layer has a start and an end, as well as a start cave biome and an end cave biome. Cave biomes are determined in a similar fashion to surface biomes, except some cave biome attributes also take Y position into account. Each cave layer's biome is chosen at random, with each biome's weight serving as its chance of being chosen.
 
 Flattening the 3D information into layers allows for easily querying the start, end, height, and biomes of any layer, which is essential for placing cave features (described in the next section).
 
@@ -202,7 +201,7 @@ The only thing left now is to actually fill the chunk's blocks. This step takes 
 - Cave layers
 - Feature placements
 
-If a position is below its column's height, it is filled in with a block depending its corresponding terrain layer. If the block is in a cave layer, it will instead be filled with air. After the layers are filled out, some biomes also apply special post-processing functions. For example, the frozen wasteland biome turns water into ice while the mesa biome places layers of colorful terracotta. As with all other biome-related processes, these too are interpolated across biome boundaries using biome weights.
+If a position is below its column's height, it is filled in with a block depending on its corresponding terrain layer. If the block is in a cave layer, it will instead be filled with air. After the layers are filled out, some biomes also apply special post-processing functions. For example, the frozen wasteland biome turns water into ice while the mesa biome places layers of colorful terracotta. As with all other biome-related processes, these too are interpolated across biome boundaries using biome weights.
 
 After the base terrain has been constructed, terrain features are filled in. Each thread loops over all gathered features and places the first one found at the current position. Feature placement generally consists of constructing implicit surfaces (e.g. signed distance functions) and checking whether the current position lies inside any of them. These surfaces range from spheres to hexagonal prisms to splines, and many are distorted by noise and randomness to give a more natural feel. For example, each purple mushroom consists of a spline for its stem and a cylinder for its cap. Additionally, the spline is actually made up of multiple cylinders at a high enough resolution to give a smooth appearance. Much of this logic was inspired by the approach of the Minecraft mod [BetterEnd](https://www.curseforge.com/minecraft/mc-mods/betterend), which uses signed distance functions for its terrain features.
 
@@ -244,7 +243,7 @@ Dispatching an OptiX render will first call the raygen program group. This progr
 
 Then, the hit program groups are called when a ray hits geometry in the scene. There are two types of hit programs: any-hit and closest-hit. Any-hit programs are called on any intersection; we use them to ignore intersections with full transparency (e.g. in tall grass and flowers). Closest-hit programs are called on the closest intersection; these are where we evaluate BRDFs, accumulate light, and determine how rays bounce.
 
-If a ray does not hit any geometry, it insteaad calls a miss program group. In our project, miss program groups are used mostly for occlusion testing and sky shading.
+If a ray does not hit any geometry, it instead calls a miss program group. In our project, miss program groups are used mostly for occlusion testing and sky shading.
 
 Lastly, buffering the scene geometry to the GPU requires further setup. As the user navigates through the terrain, new chunks are generated while old chunks are unloaded. To allow for this dynamic rendering of chunks, we use a two-layer setup of acceleration structures. Each chunk is represented by a Geometry Acceleration Structure (GAS), which are children of a top-level Instance Acceleration Structure (IAS). This allows for easily adding and removing chunks (GASes) from the current set of geometry, as the device-side handle of the IAS never changes.
 
@@ -258,27 +257,25 @@ Combining the OptiX programs and acceleration structures results in a full path 
 
 ### Path tracer features
 
-The OptiX path tracer uses several physically based shading techniques to shade the terrain in a realistic manner. Due to the complexity of the terrain with various emissive objects, an accurate light simulation is necessary to correcty simulate the light interaction at any location in the scene. The path tracer achieves this with global illumination; this technique multiplies the intersection's color with the color of the ray and adds this color accumulation to the pixel of initial interaction. As a ray bounces through the scene, the pixel represented by this ray accumulates the colors from all the ray intersections, lights, and the sky.
+The OptiX path tracer uses several physically based shading techniques to shade the terrain in a realistic manner. Due to the complexity of the terrain with various emissive objects, an accurate light simulation is necessary to correctly simulate the light interaction at any location in the scene. The path tracer achieves this with global illumination; this technique multiplies the intersection's color with the color of the ray and adds this color accumulation to the pixel associated with the ray's initial direction. As a ray bounces through the scene, the pixel represented by the ray accumulates the colors from all the ray intersections, lights, and the sky.
 
-Next, the path tracer uses direct lighting to add light influence on the pixel when an intersection is not obscured by another object to a light source by adding the light's emission with the ray color. This technique adds strong, visible shadows to surfaces that can only be reached through indirect lighting. Soft shadows can also be simulated by sampling the entire surface of a light source. Direct lighting utilizes different types of rays and shader programs that are defined when OptiX is initialized by using a closest hit shader to calculate color accumulation and any hit shader to find obstructions to a light source. 
+Additionally, the path tracer uses direct lighting to add light influence on a ray's pixel when a light source (the sun) is visible from the ray's intersection point and is not occluded by any geometry. This technique adds strong, visible shadows that converge much faster than they would through just random hemisphere sampling. Soft shadows can also be simulated by sampling the entire surface of a light source, such as the circular area covered by the sun. Since direct lighting cares only about whether it hits anything and not what the closest hit is, it uses a different ray type than normal path tracing to more efficiently check for intersections without any unnecessary steps.
 
 <p align="center">
   <img src="screenshots/12-3-2023/008.png" width="50%" />
   <br>
-  <em>Objects block sunlight and cast shadows on surfaces</em>
+  <em>Objects block sunlight and cast shadows on surfaces.</em>
 </p>
 
-
-Different materials in the scene would reflect light differently. Most notably, water and crystals have specular reflective and refractive properties. When a ray hits such an object, the ray has a chance of being refracted if its Index of Refraction allows, and the following ray bounce would bend slightly according to the IoR and transmit the light through the object. Otherwise, the light will be reflected according to the direction of the surface normal. Some other materials with reflective properties, such as sand and gravel, have microfacet roughness reflexivity that makes them appear slightly reflective without being transparent. 
+Different materials in the scene also reflect light differently. Most notably, water and crystals exhibit specular reflection and refraction. When a ray hits that type of geometry, the ray either reflects away from the surface or refracts into the surface based on random chance determined by the materials' index of refraction. Some other materials with reflective properties, such as sand and gravel, have microfacet roughness reflectivity that makes them appear slightly reflective without being transparent. 
 
 <p align="center">
   <img src="screenshots/12-6-2023/009.png" width="50%" />
   <br>
-  <em>Water is reflective, and also see-through.</em>
+  <em>Water is reflective and also see-through.</em>
 </p>
 
-
-Finally, rays may experience volumetric scattering in the scene during certain times of the day in the scene. In the case of scattering, the ray would not reach its intended intersection point. However, it is also inefficient to simulate multiple cases of scattering of a ray in a random direction, so the path tracer checks for direct lighting at a ray's first scattering occurrence. If the scattered ray is not directly illuminated by a light source, the ray is considered "absorbed" by the volumetric particle. This technique creates volumetric fog, which is best represented by light rays traveling in between gaps in the terrain. 
+Finally, rays may experience volumetric scattering in the scene during certain times of day, most notably at dawn and dusk. If a ray is scattered, it does not reach its intended destination and instead bounces around a volume. However, it is inefficient to simulate multiple cases of scattering of a ray in a random direction, especially in real-time applications, so the path tracer checks for direct lighting at a ray's first scattering occurrence. If the scattered ray is not directly illuminated by a light source, the ray is considered "absorbed" by the volumetric particle. This technique creates volumetric fog, which is best represented by light rays traveling through gaps in the terrain. 
 
 <p align="center">
   <img src="screenshots/readme/mushroom_rays.png" width="50%" />
@@ -328,12 +325,12 @@ One caveat of the denoiser is that it does not work very well when the player is
 
 The 2x upscaling AOV denoiser acts very similarly to the regular AOV denoiser, except that it additionally scales the image up by 2x. This allows for keeping the final render size constant while halving the raytracing resolution, effectively reducing the raytracing workload to 25%.
 
-This comes with the obvious advantage of greatly increasaing performance. We saw around a 2x improvement in performance when rendering at 720x540 and 1920x1080. Additionally, this model can be used for "supersampling" by raytracing at the window resolution, scaling up to 2x using the denoiser, then downsampling to the window resolution.
+This comes with the obvious advantage of greatly increasing performance. We saw around a 2x improvement in performance when rendering at 720x540 and 1920x1080. Additionally, this model can be used for "supersampling" by raytracing at the window resolution, scaling up to 2x using the denoiser, then downsampling to the window resolution.
 
 However, this denoiser of course comes with some disadvantages. The main disadvantage is that areas with high frequency detail tend to become blurry. For example, tree leaves generally have high frequency detail because leaf textures have many transparent pixels mixed in among opaque pixels.
 
 <p align="center">
-  <img src="screenshots/readme/trees_regular.png" width="50%" /><img src="screenshots/readme/trees_upscaled.png" width="50%" />
+  <img src="screenshots/readme/trees_regular.png" width="25%" />&nbsp;&nbsp;<img src="screenshots/readme/trees_upscaled.png" width="25%" />
   <br>
   <em>The same two trees, rendered at full resolution (left) and half resolution with upscaling (right). Notice that the leaves are much blurrier with upscaling.</em>
 </p>
