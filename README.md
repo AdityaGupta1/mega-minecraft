@@ -224,7 +224,7 @@ Once decorators are placed, the chunk's block data is fully complete. All that r
 
 ## OptiX Path Tracing
 
-To efficiently render the terrain realistically, this project uses hardware-accelerated path tracing which supports \[list features here\]. The path tracer itself is built with NVIDIA OptiX 8.0, while the final frame rasterizer and game window use DirectX 11 and the Windows API.
+To efficiently and realistically render the terrain, this project uses hardware-accelerated path tracing which supports \[list features here\]. The path tracer itself is built with NVIDIA OptiX 8.0, while the final frame rasterizer and game window use DirectX 11 and the Windows API.
 
 <p align="center">
   <img src="screenshots/readme/app_pipeline.png" width="30%" />
@@ -232,27 +232,27 @@ To efficiently render the terrain realistically, this project uses hardware-acce
   <em>Flowchart outlining application process and API segmentation.</em>
 </p>
 
-As shown in the flowchart above, each frame starts from processing any application messages. If an application message is received, it will trigger a corresponding scene state update, which may be a player movement, window resize, zoom adjustment, or camera rotation. All of these events may result in an update in the visible region, in which case the terrain generation process for the newly visible chunks is dispatched. Once chunk generation is complete, it would then trigger an update to the acceleration structures that the OptiX Ray Tracer checks for objects to trace. Regardless of whether new chunks are generated, the Path Tracing procedure would then be launched to determine what is currently visible to the camera and send the accumulated noisy image to the denoiser with other guiding information. The final denoised output is then transferred to DirectX 11 for access through a fullscreen texture, which is then rendered as a textured rectangle that covers the entire application screen.
+As shown in the flowchart above, each frame starts from processing any application messages. If an application message is received, it triggers a corresponding scene state update, which may be a player movement, window resize, zoom adjustment, or camera rotation. All of these events can cause changes in the currently visible region, which triggers the terrain generation process for newly visible chunks and unloads chunks that are too far. Once chunk generation is complete, it causes an update to the acceleration structures used by the path tracer. Regardless of whether new chunks are generated, the path tracing procedure is then launched to actually render the scene. The noisy output from path tracing, along with albedo and normals guide images, are then denoised. The final denoised output is then transferred to DirectX 11, which renders the frame using a single triangle that covers the entire screen.
 
 ### Base path tracer
 
-The path tracing functionalities are implemented on various OptiX Programs. These programs, similar to shaders, are located on the GPU and represent different shading operations. The shading programs are organized into different program groups that represent their functionality. The main program group that serves as the entry point to the device side code and defines the ray tracing behavior from the camera is the raygen program group, the shading that results from rays hitting the surface is defined in the hit program group, and the miss program group adds shading for rays that never hit geometry in the scene. 
+The path tracer consists of various OptiX programs, which are similar to regular shaders in that they are located on the GPU and represent different shading operations. They are also organized into different program groups that represent different functionalities. All shader program groups are stored in a Shader Binding Table (SBT). 
 
-As the user navigates through the terrain, old chunks are no longer rendered and new chunks are generated. To offload old chunks and render new chunks, the programs receive the TraversableHandle of the Instance Accelerated Structure, in which stores the Geometry Accelerated Structures of individual chunks. This way, the chunks to render can be updated dynamically by adding and removing GAS from the IAS, and the IAS Traversable Handle will remain the input to the geometry that gets passed to the programs. 
+Dispatching an OptiX render will first call the raygen program group. This program group not only determines which pixel a thread corresponds to and generates a ray pointing at that pixel, but it also iterates through the ray's bounces and even launches occlusion rays for shadow calculations.
+
+Then, the hit program groups are called when a ray hits geometry in the scene. There are two types of hit programs: any-hit and closest-hit. Any-hit programs are called on any intersection; we use them to ignore intersections with full transparency (e.g. in tall grass and flowers). Closest-hit programs are called on the closest intersection; these are where we evaluate BRDFs, accumulate light, and determine how rays bounce.
+
+If a ray does not hit any geometry, it insteaad calls a miss program group. In our project, miss program groups are used mostly for occlusion testing and sky shading.
+
+Lastly, buffering the scene geometry to the GPU requires further setup. As the user navigates through the terrain, new chunks are generated while old chunks are unloaded. To allow for this dynamic rendering of chunks, we use a two-layer setup of acceleration structures. Each chunk is represented by a Geometry Acceleration Structure (GAS), which are children of a top-level Instance Acceleration Structure (IAS). This allows for easily adding and removing chunks (GASes) from the current set of geometry, as the device-side handle of the IAS never changes.
+
+Combining the OptiX programs and acceleration structures results in a full path tracing pipeline:
 
 <p align="center">
   <img src="screenshots/readme/optix_programs.jpg" width="50%" />
   <br>
-  <em>OptiX programs relations.</em>
+  <em>OptiX program relationships.</em>
 </p>
-
-Before launching the OptiX shading programs on the device, the OptiX renderer defines a **Shader Binding Table (SBT)** that maps geometric data to programs and their parameters. The SBT contains records that are selected during execution using offsets when GAS and IAS are created and updated in real-time. 
-
-The OptiX dispatch to render will call the raygen program first. As mentioned above, this program is responsible for the ray generation to shade every pixel shown on the screen. This function acts similarly to other device functions: it gets the launch index of the thread and each thread is solely responsible for the shading of one pixel. Then, this program will launch rays and the behavior of the rays is defined in the hit and miss programs. 
-
-The hit programs are called when a ray generated from the raygen program hits a geometry in the scene. There are two types of hit programs used for path tracing, any hit and closest hit programs. The any hit shader finds a new intersection point on the ray efficiently and is used for occlusion ray for shading shadows; the closest hit shader accurately finds the closest intersection point on the ray and is used to calculate color accumulation. 
-
-Situations where a ray doesn't hit any geometry in the scene are handled by miss shaders, and this is used to shade the sky and environment light influences.
 
 ### Path tracer features
 
@@ -295,18 +295,12 @@ The sky includes a full day and night cycle, complete with a sun, moon, clouds, 
 
 ### Denoising
 
-The denoiser implemented in this program is the AOV denoiser packaged with OptiX 8. The denoiser can optionally be set to 2x upscaling mode, which renders at half the preset render resolution and uses the denoiser to upscale back to the original size, reducing the raytracing workload. At the same render resolution, upscaling results in blurrier output for non-solid blocks such as leaves, but otherwise approximately doubles the frame rate. This section will provide a brief overview of how each denoiser works and the render outcomes. For more details on the denoisers, please refer to the official API documentation linked below in the references section.
+The denoiser implemented in this program is the AOV denoiser packaged with OptiX 8. The denoiser can optionally be set to 2x upscaling mode, which renders at half the preset render resolution and uses the denoiser to upscale back to the original size, reducing the raytracing workload. At the same render resolution, upscaling results in blurrier output for non-solid blocks such as leaves, but otherwise approximately doubles the frame rate. For more details on the denoisers, please refer to the official API documentation linked below in the references section.
 
 <p align="center">
-  <img src="screenshots/readme/pseudo2k_overworld.png" width="50%" /><img src="screenshots/readme/pseudo2k_cave.png" width="50%" />
+  <img src="screenshots/readme/trees_regular.png" width="50%" /><img src="screenshots/readme/trees_upscaled.png" width="50%" />
   <br>
-  <em>Raytraced at 1080p and upscaled during denoising to 2k resolution, then rendered at 1080p using bilinear interpolation.</em>
-</p>
-
-<p align="center">
-  <img src="screenshots/readme/2k_overworld.png" width="50%" /><img src="screenshots/readme/2k_cave.png" width="50%" />
-  <br>
-  <em>Raytraced and denoised at 2k resolution, rendered at 1080p using bilinear interpolation.</em>
+  <em>The same two trees, rendered at full resolution (left) and half resolution with upscaling (right). Notice that the leaves are much blurrier with upscaling.</em>
 </p>
 
 #### OptiX AOV
