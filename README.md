@@ -220,9 +220,7 @@ Once decorators are placed, the chunk's block data is fully complete. All that r
 
 ## OptiX Path Tracing
 
-TODO: Alan and Helena
-
-To efficiently render the terrain in a reaslistic fashion, this project uses a hardware-accelerated Path Tracing that supports \[list features here\]. For better performance optimization across different compatible compute devices, the path tracer is built using Nvidia OptiX 8.0 is for maximal usage of Ray Tracing Cores. The final pixel image is then rasterized through DirectX 11 that selects on start the latest supported version of DirectX 11 implementation to maximize rasterization performance. The application window and controls are implemented using the Windows API for maximal compatibility with the DirectX 11 renderer.
+To efficiently render the terrain realistically, this project uses a hardware-accelerated Path Tracing that supports \[list features here\]. For better performance optimization across different compatible compute devices, the path tracer is built using Nvidia OptiX 8.0 for maximal usage of Ray Tracing Cores. The final pixel image is then rasterized through DirectX 11, which selects the latest supported version of DirectX 11 implementation to maximize rasterization performance. The application window and controls are implemented using the Windows API for maximal compatibility with the DirectX 11 renderer.
 
 <p align="center">
   <img src="screenshots/readme/app_pipeline.png" width="30%" />
@@ -230,24 +228,27 @@ To efficiently render the terrain in a reaslistic fashion, this project uses a h
   <em>Flowchart outlining application process and API segmentation.</em>
 </p>
 
-As shown in the flowchart above, a typical cycle or frame of this application starts from processing any application messages. If an application message is received, it will trigger a corresponding scene state update, which may be a player movement, window resize, zoom adjustment, or camera rotation. All of these events may result in an update in the visible region, in which case the terrain generation process for the newly visible chunks are dispatched. Once chunk generation is complete, it would then trigger an update to the acceleration structures that the OptiX Ray Tracer checks for objects to trace. Regardless of whether new chunks are generated, the Path Tracing procedure would then be launched to determine what is currently visible to the camera, and send the accumulated noisy image to the denoiser with other guiding information. The final denoised output is then transferred to DirectX 11 for access through a fullscreen texture, which is then render as a textured rectangle that covers the entire application screen.
+As shown in the flowchart above, a typical cycle or frame of this application starts from processing any application messages. If an application message is received, it will trigger a corresponding scene state update, which may be a player movement, window resize, zoom adjustment, or camera rotation. All of these events may result in an update in the visible region, in which case the terrain generation process for the newly visible chunks is dispatched. Once chunk generation is complete, it would then trigger an update to the acceleration structures that the OptiX Ray Tracer checks for objects to trace. Regardless of whether new chunks are generated, the Path Tracing procedure would then be launched to determine what is currently visible to the camera and send the accumulated noisy image to the denoiser with other guiding information. The final denoised output is then transferred to DirectX 11 for access through a fullscreen texture, which is then rendered as a textured rectangle that covers the entire application screen.
 
 ### Base path tracer
 
 The path tracing functionalities are implemented on various OptiX Programs. These programs, similar to shaders, are located on the GPU and represent different shading operations. The shading programs are organized into different program groups that represent their functionality. The main program group that serves as the entry point to the device side code and defines the ray tracing behavior from the camera is the raygen program group, the shading that results from rays hitting the surface is defined in the hit program group, and the miss program group adds shading for rays that never hit geometry in the scene. 
 
-TODO: SBT
-- mapping for where are the shader programs and what parameters does each take and where are they
-
 As the user navigates through the terrain, old chunks are no longer rendered and new chunks are generated. To offload old chunks and render new chunks, the programs receive the TraversableHandle of the Instance Accelerated Structure, in which stores the Geometry Accelerated Structures of individual chunks. This way, the chunks to render can be updated dynamically by adding and removing GAS from the IAS, and the IAS Traversable Handle will remain the input to the geometry that gets passed to the programs. 
 
-The OptiX dispatch to render will call the raygen program first. As mentioned above, this program is responsible for the ray generation to shade every pixel shown to the screen. This function acts similarly to other device functions: it gets the launch index of the thread and each thread is solely responsible for the shading of one pixel. Then, this program will launch rays and the behavior of the rays are defined in the hit and miss programs. 
+<p align="center">
+  <img src="screenshots/readme/optix_programs.jpg" width="50%" />
+  <br>
+  <em>OptiX programs relations.</em>
+</p>
 
-TODO: hit program
+Before launching the OptiX shading programs on the device, the OptiX renderer defines a **Shading Binding Table** that maps geometric data to programs and their parameters. The SBT contains records that are selected during execution using offsets when GAS and IAS are created and updated in real-time. 
 
-TODO: miss program
+The OptiX dispatch to render will call the raygen program first. As mentioned above, this program is responsible for the ray generation to shade every pixel shown on the screen. This function acts similarly to other device functions: it gets the launch index of the thread and each thread is solely responsible for the shading of one pixel. Then, this program will launch rays and the behavior of the rays is defined in the hit and miss programs. 
 
-TODO: path tracing iteration overview
+The hit programs are called when a ray generated from the raygen program hits a geometry in the scene. There are two types of hit programs used for path tracing, any hit and closest hit programs. The any hit shader finds a new intersection point on the ray efficiently and is used for occlusion ray for shading shadows; the closest hit shader accurately finds the closest intersection point on the ray and is used to calculate color accumulation. 
+
+Situations where a ray doesn't hit any geometry in the scene are handled by miss shaders, and this is used to shade the sky and environment light influences.
 
 ### Path tracer features
 
