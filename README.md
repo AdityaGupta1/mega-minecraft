@@ -295,7 +295,23 @@ The sky includes a full day and night cycle, complete with a sun, moon, clouds, 
 
 ### Denoising
 
-The denoiser implemented in this program is the AOV denoiser packaged with OptiX 8. The denoiser can optionally be set to 2x upscaling mode, which renders at half the preset render resolution and uses the denoiser to upscale back to the original size, reducing the raytracing workload. At the same render resolution, upscaling results in blurrier output for non-solid blocks such as leaves, but otherwise approximately doubles the frame rate. For more details on the denoisers, please refer to the official API documentation linked below in the references section.
+The denoiser implemented in this program is the AOV denoiser packaged with OptiX 8. The denoiser can optionally be set to 2x upscaling mode, which renders at half the preset render resolution and uses the denoiser to upscale back to the original size, reducing the raytracing workload. This section gives a brief overview of each denoiser and its pros and cons. For more details on the denoisers, please refer to the official API documentation linked below in the references section.
+
+#### OptiX AOV denoiser
+
+The AOV denoiser takes in a noisy path traced image as well as auxiliary albedo and normals buffers. it also does some additional calculations for HDR inputs to determine the average color. Then, using a pre-trained neural network, it outputs a denoised final image. Using the auxiliary buffers greatly increases the denoiser's efficacy, especially in areas without much direct lighting, as the denoiser can more easily distinguish between different blocks and colors.
+
+Using a denoiser does result in a noticeable performance drop, but it leads to much faster convergence of the final image. It takes less than a second for the render to fully converge when aboveground. When underground, it takes around 5 seconds since we do not sample emissive surfaces for direct lighting.
+
+One caveat of the denoiser is that it does not work very well when the player is in motion. There is noticeable camera flickering as the path tracing noise moves across the screen, and the problem is once again exacerbated in caves due to the lack of direct lighting.
+
+#### OptiX 2x upscaling AOV denoiser
+
+The 2x upscaling AOV denoiser acts very similarly to the regular AOV denoiser, except that it additionally scales the image up by 2x. This allows for keeping the final render size constant while halving the raytracing resolution, effectively reducing the raytracing workload to 25%.
+
+This comes with the obvious advantage of greatly increasaing performance. We saw around a 2x improvement in performance when rendering at 720x540 and 1920x1080. Additionally, this model can be used for "supersampling" by raytracing at the window resolution, scaling up to 2x using the denoiser, then downsampling to the window resolution.
+
+However, this denoiser of course comes with some disadvantages. The main disadvantage is that areas with high frequency detail tend to become blurry. For example, tree leaves generally have high frequency detail because leaf textures have many transparent pixels mixed in among opaque pixels.
 
 <p align="center">
   <img src="screenshots/readme/trees_regular.png" width="50%" /><img src="screenshots/readme/trees_upscaled.png" width="50%" />
@@ -303,24 +319,7 @@ The denoiser implemented in this program is the AOV denoiser packaged with OptiX
   <em>The same two trees, rendered at full resolution (left) and half resolution with upscaling (right). Notice that the leaves are much blurrier with upscaling.</em>
 </p>
 
-#### OptiX AOV
-
- - pre-trained deep learning general denoiser that denoises a beauty image by interpolating which pixels should have what color based on the surrounding content
- - multi-pass denoiser that takes arbitrary output values (AOV) as additional inputs for better outcome
- - takes RGB, albedo, normal images as guides
- - also take AOVs such as HDR images of diffuse, emission, glossy, specular or other types of data
- - our implementation uses normal and albedo, helps with clearer seperation between blocks and better quality in low light and translucent situations
- - adds noticeable computational intensity, but leads to much faster convergence, taking less than a second for improvements to be indistriguishable in open terrain, and closer to 5 seconds in low light caves, as emissive surfaces currently are not treated as direct lights
- - does not work as well in motion due to randomness from indirect lighting and lack of frames to accumulate during motion
-
-#### OptiX 2X Upscaling AOV
-
- - improves quality of render for lower budget resolution by doing additional 2x2 upscaling pass of input image
- - model tries to interpolate more details but suffers some blurriness compared to a image rendered directly at the output resolution
- - useful for saving computational resources (i.e. rendering at lower resolution than screen and using scaling to reach screen resolution)
- - useful for budget "supersampling" by rendering to larger texture than window size, and then mixed down for display using bilinear interpolation
- - upscaling cost scales non-linearly with input image size, so performance improvement may not always reach 2x
- - also does not work well with motion, no temporal motion vectors considered
+Additionally, as with the regular AOV denoiser, this denoiser does not work very well with motion.
 
 ## Gallery
 
