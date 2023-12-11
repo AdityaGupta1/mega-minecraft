@@ -9,8 +9,12 @@
 ## Overview
 
 <p align="center">
-	<img src="screenshots/12-3-2023/010.png" />
+<img src="screenshots/12-6-2023/003.png" />
 </p>
+
+Video demo: https://youtu.be/-jJlK3-Xo-Q
+
+Presentations: [pitch](https://docs.google.com/presentation/d/1diNXEq5zh7sp-kLlicTRt6OauGhyoBQNioDrIS7CHgw/edit?usp=drive_link), [milestone 1](https://docs.google.com/presentation/d/1w-iPBXFwFRybcw83rd-0xASlZbd4SomW0N69Pd39GI8/edit?usp=drive_link), [milestone 2](https://docs.google.com/presentation/d/1ijMXoqlIA5VvDqb1u5g5c89ef7WNxHP0v6aBaLHurk0/edit?usp=drive_link), [milestone 3](https://docs.google.com/presentation/d/1v4xKOEgfSngcHueTKa6YUtCG71jlRXH6r8Zsi7kEJ9g/edit?usp=drive_link), [final](https://docs.google.com/presentation/d/1hJqihCJB2vvmbETzr0PaqVKXA8CzNjkt8WNAU2PxQN0/edit?usp=drive_link)
 
 This project aims to recreate Minecraft with two major upgrades: <ins>real-time path tracing</ins> with OptiX and <ins>GPU-accelerated terrain generation</ins> with CUDA.
 
@@ -47,7 +51,7 @@ Chunk generation in this project consists of several steps:
   - This includes trees, mushrooms, crystals, etc.
 - Chunk fill
 
-Some steps, such as heightfields and surface biomes, can be performed on single chunks without any information about neighboring chunks. However, some steps, such as terrain layers and erosion, require gathering information from neighboring chunks in order to prevent discontinuities along chunk borders. The following sections explain the requirements for each step:
+Some steps, such as heightfields and surface biomes, can be performed on single chunks without any information about neighboring chunks. However, some steps, such as terrain layers and erosion, require gathering information from neighboring chunks in order to prevent discontinuities along chunk borders. The following dropdown sections explain the requirements for each step:
 
 <details>
 <summary>Heightfields and surface biomes</summary>
@@ -220,7 +224,7 @@ Once decorators are placed, the chunk's block data is fully complete. All that r
 
 ## OptiX Path Tracing
 
-To efficiently render the terrain realistically, this project uses a hardware-accelerated Path Tracing that supports \[list features here\]. For better performance optimization across different compatible compute devices, the path tracer is built using Nvidia OptiX 8.0 for maximal usage of Ray Tracing Cores. The final pixel image is then rasterized through DirectX 11, which selects the latest supported version of DirectX 11 implementation to maximize rasterization performance. The application window and controls are implemented using the Windows API for maximal compatibility with the DirectX 11 renderer.
+To efficiently render the terrain realistically, this project uses hardware-accelerated path tracing which supports \[list features here\]. The path tracer itself is built with NVIDIA OptiX 8.0, while the final frame rasterizer and game window use DirectX 11 and the Windows API.
 
 <p align="center">
   <img src="screenshots/readme/app_pipeline.png" width="30%" />
@@ -228,7 +232,7 @@ To efficiently render the terrain realistically, this project uses a hardware-ac
   <em>Flowchart outlining application process and API segmentation.</em>
 </p>
 
-As shown in the flowchart above, a typical cycle or frame of this application starts from processing any application messages. If an application message is received, it will trigger a corresponding scene state update, which may be a player movement, window resize, zoom adjustment, or camera rotation. All of these events may result in an update in the visible region, in which case the terrain generation process for the newly visible chunks is dispatched. Once chunk generation is complete, it would then trigger an update to the acceleration structures that the OptiX Ray Tracer checks for objects to trace. Regardless of whether new chunks are generated, the Path Tracing procedure would then be launched to determine what is currently visible to the camera and send the accumulated noisy image to the denoiser with other guiding information. The final denoised output is then transferred to DirectX 11 for access through a fullscreen texture, which is then rendered as a textured rectangle that covers the entire application screen.
+As shown in the flowchart above, each frame starts from processing any application messages. If an application message is received, it will trigger a corresponding scene state update, which may be a player movement, window resize, zoom adjustment, or camera rotation. All of these events may result in an update in the visible region, in which case the terrain generation process for the newly visible chunks is dispatched. Once chunk generation is complete, it would then trigger an update to the acceleration structures that the OptiX Ray Tracer checks for objects to trace. Regardless of whether new chunks are generated, the Path Tracing procedure would then be launched to determine what is currently visible to the camera and send the accumulated noisy image to the denoiser with other guiding information. The final denoised output is then transferred to DirectX 11 for access through a fullscreen texture, which is then rendered as a textured rectangle that covers the entire application screen.
 
 ### Base path tracer
 
@@ -242,7 +246,7 @@ As the user navigates through the terrain, old chunks are no longer rendered and
   <em>OptiX programs relations.</em>
 </p>
 
-Before launching the OptiX shading programs on the device, the OptiX renderer defines a **Shading Binding Table** that maps geometric data to programs and their parameters. The SBT contains records that are selected during execution using offsets when GAS and IAS are created and updated in real-time. 
+Before launching the OptiX shading programs on the device, the OptiX renderer defines a **Shader Binding Table (SBT)** that maps geometric data to programs and their parameters. The SBT contains records that are selected during execution using offsets when GAS and IAS are created and updated in real-time. 
 
 The OptiX dispatch to render will call the raygen program first. As mentioned above, this program is responsible for the ray generation to shade every pixel shown on the screen. This function acts similarly to other device functions: it gets the launch index of the thread and each thread is solely responsible for the shading of one pixel. Then, this program will launch rays and the behavior of the rays is defined in the hit and miss programs. 
 
@@ -290,19 +294,23 @@ The sky includes a full day and night cycle, complete with a sun, moon, clouds, 
 </p>
 
 ### Denoising
-The denoiser implemented in this program is the AOV denoiser packaged with NVIDIA OptiX 8. The denoiser can optionally be set to 2X Upscaling mode, which renders at half the preset render resolution and uses the denoiser to upscale back to the original size, reducing the raytracing workload. At the same render resolution, upscaling results in blurrier output for non-solid blocks such as leaves, but otherwise approximately doubles the frame rate. This section will provide a brief overview of how each denoiser works and the render outcomes. For more details on the denoisers, please refer to the official API documentations, linked below in the reference section.
+
+The denoiser implemented in this program is the AOV denoiser packaged with OptiX 8. The denoiser can optionally be set to 2x upscaling mode, which renders at half the preset render resolution and uses the denoiser to upscale back to the original size, reducing the raytracing workload. At the same render resolution, upscaling results in blurrier output for non-solid blocks such as leaves, but otherwise approximately doubles the frame rate. This section will provide a brief overview of how each denoiser works and the render outcomes. For more details on the denoisers, please refer to the official API documentation linked below in the references section.
+
 <p align="center">
-    <img src="screenshots/readme/pseudo2k_overworld.png" width="50%" /><img src="screenshots/readme/pseudo2k_cave.png" width="50%" />
+  <img src="screenshots/readme/pseudo2k_overworld.png" width="50%" /><img src="screenshots/readme/pseudo2k_cave.png" width="50%" />
   <br>
-  <em>Raytraced at 1080p and upscaled during denoising to 2k resolution, then rendered at 1080p using linear interpolation.</em>
+  <em>Raytraced at 1080p and upscaled during denoising to 2k resolution, then rendered at 1080p using bilinear interpolation.</em>
 </p>
 
 <p align="center">
   <img src="screenshots/readme/2k_overworld.png" width="50%" /><img src="screenshots/readme/2k_cave.png" width="50%" />
   <br>
-  <em>Raytraced and denoised at 2k resolution, rendered at 1080p using linear interpolation.</em>
+  <em>Raytraced and denoised at 2k resolution, rendered at 1080p using bilinear interpolation.</em>
 </p>
+
 #### OptiX AOV
+
  - pre-trained deep learning general denoiser that denoises a beauty image by interpolating which pixels should have what color based on the surrounding content
  - multi-pass denoiser that takes arbitrary output values (AOV) as additional inputs for better outcome
  - takes RGB, albedo, normal images as guides
@@ -312,6 +320,7 @@ The denoiser implemented in this program is the AOV denoiser packaged with NVIDI
  - does not work as well in motion due to randomness from indirect lighting and lack of frames to accumulate during motion
 
 #### OptiX 2X Upscaling AOV
+
  - improves quality of render for lower budget resolution by doing additional 2x2 upscaling pass of input image
  - model tries to interpolate more details but suffers some blurriness compared to a image rendered directly at the output resolution
  - useful for saving computational resources (i.e. rendering at lower resolution than screen and using scaling to reach screen resolution)
@@ -369,6 +378,8 @@ Sections are organized in chronological order.
 - [Procedural Generation of Volumetric Data for Terrain](https://www.diva-portal.org/smash/get/diva2:1355216/FULLTEXT01.pdf) (Machado 2019)
 - [<em>Physically Based Rendering: From Theory to Implementation</em>](https://pbrt.org/)
 - [Ingo Wald's OptiX 7 course](https://github.com/ingowald/optix7course)
+- OptiX [Programming Guide](https://raytracing-docs.nvidia.com/optix8/guide/index.html#preface#) and [API documentation](https://raytracing-docs.nvidia.com/optix8/api/index.html)
+- [CUDA Programming Guide](https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html)
 - [Worley's Caves](https://www.curseforge.com/minecraft/mc-mods/worleys-caves)
 - [BetterEnd](https://www.curseforge.com/minecraft/mc-mods/betterend)
 
