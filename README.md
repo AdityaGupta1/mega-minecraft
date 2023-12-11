@@ -16,7 +16,7 @@ Video demo: https://youtu.be/-jJlK3-Xo-Q
 
 Presentations: [pitch](https://docs.google.com/presentation/d/1diNXEq5zh7sp-kLlicTRt6OauGhyoBQNioDrIS7CHgw/edit?usp=drive_link), [milestone 1](https://docs.google.com/presentation/d/1w-iPBXFwFRybcw83rd-0xASlZbd4SomW0N69Pd39GI8/edit?usp=drive_link), [milestone 2](https://docs.google.com/presentation/d/1ijMXoqlIA5VvDqb1u5g5c89ef7WNxHP0v6aBaLHurk0/edit?usp=drive_link), [milestone 3](https://docs.google.com/presentation/d/1v4xKOEgfSngcHueTKa6YUtCG71jlRXH6r8Zsi7kEJ9g/edit?usp=drive_link), [final](https://docs.google.com/presentation/d/1hJqihCJB2vvmbETzr0PaqVKXA8CzNjkt8WNAU2PxQN0/edit?usp=drive_link)
 
-This project aims to recreate Minecraft with two major upgrades: <ins>real-time path tracing</ins> with OptiX and <ins>GPU-accelerated terrain generation</ins> with CUDA.
+This project aims to recreate Minecraft with two major upgrades: **<ins>real-time path tracing</ins>** with OptiX and **<ins>GPU-accelerated terrain generation</ins>** with CUDA.
 
 Minecraft is rendered by rasterization and a block-based lighting system, which works very well for gameplay. Minecraft shaders take that to the next level by introducing features such as shadow mapping, screen space reflections, and dynamic lighting. This project goes one step further by using the RTX accelerated OptiX framework to perform rendering entirely through path tracing, which gives realistic lighting, shadows, and reflections.
 
