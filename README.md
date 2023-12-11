@@ -237,6 +237,7 @@ As shown in the flowchart above, a typical cycle or frame of this application st
 The path tracing functionalities are implemented on various OptiX Programs. These programs, similar to shaders, are located on the GPU and represent different shading operations. The shading programs are organized into different program groups that represent their functionality. The main program group that serves as the entry point to the device side code and defines the ray tracing behavior from the camera is the raygen program group, the shading that results from rays hitting the surface is defined in the hit program group, and the miss program group adds shading for rays that never hit geometry in the scene. 
 
 TODO: SBT
+- mapping for where are the shader programs and what parameters does each take and where are they
 
 As the user navigates through the terrain, old chunks are no longer rendered and new chunks are generated. To offload old chunks and render new chunks, the programs receive the TraversableHandle of the Instance Accelerated Structure, in which stores the Geometry Accelerated Structures of individual chunks. This way, the chunks to render can be updated dynamically by adding and removing GAS from the IAS, and the IAS Traversable Handle will remain the input to the geometry that gets passed to the programs. 
 
@@ -260,7 +261,16 @@ TODO: Volumetric Scattering
 
 ### Optimizations
 
-TODO: Alan
+ - compile flags that turns on additional buffers and compiles code to a less optimized level for debug tracing
+ - release code removed most error checks and packs OptiX code more compactly for faster execution with less instructions
+ - since number of chunks to render fixed, pushes memory allocation as much as possible to initialization (i.e. leaving enough space for building acceleration structures of all chunks to trace) to avoid slow down from device syncing for memory modification
+ - Uses a single level hierarchical acceleration structure where root AS points to list of chunks, which are each an instance AS that specifies a transformation for the chunk to its world space position and a geometry AS containing actual geometry of chunk to render
+ - This ways allows quick iteration through list to find closest chunk before searching for specific intersections
+ - chunks are built slightly prebuilt beyond visual zone and destroyed after certain distance for smoother loading
+ - denoised pixel data buffer is directly copied to D3D11 texture in device using CUDA-D3D11 Interop for fast memory transfer
+ - D3D11 renderer using oversized fullscreen triangle to minimize rasterization overhead
+ - vertex shader generates vertex positions directly to minimize memory footprint
+ - texture mapping uses linear interpolation for fastest output, may be useful to switch to anisotropic for better results with 2x upscaling.
 
 ### Sky
 
@@ -279,16 +289,24 @@ The sky includes a full day and night cycle, complete with a sun, moon, clouds, 
 </p>
 
 ### Denoising
-
-TODO: Alan
-
-There are three denoisers supported in this program. The OptiX AOV Denoiser offers most detailed static output and is compatible with both OpenGL and DirectX 11 renderer. The OptiX 2X Upscaling Denoiser is the least resource intensive and compatible with both renders, but suffers from lower output quality. The Nivdia Real-time Denoiser offers the best dynamic outcome, but is only compatible with the DirectX 11 renderer and performs worth than OptiX AOV when static. This section will provide a brief overview of how each denoiser works and the render outcomes. For more details on the denoisers, please refer to the official API documentations, linked below in the reference section.
+The denoiser implemented in this program is the AOV denoiser packaged with NVIDIA OptiX 8. The denoiser can optionally be set to 2X Upscaling mode, which renders at half the preset render resolution and uses the denoiser to upscale back to the original size, reducing the raytracing workload. At the same render resolution, upscaling results in blurrier output for non-solid blocks such as leaves, but otherwise approximately doubles the frame rate. This section will provide a brief overview of how each denoiser works and the render outcomes. For more details on the denoisers, please refer to the official API documentations, linked below in the reference section.
 
 #### OptiX AOV
+ - pre-trained deep learning general denoiser that denoises a beauty image by interpolating which pixels should have what color based on the surrounding content
+ - multi-pass denoiser that takes arbitrary output values (AOV) as additional inputs for better outcome
+ - takes RGB, albedo, normal images as guides
+ - also take AOVs such as HDR images of diffuse, emission, glossy, specular or other types of data
+ - our implementation uses normal and albedo, helps with clearer seperation between blocks and better quality in low light and translucent situations
+ - adds noticeable computational intensity, but leads to much faster convergence, taking less than a second for improvements to be indistriguishable in open terrain, and closer to 5 seconds in low light caves, as emissive surfaces currently are not treated as direct lights
+ - does not work as well in motion due to randomness from indirect lighting and lack of frames to accumulate during motion
 
 #### OptiX 2X Upscaling AOV
-
-#### Nvidia Real-time Denoiser (NDR)
+ - improves quality of render for lower budget resolution by doing additional 2x2 upscaling pass of input image
+ - model tries to interpolate more details but suffers some blurriness compared to a image rendered directly at the output resolution
+ - useful for saving computational resources (i.e. rendering at lower resolution than screen and using scaling to reach screen resolution)
+ - useful for budget "supersampling" by rendering to larger texture than window size, and then mixed down for display using bilinear interpolation
+ - upscaling cost scales non-linearly with input image size, so performance improvement may not always reach 2x
+ - also does not work well with motion, no temporal motion vectors considered
 
 ## Gallery
 
