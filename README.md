@@ -180,7 +180,7 @@ At this point, the surface height, each cave layer's start and end height, and a
 Each feature type has its own uniform grid with varying cell size and cell padding. For example, large purple mushrooms have a cell size of 10 and a padding of 2, meaning that each mushroom is placed at a random point in the center 6x6 area of a 10x10 grid cell. Each cell also has a certain chance of actually containing the feature, which helps give a more random appearance to the placements. For large purple mushrooms, the chance is 50%.
 
 <p align="center">
-  <img src="screenshots/readme/feature_placement.png" width="25%" />
+  <img src="screenshots/readme/feature_placement.png" width="30%" />
   <br>
   <em>Continuing the purple mushrooms example, each grid cell (outlined by black borders) represents 10x10 blocks. Gray areas are padding and purple dots are feature placements.</em>
 </p>
