@@ -132,17 +132,36 @@ __device__ float3 calculateDirectionNotNormal(const float3 normal)
 
 __device__ float3 calculateRandomDirectionInHemisphere(float3 normal, float2 sample)
 {
-    const float up = sqrt(sample.x); // cos(theta)
-    const float over = sqrt(1.f - sample.x); // sin(theta)
-    const float around = sample.y * TWO_PI;
+    //const float up = sqrt(sample.x); // cos(theta)
+    //const float over = sqrt(1.f - sample.x); // sin(theta)
+    //const float around = sample.y * TWO_PI;
 
     // Use not-normal direction to generate two perpendicular directions
     const float3 perpendicularDirection1 = normalize(cross(normal, calculateDirectionNotNormal(normal)));
     const float3 perpendicularDirection2 = normalize(cross(normal, perpendicularDirection1));
 
-    return up * normal
-        + cos(around) * over * perpendicularDirection1
-        + sin(around) * over * perpendicularDirection2;
+    float x = (sample.x - 0.5f) * 2.f;
+    float y = (sample.y - 0.5f) * 2.f;
+
+    float r = 0.f;
+    float z = 0.f;
+    float angle = 0.f;
+
+    if (powf(x, 2.f) > powf(y, 2.f)) {
+        angle = (M_PI / 4.f) * (y / x);
+        r = x;
+        z = sqrtf(1.f - powf(x, 2.f));
+    }
+    else {
+        angle = (M_PI / 2.f) - (M_PI / 4.f * (x / y));
+        r = y;
+        z = sqrtf(1.f - powf(y, 2.f));
+    }
+
+
+    return z * normal
+        + cos(angle) * r * perpendicularDirection1
+        + sin(angle) * r * perpendicularDirection2;
 }
 
 __device__ float3 sampleStar(float2 sample, bool isSun, bool scattering)
@@ -735,6 +754,7 @@ extern "C" __global__ void __miss__radiance()
     float skyTime = 240.f;
     float r = rng(prd.seed);
     prd.isDone = true;
+    /*
     if (prd.needsFirstHitData) {
         prd.needsFirstHitData = false;
         prd.pixelAlbedo = skyColor;
@@ -746,6 +766,7 @@ extern "C" __global__ void __miss__radiance()
         prd.fogColor = skyColor;
         prd.fogFactor = 1.f - prd.scatterFactor;
     }
+    */
     prd.pixelColor += skyColor * prd.rayColor;
 }
 
@@ -866,6 +887,7 @@ extern "C" __global__ void __closesthit__radiance() {
     const float3 rayOrigin = optixGetWorldRayOrigin();
     const float3 isectPos = rayOrigin + rayDir * t;
 
+    /*
     float scatter = volumetricScattering(t);
     float r = rng(prd.seed);
     if (prd.needsFirstHitData && scatter > r) {
@@ -879,6 +901,7 @@ extern "C" __global__ void __closesthit__radiance() {
         prd.fogFactor = calculateFogFactor();
         return;
     }
+    */
 
     // REFL REFR
 
@@ -954,10 +977,9 @@ extern "C" __global__ void __closesthit__radiance() {
 
     prd.specularHit = false;
 
-    float3 norMap = make_float3(tex2D<float4>(chunkData.tex_normal, uv.x, uv.y));
-    //float3 mappednor = normalize(lerp(nor, normalize(applyNormalMap(nor, norMap)), 0.75f));
     float3 newDir = calculateRandomDirectionInHemisphere(nor, rng2(prd.seed));
 
+    /*
     if (m.roughness > 0.f) {
         float3 wo = -rayDir;
         float3 wh = importanceSampleGGX(rng2(prd.seed), nor, m.roughness); // warping xi to wi
@@ -970,6 +992,7 @@ extern "C" __global__ void __closesthit__radiance() {
         //float sparkles = sparkling((make_float2(rayOrigin.x, rayOrigin.z) * make_float2(v1.pos.x, v1.pos.z)) + floor(uv * 256.f), m.roughness);
         //diffuseCol *= sparkles;
     }
+    */
 
     // EMISSION
 
@@ -999,8 +1022,6 @@ extern "C" __global__ void __closesthit__radiance() {
     }
 
     // distance fog test 
-    
-    
 
     // don't multiply by lambert term since it's canceled out by PDF for uniform hemisphere sampling
 
