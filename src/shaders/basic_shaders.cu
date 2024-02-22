@@ -132,16 +132,12 @@ __device__ float3 calculateDirectionNotNormal(const float3 normal)
 
 __device__ float3 calculateRandomDirectionInHemisphere(float3 normal, float2 sample)
 {
-    //const float up = sqrt(sample.x); // cos(theta)
-    //const float over = sqrt(1.f - sample.x); // sin(theta)
-    //const float around = sample.y * TWO_PI;
-
     // Use not-normal direction to generate two perpendicular directions
     const float3 perpendicularDirection1 = normalize(cross(normal, calculateDirectionNotNormal(normal)));
     const float3 perpendicularDirection2 = normalize(cross(normal, perpendicularDirection1));
 
-    float x = (sample.x - 0.5f) * 2.f;
-    float y = (sample.y - 0.5f) * 2.f;
+    float x = sample.x;
+    float y = sample.y;
 
     float r = 0.f;
     float z = 0.f;
