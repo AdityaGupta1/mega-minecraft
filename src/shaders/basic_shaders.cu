@@ -114,12 +114,12 @@ float powerHeuristics(int nf, float pdf_f, int ng, float pdf_g) {
     return f * f / (f * f + g * g);
 }
 
-__device__ void UpdateReservoir(float4& r, const float x, const float w, const float rndnum)
+__device__ void UpdateReservoir(Reservoir& r, const float x, const float w, const float rndnum)
 {
-    /*r->wsum += w;
-    r->M += 1;
-    if (rndnum < (w / r->wsum))
-        r->y = x;*/
+    r.wsum += w;
+    r.M += 1;
+    if (rndnum < (w / r.wsum))
+        r.y = x;
 }
 
 __device__ float3 calculateDirectionNotNormal(const float3 normal)
