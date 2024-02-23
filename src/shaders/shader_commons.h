@@ -31,6 +31,14 @@ struct Vertex
     Mats m{ Mats::M_DIFFUSE };
 };
 
+struct Reservoir
+{
+    float y; //The output sample
+    float wsum; // the sum of weights
+    float M; //the number of samples seen so far
+    float W; //Probablistic weight
+};
+
 struct OptixParams
 {
     OptixTraversableHandle rootHandle;
@@ -40,6 +48,8 @@ struct OptixParams
         float4* colorBuffer;
         float4* albedoBuffer;
         float4* normalBuffer;
+        Reservoir* prevFrameRes;
+        Reservoir* intermRes;
         int frameId;
     } frame;
 
